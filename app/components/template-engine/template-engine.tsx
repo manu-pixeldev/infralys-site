@@ -1,11 +1,10 @@
-// app/components/template-engine/template-engine.tsx
 "use client";
 
 import React from "react";
 import ReactDOM from "react-dom";
-import NextImage from "next/image";
+import Image from "next/image";
 
-import type { TemplateConfig } from "./types";
+import type { TemplateConfigInput } from "./types";
 import { getTheme, cx } from "./theme";
 import { VARIANTS } from "./variants";
 import { StudioPanel } from "./studio-panel";
@@ -17,16 +16,10 @@ function FxStyles({ enabled, ambient }: { enabled: boolean; ambient: boolean }) 
   return (
     <style jsx global>{`
       @keyframes scanBorder {
-        0% {
-          background-position: 0% 50%;
-        }
-        100% {
-          background-position: 200% 50%;
-        }
+        0% { background-position: 0% 50%; }
+        100% { background-position: 200% 50%; }
       }
-      .fx-border-scan {
-        position: relative;
-      }
+      .fx-border-scan { position: relative; }
       .fx-border-scan::before {
         content: "";
         position: absolute;
@@ -49,30 +42,15 @@ function FxStyles({ enabled, ambient }: { enabled: boolean; ambient: boolean }) 
         animation: scanBorder 5s linear infinite;
       }
 
-      .fx-softglow {
-        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.08);
-      }
+      .fx-softglow { box-shadow: 0 18px 60px rgba(0,0,0,0.08); }
 
       @keyframes shimmer {
-        0% {
-          transform: translateX(-120%) skewX(-18deg);
-          opacity: 0;
-        }
-        20% {
-          opacity: 0.55;
-        }
-        60% {
-          opacity: 0.35;
-        }
-        100% {
-          transform: translateX(120%) skewX(-18deg);
-          opacity: 0;
-        }
+        0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+        20% { opacity: 0.55; }
+        60% { opacity: 0.35; }
+        100% { transform: translateX(120%) skewX(-18deg); opacity: 0; }
       }
-      .fx-shimmer {
-        position: relative;
-        overflow: hidden;
-      }
+      .fx-shimmer { position: relative; overflow: hidden; }
       .fx-shimmer::after {
         content: "";
         position: absolute;
@@ -80,13 +58,12 @@ function FxStyles({ enabled, ambient }: { enabled: boolean; ambient: boolean }) 
         left: -40%;
         width: 40%;
         height: 140%;
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
         animation: shimmer 2.8s ease-in-out infinite;
         pointer-events: none;
       }
 
-      ${ambient
-        ? `
+      ${ambient ? `
         .fx-ambient { position: relative; }
         .fx-ambient::before{
           content:"";
@@ -100,8 +77,20 @@ function FxStyles({ enabled, ambient }: { enabled: boolean; ambient: boolean }) 
           z-index: 0;
         }
         .fx-ambient > * { position: relative; z-index: 1; }
-      `
-        : ``}
+      ` : ``}
+
+      /* Reveal one-shot */
+      .reveal { will-change: opacity, transform; transition: opacity 520ms ease, transform 520ms ease; }
+      .reveal[data-reveal="pending"] { opacity: 0; transform: translateY(14px); }
+      .reveal.is-in { opacity: 1; transform: translateY(0); }
+
+      @media (prefers-reduced-motion: reduce) {
+        .reveal, .reveal[data-reveal="pending"] {
+          opacity: 1 !important;
+          transform: none !important;
+          transition: none !important;
+        }
+      }
     `}</style>
   );
 }
@@ -119,7 +108,6 @@ function fallbackVariant(type: string) {
   }
 }
 
-
 function resolveContactVariantFromHero(heroVariant: string): "A" | "B" {
   const dark = ["A", "B", "D", "E", "G", "H"].includes(String(heroVariant));
   return dark ? "B" : "A";
@@ -127,34 +115,30 @@ function resolveContactVariantFromHero(heroVariant: string): "A" | "B" {
 
 type AnyImg = { src: string; alt?: string; caption?: string } | null;
 
-/** ✅ Résolution centralisée */
-function resolveConfig(input: TemplateConfig): TemplateConfig {
+function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
   const clone =
     typeof structuredClone === "function"
       ? structuredClone(input)
-      : (JSON.parse(JSON.stringify(input)) as TemplateConfig);
+      : (JSON.parse(JSON.stringify(input)) as TemplateConfigInput);
 
-  const next = clone as TemplateConfig;
+  const next = clone as any;
 
-  // options safe
-  next.options = next.options ?? ({} as any);
-  (next.options as any).fx = (next.options as any).fx ?? ({} as any);
-
+  next.options = next.options ?? {};
+  next.options.fx = next.options.fx ?? {};
   next.options.fx = {
     enabled: !!next.options.fx?.enabled,
     ambient: !!next.options.fx?.ambient,
     softGlow: !!next.options.fx?.softGlow,
     borderScan: !!next.options.fx?.borderScan,
-    shimmerCta: !!(next.options.fx as any)?.shimmerCta,
+    shimmerCta: !!next.options.fx?.shimmerCta,
     ...(next.options.fx ?? {}),
   };
 
-  // brand.logo safe
-  next.brand = next.brand ?? ({} as any);
-  next.brand.logo = next.brand.logo ?? ({} as any);
+  next.brand = next.brand ?? {};
+  next.brand.logo = next.brand.logo ?? {};
 
-  const mode = (next.brand.logo as any).mode ?? "logoPlusText";
-  (next.brand.logo as any).mode = mode;
+  const mode = next.brand.logo.mode ?? "logoPlusText";
+  next.brand.logo.mode = mode;
 
   const w = Number(next.brand.logo.width ?? 80);
   const h = Number(next.brand.logo.height ?? 80);
@@ -167,7 +151,8 @@ function resolveConfig(input: TemplateConfig): TemplateConfig {
     next.brand.logo.src = next.brand.logo.src ?? "/brand/logo.svg";
   }
 
-  // split moderne -> legacy
+  next.content = next.content ?? {};
+
   const s = next.content?.split;
   if (s) {
     next.content.splitTitle = next.content.splitTitle ?? s.title ?? "";
@@ -178,39 +163,30 @@ function resolveConfig(input: TemplateConfig): TemplateConfig {
     next.content.splitCtaHref = next.content.splitCtaHref ?? s.ctaHref ?? "";
   }
 
-  return next;
+  next.sections = Array.isArray(next.sections) ? next.sections : [];
+  return next as TemplateConfigInput;
 }
 
 export function TemplateEngine({
   config,
   setConfig,
 }: {
-  config: TemplateConfig;
-  setConfig?: React.Dispatch<React.SetStateAction<TemplateConfig>>;
+  config: TemplateConfigInput;
+  setConfig?: React.Dispatch<React.SetStateAction<TemplateConfigInput>>;
 }) {
-  /** ✅ LIVE CONFIG (résolu) */
-  const [liveConfig, setLiveConfig] = React.useState<TemplateConfig>(() => resolveConfig(config));
+  const [liveConfig, setLiveConfig] = React.useState<TemplateConfigInput>(() => resolveConfig(config));
 
-  // sync from parent -> local
   React.useEffect(() => {
     setLiveConfig(resolveConfig(config));
   }, [config]);
 
-  /**
-   * ✅ setter LOCAL ONLY (NE PAS setConfig ici)
-   * sinon React warning "update parent while rendering child"
-   */
-  const setBoth = React.useCallback((next: React.SetStateAction<TemplateConfig>) => {
+  const setBoth = React.useCallback((next: React.SetStateAction<TemplateConfigInput>) => {
     setLiveConfig((prev) => {
       const computed = typeof next === "function" ? (next as any)(prev) : next;
       return resolveConfig(computed);
     });
   }, []);
 
-  /**
-   * ✅ push vers parent APRÈS render
-   * avec anti-boucle (stringify)
-   */
   const lastSentRef = React.useRef<string>("");
   React.useEffect(() => {
     if (!setConfig) return;
@@ -220,11 +196,10 @@ export function TemplateEngine({
     setConfig(liveConfig);
   }, [liveConfig, setConfig]);
 
-  /** ✅ Portal mount */
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
-  const fx = liveConfig.options?.fx ?? {
+  const fx = (liveConfig as any).options?.fx ?? {
     enabled: false,
     ambient: false,
     softGlow: false,
@@ -232,19 +207,36 @@ export function TemplateEngine({
     shimmerCta: false,
   };
 
-  const themeVariant = liveConfig.options?.themeVariant ?? ("amberOrange" as any);
+  const themeVariant = (liveConfig as any).options?.themeVariant ?? "amberOrange";
   const theme = React.useMemo(() => getTheme(themeVariant), [themeVariant]);
 
-  /** Sticky header scroll padding */
+  /** ✅ Header measurements (single truth) */
   const headerRef = React.useRef<HTMLElement>(null);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const el = headerRef.current;
+
+    // safe reset (avoid stale)
+    document.documentElement.style.setProperty("--header-h", "0px");
+    document.documentElement.style.setProperty("--header-offset", "0px");
+    document.documentElement.style.scrollPaddingTop = "0px";
+
     if (!el) return;
 
     const apply = () => {
       const h = el.getBoundingClientRect().height;
-      document.documentElement.style.scrollPaddingTop = `${Math.ceil(h) + 12}px`;
+      const headerH = Math.ceil(h);
+
+      // keep sane (prevents weird spikes)
+      const SAFE_MAX = 240;
+      const safeH = Math.max(0, Math.min(headerH, SAFE_MAX));
+
+      const gap = 12; // "respiration pro"
+      const offset = safeH + gap;
+
+      document.documentElement.style.setProperty("--header-h", `${safeH}px`);
+      document.documentElement.style.setProperty("--header-offset", `${offset}px`);
+      document.documentElement.style.scrollPaddingTop = `${offset}px`;
     };
 
     apply();
@@ -265,25 +257,81 @@ export function TemplateEngine({
       if (ro) ro.disconnect();
       if (onResize) window.removeEventListener("resize", onResize);
     };
-  }, [liveConfig.sections]);
+  }, [(liveConfig as any).sections]);
+
+  /** Header shrink */
+  const [isScrolled, setIsScrolled] = React.useState(false);
+  React.useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  /** Active section */
+  const [activeHref, setActiveHref] = React.useState<string>("#top");
+  React.useEffect(() => {
+    const secs = ((liveConfig as any).sections ?? []).filter(
+      (s: any) => s?.enabled !== false && s.type !== "header"
+    );
+
+    const ids = secs.map((s: any) => String(s.id));
+    const elements = ids
+      .map((id: string) => document.getElementById(id))
+      .filter(Boolean) as HTMLElement[];
+
+    if (!elements.length) return;
+
+    const IO = (window as any).IntersectionObserver as typeof IntersectionObserver | undefined;
+    if (!IO) return;
+
+    const observer = new IO(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => (b.intersectionRatio || 0) - (a.intersectionRatio || 0))[0];
+
+        if (visible?.target?.id) {
+          const id = (visible.target as HTMLElement).id;
+          setActiveHref(id === "top" ? "#top" : `#${id}`);
+        }
+      },
+      { root: null, rootMargin: "-20% 0px -65% 0px", threshold: [0.08, 0.15, 0.25, 0.4, 0.6] }
+    );
+
+    elements.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [(liveConfig as any).sections]);
+
+  /** Smooth scroll */
+  React.useEffect(() => {
+    if (typeof document === "undefined") return;
+    const prev = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = "smooth";
+    return () => {
+      document.documentElement.style.scrollBehavior = prev;
+    };
+  }, []);
 
   /** Nav links from galleries */
   const galleryLinks = React.useMemo(() => {
-    const g = liveConfig.content?.galleries ?? [];
+    const g = (liveConfig as any).content?.galleries ?? [];
     return g.map((x: any) => ({ id: x.id, title: x.title }));
-  }, [liveConfig.content?.galleries]);
+  }, [(liveConfig as any).content]);
 
   /** Lightbox */
   const flatImages = React.useMemo(() => {
     const list: any[] = [];
-    (liveConfig.content?.galleries ?? []).forEach((g: any) => (g.images ?? []).forEach((img: any) => list.push(img)));
+    (((liveConfig as any).content?.galleries ?? []) as any[]).forEach((g: any) =>
+      (g.images ?? []).forEach((img: any) => list.push(img))
+    );
     return list;
-  }, [liveConfig.content?.galleries]);
+  }, [(liveConfig as any).content]);
 
   const [lightboxOpen, setLightboxOpen] = React.useState(false);
   const [activeImg, setActiveImg] = React.useState<AnyImg>(null);
 
-  const enableLightbox = (liveConfig.options as any)?.enableLightbox ?? true;
+  const enableLightbox = (liveConfig as any).options?.enableLightbox ?? true;
 
   const onOpenImage = React.useCallback(
     (img: any) => {
@@ -301,7 +349,9 @@ export function TemplateEngine({
 
   const activeIndex = React.useMemo(() => {
     if (!activeImg) return -1;
-    return flatImages.findIndex((x) => x?.src === activeImg.src && (x?.caption ?? "") === (activeImg.caption ?? ""));
+    return flatImages.findIndex(
+      (x) => x?.src === activeImg.src && (x?.caption ?? "") === (activeImg.caption ?? "")
+    );
   }, [activeImg, flatImages]);
 
   const prevImg = React.useCallback(() => {
@@ -330,25 +380,138 @@ export function TemplateEngine({
   }, [lightboxOpen, closeLightbox, prevImg, nextImg]);
 
   const heroVariant = React.useMemo(
-    () => (liveConfig.sections?.find((x: any) => x.type === "hero")?.variant ?? "B") as any,
-    [liveConfig.sections]
+    () => ((((liveConfig as any).sections ?? []).find((x: any) => x.type === "hero")?.variant ?? "B") as any),
+    [(liveConfig as any).sections]
   );
 
   const showTeam = React.useMemo(
-    () => !!liveConfig.sections?.find((x: any) => x.type === "team" && x.enabled !== false),
-    [liveConfig.sections]
+    () => !!(((liveConfig as any).sections ?? []).find((x: any) => x.type === "team" && x.enabled !== false)),
+    [(liveConfig as any).sections]
   );
 
   const hasServices = React.useMemo(
-    () => !!liveConfig.sections?.some((x: any) => x.type === "services" && x.enabled !== false),
-    [liveConfig.sections]
+    () => !!(((liveConfig as any).sections ?? []).some((x: any) => x.type === "services" && x.enabled !== false)),
+    [(liveConfig as any).sections]
   );
 
-  const globalLayout = (liveConfig.options as any)?.layout;
+  const globalLayout = (liveConfig as any).options?.layout;
+
+  /** Reveal one-shot */
+  const revealRefs = React.useRef<Map<string, HTMLElement>>(new Map());
+  const revealed = React.useRef<Set<string>>(new Set());
+
+  React.useLayoutEffect(() => {
+    const entries = Array.from(revealRefs.current.entries());
+    if (!entries.length) return;
+
+    const vh = window.innerHeight || 800;
+    const fold = vh + Math.floor(vh * 0.35);
+
+    entries.forEach(([id, el]) => {
+      if (revealed.current.has(id)) {
+        el.classList.add("is-in");
+        el.setAttribute("data-reveal", "done");
+        return;
+      }
+
+      const r = el.getBoundingClientRect();
+      const alreadyVisible = r.top < fold && r.bottom > 0;
+
+      if (alreadyVisible) {
+        el.classList.add("is-in");
+        revealed.current.add(id);
+        el.setAttribute("data-reveal", "done");
+      } else {
+        el.setAttribute("data-reveal", "pending");
+      }
+    });
+
+    const IO = (window as any).IntersectionObserver as typeof IntersectionObserver | undefined;
+    if (!IO) {
+      entries.forEach(([id, el]) => {
+        el.classList.add("is-in");
+        revealed.current.add(id);
+        el.setAttribute("data-reveal", "done");
+      });
+      return;
+    }
+
+    const obs = new IO(
+      (ioEntries) => {
+        for (const e of ioEntries) {
+          if (!e.isIntersecting) continue;
+          const el = e.target as HTMLElement;
+          const id = el.getAttribute("data-reveal-id") || "";
+          if (!id) continue;
+
+          el.classList.add("is-in");
+          el.setAttribute("data-reveal", "done");
+          revealed.current.add(id);
+          obs.unobserve(el);
+        }
+      },
+      { root: null, rootMargin: "0px 0px -10% 0px", threshold: 0.12 }
+    );
+
+    entries.forEach(([id, el]) => {
+      if (!revealed.current.has(id)) obs.observe(el);
+    });
+
+    const recheck = () => {
+      const vh2 = window.innerHeight || 800;
+      const fold2 = vh2 + Math.floor(vh2 * 0.35);
+      entries.forEach(([id, el]) => {
+        if (revealed.current.has(id)) return;
+        const r = el.getBoundingClientRect();
+        if (r.top < fold2 && r.bottom > 0) {
+          el.classList.add("is-in");
+          el.setAttribute("data-reveal", "done");
+          revealed.current.add(id);
+          obs.unobserve(el);
+        }
+      });
+    };
+
+    const t1 = window.setTimeout(recheck, 220);
+    const t2 = window.setTimeout(recheck, 700);
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      obs.disconnect();
+    };
+  }, [(liveConfig as any).sections, themeVariant]);
+
+  const registerReveal = React.useCallback((id: string) => {
+    return (node: HTMLElement | null) => {
+      if (!id) return;
+
+      if (!node) {
+        revealRefs.current.delete(id);
+        return;
+      }
+
+      node.setAttribute("data-reveal-id", id);
+
+      if (revealed.current.has(id)) {
+        node.classList.add("is-in");
+        node.setAttribute("data-reveal", "done");
+      } else {
+        if (!node.getAttribute("data-reveal")) node.removeAttribute("data-reveal");
+      }
+
+      revealRefs.current.set(id, node);
+    };
+  }, []);
 
   const renderSection = React.useCallback(
     (s: any) => {
-      if (s.enabled === false) return null;
+      if (!s || s.enabled === false) return null;
+
+      // ✅ Kill any "top" padding section. Keep only anchor.
+      if (s.id === "top" || s.type === "top") {
+        return <div key={s.id ?? "top"} id="top" aria-hidden style={{ height: 0 }} />;
+      }
 
       const map = (VARIANTS as any)[s.type];
       const Comp = map?.[s.variant] ?? map?.[fallbackVariant(s.type)] ?? null;
@@ -358,83 +521,96 @@ export function TemplateEngine({
         theme,
         fx,
         variant: s.variant,
-        layout: s.layout, // layout par section
-        globalLayout,     // layout global
+        layout: s.layout,
+        globalLayout,
+        sectionId: s.id,
       };
 
-      switch (s.type) {
-        case "header":
-          return (
-            <Comp
-              key={s.id}
-              {...common}
-              brand={liveConfig.brand}
-              headerRef={headerRef}
-              galleryLinks={galleryLinks}
-              showTeam={showTeam}
-              maxDirectLinks={liveConfig.options?.maxDirectLinksInMenu ?? 4}
-              headerVariant={s.variant}
-              content={liveConfig.content}
-              contact={{
-                phone: liveConfig.content?.contact?.phone,
-                email: liveConfig.content?.contact?.email,
-              }}
-            />
-          );
+      if (s.type === "header") {
+        return (
+          <Comp
+            key={s.id}
+            {...common}
+            brand={(liveConfig as any).brand}
+            headerRef={headerRef}
+            galleryLinks={galleryLinks}
+            showTeam={showTeam}
+            maxDirectLinks={(liveConfig as any).options?.maxDirectLinksInMenu ?? 4}
+            headerVariant={s.variant}
+            content={(liveConfig as any).content}
+            contact={{
+              phone: (liveConfig as any).content?.contact?.phone,
+              email: (liveConfig as any).content?.contact?.email,
+            }}
+            sections={(liveConfig as any).sections}
+            activeHref={activeHref}
+            isScrolled={isScrolled}
+          />
+        );
+      }
 
-        case "hero":
-          return (
-            <Comp
-              key={s.id}
-              {...common}
-              content={liveConfig.content}
-              brand={liveConfig.brand}
-              heroVariant={s.variant}
-              hasServices={hasServices}
-            />
-          );
+      const wrap = (node: React.ReactNode) => (
+        <div
+          key={s.id}
+          ref={registerReveal(String(s.id))}
+          className="reveal"
+          style={{ scrollMarginTop: "var(--header-offset, 84px)" }}
+        >
+          {node}
+        </div>
+      );
+
+      // ✅ Hero rendu EXACTEMENT comme les autres (plus de wrapper spécial)
+      if (s.type === "hero") {
+        return wrap(
+          <Comp
+            {...common}
+            content={(liveConfig as any).content}
+            brand={(liveConfig as any).brand}
+            hasServices={hasServices}
+            sectionId={s.id}
+          />
+        );
+      }
+
+      switch (s.type) {
+        case "proof":
+          return wrap(<Comp {...common} content={(liveConfig as any).content} sectionId={s.id} />);
 
         case "services":
-          return <Comp key={s.id} {...common} content={liveConfig.content} servicesVariant={s.variant} />;
-
-        case "proof":
-           return <Comp key={s.id} {...common} content={liveConfig.content} />;
-
+          return wrap(<Comp {...common} content={(liveConfig as any).content} servicesVariant={s.variant} sectionId={s.id} />);
 
         case "team":
-          return <Comp key={s.id} {...common} content={liveConfig.content} teamVariant={s.variant} />;
+          return wrap(<Comp {...common} content={(liveConfig as any).content} teamVariant={s.variant} sectionId={s.id} />);
 
         case "gallery":
-          return (
+          return wrap(
             <Comp
-              key={s.id}
               {...common}
-              content={liveConfig.content}
+              content={(liveConfig as any).content}
               galleryLayout={s.variant}
-              layout={s.variant}
               onOpen={onOpenImage}
               enableLightbox={enableLightbox}
+              sectionId={s.id}
             />
           );
 
         case "contact": {
           const resolved = s.variant === "AUTO" ? resolveContactVariantFromHero(heroVariant) : (s.variant as any);
-          return (
+          return wrap(
             <Comp
-              key={s.id}
               {...common}
-              brand={liveConfig.brand}
-              content={liveConfig.content}
+              brand={(liveConfig as any).brand}
+              content={(liveConfig as any).content}
               heroVariant={heroVariant}
-              forcedVariant={resolved}
-              contactVariant={resolved}
               variant={resolved}
+              sectionId={s.id}
             />
           );
         }
 
         case "split":
-          return <Comp key={s.id} {...common} content={liveConfig.content} />;
+          return wrap(<Comp {...common} content={(liveConfig as any).content} sectionId={s.id} />);
 
         default:
           return null;
@@ -443,9 +619,6 @@ export function TemplateEngine({
     [
       theme,
       fx,
-      liveConfig.brand,
-      liveConfig.content,
-      liveConfig.options?.maxDirectLinksInMenu,
       galleryLinks,
       showTeam,
       hasServices,
@@ -453,6 +626,10 @@ export function TemplateEngine({
       enableLightbox,
       heroVariant,
       globalLayout,
+      activeHref,
+      isScrolled,
+      registerReveal,
+      liveConfig,
     ]
   );
 
@@ -460,15 +637,14 @@ export function TemplateEngine({
     <>
       <main className={cx("min-h-screen", theme.bgPage, theme.text, fx.enabled && fx.ambient && "fx-ambient")}>
         <FxStyles enabled={!!fx.enabled} ambient={!!fx.ambient} />
-        {(liveConfig.sections ?? []).map(renderSection)}
+        {(((liveConfig as any).sections ?? []) as any[]).map(renderSection)}
       </main>
 
-      {/* StudioPanel in portal */}
-      {mounted && liveConfig.options?.studio?.enabled && typeof document !== "undefined"
-        ? ReactDOM.createPortal(<StudioPanel config={liveConfig} setConfig={setBoth} />, document.body)
+      {mounted && (liveConfig as any).options?.studio?.enabled && typeof document !== "undefined"
+        ? ReactDOM.createPortal(<StudioPanel config={liveConfig as any} setConfig={setBoth as any} />, document.body)
         : null}
 
-      {/* Lightbox */}
+      {/* ✅ SINGLE lightbox */}
       {enableLightbox && lightboxOpen && activeImg?.src ? (
         <div
           className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 p-4"
@@ -476,22 +652,22 @@ export function TemplateEngine({
           role="dialog"
           aria-modal="true"
         >
-          <div
-            className="relative w-full max-w-5xl overflow-hidden rounded-2xl bg-black"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
+          <div className="relative w-full max-w-5xl overflow-hidden rounded-2xl bg-black" onMouseDown={(e) => e.stopPropagation()}>
             <div className="relative aspect-[16/9] bg-black">
-              <NextImage src={activeImg.src} alt={activeImg.alt || "Aperçu"} fill className="object-contain" />
+              <Image src={activeImg.src} alt={activeImg.alt || "Aperçu"} fill className="object-contain" />
             </div>
 
             <button
+              type="button"
               onClick={closeLightbox}
               className="absolute right-3 top-3 rounded-full bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20"
+              aria-label="Fermer"
             >
               Fermer ✕
             </button>
 
             <button
+              type="button"
               onClick={prevImg}
               className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-white hover:bg-white/20"
               aria-label="Précédent"
@@ -500,16 +676,13 @@ export function TemplateEngine({
             </button>
 
             <button
+              type="button"
               onClick={nextImg}
               className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-white hover:bg-white/20"
               aria-label="Suivant"
             >
               →
             </button>
-
-            {activeImg.caption && activeImg.caption.trim().length > 0 ? (
-              <div className="border-t border-white/10 bg-black px-4 py-3 text-sm text-white/80">{activeImg.caption}</div>
-            ) : null}
           </div>
         </div>
       ) : null}

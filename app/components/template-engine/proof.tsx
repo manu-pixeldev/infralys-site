@@ -4,7 +4,7 @@ import React from "react";
 import type { LayoutTokens } from "../../template-base/template.config";
 import { cx, containerClass, resolveLayout, radiusClass } from "./theme";
 
-export function ProofStats({ theme, content, layout, globalLayout }: any) {
+export function ProofStats({ theme, content, layout, globalLayout, sectionId }: any) {
   const l = resolveLayout(layout as LayoutTokens, globalLayout as LayoutTokens);
 
   const title = content?.proofTitle ?? "Preuves";
@@ -21,7 +21,6 @@ export function ProofStats({ theme, content, layout, globalLayout }: any) {
           ? "md:grid-cols-3"
           : "md:grid-cols-4";
 
-  // fallback si vide
   const safeItems =
     items.length > 0
       ? items
@@ -32,7 +31,7 @@ export function ProofStats({ theme, content, layout, globalLayout }: any) {
         ];
 
   return (
-    <section id="proof" className="py-14 md:py-16">
+    <section id={String(sectionId ?? "proof")} className="py-14 md:py-16">
       <div className={containerClass(l.container)}>
         <div
           className={cx(

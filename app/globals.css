@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
+/* ============================================================
+   ROOT / THEME
+   ============================================================ */
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  
+
+  /* Header runtime vars (set en JS) */
+  --header-h: 180px;
+  --header-offset: 192px;
 }
 
 @theme inline {
@@ -19,11 +28,15 @@
   }
 }
 
+/* ============================================================
+   BASE RESET (IMPORTANT)
+   ============================================================ */
+
 html,
 body {
   height: 100%;
-  margin: 0;      /* ✅ important */
-  padding: 0;     /* ✅ important */
+  margin: 0;
+  padding: 0;
 }
 
 body {
@@ -32,7 +45,66 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* font smoothing */
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  box-sizing: border-box;
 }
+
+/* ============================================================
+   FX AMBIENT — FIX DÉFINITIF DU GAP
+   (le pseudo-element NE DOIT PAS influencer le layout)
+   ============================================================ */
+
+.fx-ambient {
+  position: relative;
+  overflow: hidden;
+}
+
+/* 🔴 AVANT : pseudo-element dans le flux → trou gigantesque
+   ✅ MAINTENANT : absolument positionné, hors layout */
+.fx-ambient::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+
+  /* ambient light subtil (pro) */
+  background:
+    radial-gradient(
+      1200px 400px at 50% -200px,
+      rgba(0, 0, 0, 0.08),
+      transparent 70%
+    );
+}
+
+/* le contenu passe AU-DESSUS de l’ambient */
+.fx-ambient > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================================
+   HEADER FIXED HELPERS
+   ============================================================ */
+
+/* évite tout margin-collapse chelou sous header fixed */
+header {
+  margin: 0;
+}
+
+/* sécurité anti scroll fantôme */
+main {
+  display: block;
+}
+
+/* ============================================================
+   DEBUG (à activer si un jour ça re-déconne)
+   ============================================================ */
+/*
+section {
+  outline: 1px dashed red;
+}
+*/

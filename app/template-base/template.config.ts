@@ -6,7 +6,18 @@
 
 export type GalleryStyle = "gridCards" | "masonry" | "carousel" | "split";
 export type HeroVariant = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H";
-export type HeaderVariant = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K";
+export type HeaderVariant =
+  | "A"
+  | "B"
+  | "C"
+  | "D"
+  | "E"
+  | "F"
+  | "G"
+  | "H"
+  | "I"
+  | "J"
+  | "K";
 export type ContactVariant = "AUTO" | "A" | "B" | "C" | "D" | "E";
 export type ServicesVariant = "A" | "B" | "C" | "D" | "E";
 export type TeamVariant = "A" | "B" | "C";
@@ -76,6 +87,7 @@ export type Content = {
   servicesText: string;
   services: { title: string; items: string[] }[];
 
+  /** ✅ PROOF (une seule fois) */
   proofTitle?: string;
   proofItems?: { label: string; value: string }[];
 
@@ -96,10 +108,6 @@ export type Content = {
     heroSecondary?: string;
   };
 
-  /** ✅ PROOF (nouveau) */
-  proofTitle?: string;
-  proofItems?: { label: string; value: string }[];
-
   split?: {
     title?: string;
     text?: string;
@@ -110,6 +118,7 @@ export type Content = {
     ctaHref?: string;
   };
 
+  // legacy mirror (facultatif)
   splitTitle?: string;
   splitText?: string;
   splitImage?: string;
@@ -185,7 +194,7 @@ export const DEFAULT_OPTIONS: Options = {
 export const DEFAULT_BRAND: Brand = {
   logo: {
     enabled: true,
-    src: "/brand/logo.svg",
+    src: "/brand/template/logo-square.png",
     width: 80,
     height: 80,
     mode: "logoPlusText",
@@ -207,9 +216,18 @@ export const DEFAULT_CONTENT: Content = {
   servicesTitle: "Nos services",
   servicesText: "Des prestations claires et adaptées à vos besoins.",
   services: [
-    { title: "Accompagnement", items: ["Analyse de la situation", "Conseils personnalisés", "Suivi clair"] },
-    { title: "Intervention", items: ["Mise en œuvre efficace", "Respect des délais", "Travail soigné"] },
-    { title: "Optimisation", items: ["Amélioration continue", "Solutions adaptées", "Approche durable"] },
+    {
+      title: "Accompagnement",
+      items: ["Analyse de la situation", "Conseils personnalisés", "Suivi clair"],
+    },
+    {
+      title: "Intervention",
+      items: ["Mise en œuvre efficace", "Respect des délais", "Travail soigné"],
+    },
+    {
+      title: "Optimisation",
+      items: ["Amélioration continue", "Solutions adaptées", "Approche durable"],
+    },
   ],
 
   teamTitle: "Qui sommes-nous",
@@ -303,7 +321,9 @@ export type LayoutTokens = {
   gridCols?: 1 | 2 | 3 | 4;
 };
 
+// ✅ NEW: top anchor section type
 export type SectionType =
+  | "top"
   | "header"
   | "hero"
   | "proof"
@@ -318,6 +338,9 @@ export type SectionType =
   | "links";
 
 export type SectionVariantByType = {
+  // ✅ top = dummy variant, unused
+  top: "A";
+
   header: HeaderVariant;
   hero: HeroVariant;
   proof: ProofVariant;
@@ -346,6 +369,21 @@ export type Section<T extends SectionType = SectionType> = {
   layout?: LayoutTokens;
 };
 
+/** INPUT LOOSE (studio/patch) */
+export type SectionInput = {
+  id: string;
+  type: SectionType;
+
+  title?: string;
+  variant?: SectionVariantByType[SectionType] | string;
+
+  enabled?: boolean;
+  lock?: boolean;
+  layout?: LayoutTokens;
+
+  [k: string]: unknown;
+};
+
 export type EngineOptions = {
   themeVariant: ThemeVariant;
   enableLightbox?: boolean;
@@ -361,6 +399,20 @@ export type TemplateConfig = {
   content: Content;
   options: EngineOptions;
   sections: Section[];
+};
+
+export type TemplateConfigInput = {
+  brand?: Partial<Brand>;
+  content?: Partial<Content>;
+
+  options?: Partial<EngineOptions> & {
+    fx?: Partial<EngineOptions["fx"]>;
+    studio?: Partial<EngineOptions["studio"]>;
+  };
+
+  sections?: SectionInput[];
+
+  [k: string]: unknown;
 };
 
 export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
@@ -386,18 +438,20 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
   },
 
   sections: [
-    { id: "header", type: "header", title: "Header", variant: DEFAULT_OPTIONS.headerVariant, enabled: true },
-    { id: "top", type: "hero", title: "Accueil", variant: DEFAULT_OPTIONS.heroVariant, enabled: true },
+    { id: "header", type: "header", title: "Header", variant: "D", enabled: true, lock: true },
 
-    { id: "split", type: "split", title: "Section split", variant: "A", enabled: true },
+    // ✅ FIX: top = ancre 0px, hero = vrai hero
+    { id: "top", type: "top", title: "Top", variant: "A", enabled: true, lock: true },
+    { id: "hero", type: "hero", title: "Accueil", variant: "B", enabled: true, lock: true },
 
-    /** ✅ IMPORTANT : id = "proof" (cohérent avec <section id="proof">) */
+    { id: "split-1", type: "split", title: "Approche", variant: "A", enabled: true },
     { id: "proof", type: "proof", title: "Preuves", variant: "stats", enabled: true },
+    { id: "split-2", type: "split", title: "Méthode", variant: "B", enabled: true },
 
-    { id: "services", type: "services", title: "Services", variant: DEFAULT_OPTIONS.servicesVariant, enabled: true },
-    { id: "team", type: "team", title: "Équipe", variant: DEFAULT_OPTIONS.teamVariant, enabled: DEFAULT_OPTIONS.showTeamSection },
-    { id: "realisations", type: "gallery", title: "Réalisations", variant: DEFAULT_OPTIONS.galleryLayout, enabled: true },
-    { id: "contact", type: "contact", title: "Contact", variant: DEFAULT_OPTIONS.contactVariant, enabled: true },
+    { id: "services", type: "services", title: "Services", variant: "C", enabled: true },
+    { id: "team", type: "team", title: "Équipe", variant: "A", enabled: true },
+    { id: "realisations", type: "gallery", title: "Réalisations", variant: "twoCol", enabled: true },
+    { id: "contact", type: "contact", title: "Contact", variant: "AUTO", enabled: true, lock: true },
   ],
 };
 

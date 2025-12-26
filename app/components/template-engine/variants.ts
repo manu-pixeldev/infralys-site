@@ -1,5 +1,6 @@
-import type { SectionType } from "../../template-base/template.config";
+// app/components/template-engine/variants.ts
 import type { ComponentType } from "react";
+import type { SectionType } from "./types";
 
 import { ProofStats } from "./proof";
 
@@ -13,8 +14,12 @@ import {
   LegacyContact,
 } from "./legacy";
 
-type VariantMap = Partial<Record<SectionType, Record<string, ComponentType<any>>>>;
+export type VariantMap = Partial<Record<SectionType, Record<string, ComponentType<any>>>>;
 
+/**
+ * ✅ The actual component registry used by TemplateEngine.
+ * Keep it dumb: type -> variantKey -> component
+ */
 export const VARIANTS: VariantMap = {
   header: {
     A: LegacyHeader,
@@ -36,13 +41,6 @@ export const VARIANTS: VariantMap = {
     C: LegacyHero,
     D: LegacyHero,
     E: LegacyHero,
-    F: LegacyHero,
-    G: LegacyHero,
-    H: LegacyHero,
-  },
-
-  proof: {
-    stats: ProofStats,
   },
 
   split: {
@@ -50,12 +48,14 @@ export const VARIANTS: VariantMap = {
     B: LegacySplit,
   },
 
+  proof: {
+    stats: ProofStats,
+  },
+
   services: {
     A: LegacyServices,
     B: LegacyServices,
     C: LegacyServices,
-    D: LegacyServices,
-    E: LegacyServices,
   },
 
   team: {
@@ -75,12 +75,20 @@ export const VARIANTS: VariantMap = {
     A: LegacyContact,
     B: LegacyContact,
     C: LegacyContact,
-    D: LegacyContact,
-    E: LegacyContact,
   },
+};
 
-  text: {},
-  pricing: {},
-  faq: {},
-  links: {},
+/**
+ * ✅ Used by StudioPanel and/or TemplateEngine to populate variant dropdowns.
+ * (This MUST exist, your build error was because it disappeared.)
+ */
+export const VARIANTS_BY_TYPE: Record<string, readonly string[]> = {
+  header: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
+  hero: ["A", "B", "C", "D", "E"],
+  split: ["A", "B"],
+  proof: ["stats"],
+  gallery: ["stack", "twoCol", "threeCol"],
+  contact: ["AUTO", "A", "B", "C"],
+  services: ["A", "B", "C"],
+  team: ["A", "B", "C"],
 };
