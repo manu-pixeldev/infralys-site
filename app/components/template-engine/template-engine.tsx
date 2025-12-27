@@ -1,3 +1,4 @@
+// app/components/template-engine/template-engine.tsx
 "use client";
 
 import React from "react";
@@ -125,6 +126,7 @@ function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
 
   next.options = next.options ?? {};
   next.options.fx = next.options.fx ?? {};
+
   next.options.fx = {
     enabled: !!next.options.fx?.enabled,
     ambient: !!next.options.fx?.ambient,
@@ -164,6 +166,7 @@ function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
   }
 
   next.sections = Array.isArray(next.sections) ? next.sections : [];
+
   return next as TemplateConfigInput;
 }
 
@@ -210,54 +213,44 @@ export function TemplateEngine({
   const themeVariant = (liveConfig as any).options?.themeVariant ?? "amberOrange";
   const theme = React.useMemo(() => getTheme(themeVariant), [themeVariant]);
 
-  /** ✅ Header measurements (single truth) */
-  const headerRef = React.useRef<HTMLElement>(null);
+/** ✅ Header measurements */
+const headerRef = React.useRef<HTMLElement>(null);
 
-  React.useLayoutEffect(() => {
-    const el = headerRef.current;
+React.useLayoutEffect(() => {
+  const el = headerRef.current;
+  if (!el) return;
 
-    // safe reset (avoid stale)
-    document.documentElement.style.setProperty("--header-h", "0px");
-    document.documentElement.style.setProperty("--header-offset", "0px");
-    document.documentElement.style.scrollPaddingTop = "0px";
+  const apply = () => {
+    const headerH = Math.ceil(el.offsetHeight);
+    const SAFE_MAX = 220;
+    const safeH = Math.max(0, Math.min(headerH, SAFE_MAX));
+    const gap = 12;
 
-    if (!el) return;
+    document.documentElement.style.scrollPaddingTop = `${safeH + gap}px`;
+    document.documentElement.style.setProperty("--header-h", `${safeH}px`);
+    document.documentElement.style.setProperty("--header-offset", `${safeH + gap}px`);
+  };
 
-    const apply = () => {
-      const h = el.getBoundingClientRect().height;
-      const headerH = Math.ceil(h);
+  apply();
 
-      // keep sane (prevents weird spikes)
-      const SAFE_MAX = 240;
-      const safeH = Math.max(0, Math.min(headerH, SAFE_MAX));
+  const RO = (window as any).ResizeObserver as typeof ResizeObserver | undefined;
+  let ro: ResizeObserver | null = null;
+  let onResize: (() => void) | null = null;
 
-      const gap = 12; // "respiration pro"
-      const offset = safeH + gap;
+  if (RO) {
+    ro = new RO(() => apply());
+    ro.observe(el);
+  } else {
+    onResize = () => apply();
+    window.addEventListener("resize", onResize);
+  }
 
-      document.documentElement.style.setProperty("--header-h", `${safeH}px`);
-      document.documentElement.style.setProperty("--header-offset", `${offset}px`);
-      document.documentElement.style.scrollPaddingTop = `${offset}px`;
-    };
+  return () => {
+    if (ro) ro.disconnect();
+    if (onResize) window.removeEventListener("resize", onResize);
+  };
+}, []); // ✅ deps vides
 
-    apply();
-
-    const RO = (window as any).ResizeObserver as typeof ResizeObserver | undefined;
-    let ro: ResizeObserver | null = null;
-    let onResize: (() => void) | null = null;
-
-    if (RO) {
-      ro = new RO(() => apply());
-      ro.observe(el);
-    } else {
-      onResize = () => apply();
-      window.addEventListener("resize", onResize);
-    }
-
-    return () => {
-      if (ro) ro.disconnect();
-      if (onResize) window.removeEventListener("resize", onResize);
-    };
-  }, [(liveConfig as any).sections]);
 
   /** Header shrink */
   const [isScrolled, setIsScrolled] = React.useState(false);
@@ -272,7 +265,7 @@ export function TemplateEngine({
   const [activeHref, setActiveHref] = React.useState<string>("#top");
   React.useEffect(() => {
     const secs = ((liveConfig as any).sections ?? []).filter(
-      (s: any) => s?.enabled !== false && s.type !== "header"
+      (s: any) => s?.enabled !== false && s.type !== "header" && s.type !== "top"
     );
 
     const ids = secs.map((s: any) => String(s.id));
@@ -506,12 +499,7 @@ export function TemplateEngine({
 
   const renderSection = React.useCallback(
     (s: any) => {
-      if (!s || s.enabled === false) return null;
-
-      // ✅ Kill any "top" padding section. Keep only anchor.
-      if (s.id === "top" || s.type === "top") {
-        return <div key={s.id ?? "top"} id="top" aria-hidden style={{ height: 0 }} />;
-      }
+      if (s.enabled === false) return null;
 
       const map = (VARIANTS as any)[s.type];
       const Comp = map?.[s.variant] ?? map?.[fallbackVariant(s.type)] ?? null;
@@ -549,6 +537,13 @@ export function TemplateEngine({
         );
       }
 
+      // ✅ IMPORTANT: "top" ne doit jamais créer d'espacement visuel
+      if (s.type === "top") {
+        return (
+          <div key={s.id} id="top" style={{ height: 0, scrollMarginTop: 0 }} aria-hidden="true" />
+        );
+      }
+
       const wrap = (node: React.ReactNode) => (
         <div
           key={s.id}
@@ -560,28 +555,40 @@ export function TemplateEngine({
         </div>
       );
 
-      // ✅ Hero rendu EXACTEMENT comme les autres (plus de wrapper spécial)
-      if (s.type === "hero") {
-        return wrap(
-          <Comp
-            {...common}
-            content={(liveConfig as any).content}
-            brand={(liveConfig as any).brand}
-            hasServices={hasServices}
-            sectionId={s.id}
-          />
-        );
-      }
-
       switch (s.type) {
+        case "hero":
+          return wrap(
+            <Comp
+              {...common}
+              content={(liveConfig as any).content}
+              brand={(liveConfig as any).brand}
+              hasServices={hasServices}
+              sectionId={s.id}
+            />
+          );
+
         case "proof":
           return wrap(<Comp {...common} content={(liveConfig as any).content} sectionId={s.id} />);
 
         case "services":
-          return wrap(<Comp {...common} content={(liveConfig as any).content} servicesVariant={s.variant} sectionId={s.id} />);
+          return wrap(
+            <Comp
+              {...common}
+              content={(liveConfig as any).content}
+              servicesVariant={s.variant}
+              sectionId={s.id}
+            />
+          );
 
         case "team":
-          return wrap(<Comp {...common} content={(liveConfig as any).content} teamVariant={s.variant} sectionId={s.id} />);
+          return wrap(
+            <Comp
+              {...common}
+              content={(liveConfig as any).content}
+              teamVariant={s.variant}
+              sectionId={s.id}
+            />
+          );
 
         case "gallery":
           return wrap(
@@ -636,12 +643,20 @@ export function TemplateEngine({
   return (
     <>
       <main className={cx("min-h-screen", theme.bgPage, theme.text, fx.enabled && fx.ambient && "fx-ambient")}>
+        {/* ✅ ANCRE #top 0px garantie même si tu vires la section top */}
+        <div id="top" style={{ height: 0 }} aria-hidden="true" />
+
         <FxStyles enabled={!!fx.enabled} ambient={!!fx.ambient} />
         {(((liveConfig as any).sections ?? []) as any[]).map(renderSection)}
       </main>
 
-      {mounted && (liveConfig as any).options?.studio?.enabled && typeof document !== "undefined"
-        ? ReactDOM.createPortal(<StudioPanel config={liveConfig as any} setConfig={setBoth as any} />, document.body)
+      {mounted &&
+      (liveConfig as any).options?.studio?.enabled &&
+      typeof document !== "undefined"
+        ? ReactDOM.createPortal(
+            <StudioPanel config={liveConfig as any} setConfig={setBoth as any} />,
+            document.body
+          )
         : null}
 
       {/* ✅ SINGLE lightbox */}
@@ -652,7 +667,10 @@ export function TemplateEngine({
           role="dialog"
           aria-modal="true"
         >
-          <div className="relative w-full max-w-5xl overflow-hidden rounded-2xl bg-black" onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="relative w-full max-w-5xl overflow-hidden rounded-2xl bg-black"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <div className="relative aspect-[16/9] bg-black">
               <Image src={activeImg.src} alt={activeImg.alt || "Aperçu"} fill className="object-contain" />
             </div>

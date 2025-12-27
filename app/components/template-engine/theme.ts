@@ -1,10 +1,5 @@
 // app/components/template-engine/theme.ts
-import type {
-  LayoutTokens,
-  Container,
-  Density,
-  Radius,
-} from "../../template-base/template.config";
+import type { LayoutTokens, Container, Density, Radius } from "../../template-base/template.config";
 
 /** Small class joiner */
 export function cx(...c: (string | false | null | undefined)[]) {
@@ -91,16 +86,20 @@ export function getTheme(variant?: ThemeVariant): ThemeLike {
    LAYOUT TOKENS (container / density / radius)
    ============================================================ */
 
+/**
+ * Merge layout tokens: local section layout overrides global layout.
+ */
 export function resolveLayout(layout?: LayoutTokens, globalLayout?: LayoutTokens) {
   const merged = {
     ...(globalLayout ?? {}),
     ...(layout ?? {}),
   } as LayoutTokens;
 
+  // Density réel (StudioPanel): compact|normal|spacious
   return {
     container: (merged.container ?? "7xl") as Container,
     density: (merged.density ?? ("normal" as any)) as Density,
-    radius: (merged.radius ?? "xl") as Radius,
+    radius: (merged.radius ?? ("24" as any)) as Radius,
   };
 }
 
@@ -109,9 +108,8 @@ export function resolveLayout(layout?: LayoutTokens, globalLayout?: LayoutTokens
    ============================================================ */
 
 export function containerClass(container?: Container) {
-  // un poil plus "pro" sur grands écrans
+  // spacing + “pro” sur grands écrans
   const base = "mx-auto w-full px-4 sm:px-6 lg:px-8";
-
   switch (container) {
     case "5xl":
       return cx(base, "max-w-5xl");
@@ -125,36 +123,61 @@ export function containerClass(container?: Container) {
 
 /**
  * Density -> vertical section padding.
- * Supporte compact|normal|spacious + anciens tokens si présents.
+ * Supporte compact|normal|spacious
+ * + fallback vieux tokens xs|sm|md|lg|xl
  */
 export function sectionPadY(density?: Density) {
-  const d = String(density ?? "normal");
-
-  if (d === "compact") return "py-10 md:py-12";
-  if (d === "spacious") return "py-20 md:py-24";
-  if (d === "normal") return "py-14 md:py-18";
-
-  // legacy fallback
-  if (d === "xs") return "py-8 md:py-10";
-  if (d === "sm") return "py-10 md:py-12";
-  if (d === "lg") return "py-16 md:py-20";
-  if (d === "xl") return "py-20 md:py-24";
-  return "py-12 md:py-16";
+  switch (String(density ?? "normal")) {
+    // NEW TOKENS (StudioPanel)
+    case "compact":
+      return "py-8 md:py-10";
+    case "spacious":
+      return "py-20 md:py-24";
+    case "normal":
+    default:
+      // OLD TOKENS fallback
+      if (density === ("xs" as any)) return "py-8 md:py-10";
+      if (density === ("sm" as any)) return "py-10 md:py-12";
+      if (density === ("lg" as any)) return "py-16 md:py-20";
+      if (density === ("xl" as any)) return "py-20 md:py-24";
+      return "py-12 md:py-16";
+  }
 }
 
 /**
- * Hero padding (un peu plus compact que sections)
+ * Hero spacing : légèrement plus compact que sectionPadY, mais cohérent.
+ * IMPORTANT : supporte compact|normal|spacious + vieux tokens
  */
 export function heroPadY(density?: Density) {
-  const d = String(density ?? "normal");
-
-  if (d === "compact") return "pt-6 md:pt-8 pb-10 md:pb-12";
-  if (d === "spacious") return "pt-12 md:pt-14 pb-14 md:pb-16";
-  // normal
-  return "pt-8 md:pt-10 pb-12 md:pb-14";
+  switch (String(density ?? "normal")) {
+    case "compact":
+      return "pt-10 md:pt-12 pb-10 md:pb-12";
+    case "spacious":
+      return "pt-16 md:pt-20 pb-14 md:pb-18";
+    case "normal":
+    default:
+      // fallback vieux tokens
+      if (density === ("xs" as any)) return "pt-8 md:pt-10 pb-10 md:pb-12";
+      if (density === ("sm" as any)) return "pt-10 md:pt-12 pb-10 md:pb-12";
+      if (density === ("lg" as any)) return "pt-14 md:pt-16 pb-12 md:pb-14";
+      if (density === ("xl" as any)) return "pt-16 md:pt-20 pb-14 md:pb-18";
+      return "pt-12 md:pt-14 pb-10 md:pb-12";
+  }
 }
 
-export function radiusClass(radius?: Radius) {
+/**
+ * Tailwind radius tokens (si tu en as encore besoin).
+ * MAIS pour radius numérique (=24), utilise radiusStyle() (ci-dessous).
+ */
+export function radiusClass(radius?: any) {
+  const r = Number(radius);
+
+  // ✅ support des nouveaux tokens 16/24/32
+  if (r === 16) return "rounded-2xl";
+  if (r === 24) return "rounded-3xl";
+  if (r === 32) return "rounded-[32px]";
+
+  // ✅ compat legacy strings
   switch (radius) {
     case "none":
       return "rounded-none";
@@ -165,7 +188,33 @@ export function radiusClass(radius?: Radius) {
     case "lg":
       return "rounded-2xl";
     case "xl":
+      return "rounded-3xl";
     default:
       return "rounded-3xl";
+  }
+}
+
+
+/**
+ * ✅ LA solution pour radius numérique (ex: 24).
+ * À utiliser en style inline : style={radiusStyle(l.radius)}
+ */
+export function radiusStyle(radius?: any): React.CSSProperties | undefined {
+  const n = typeof radius === "number" ? radius : Number(radius);
+  if (Number.isFinite(n) && n >= 0) return { borderRadius: `${n}px` };
+
+  // fallback tokens
+  switch (String(radius ?? "xl")) {
+    case "none":
+      return { borderRadius: "0px" };
+    case "sm":
+      return { borderRadius: "12px" };
+    case "md":
+      return { borderRadius: "16px" };
+    case "lg":
+      return { borderRadius: "20px" };
+    case "xl":
+    default:
+      return { borderRadius: "24px" };
   }
 }

@@ -1,9 +1,10 @@
+// app/components/template-engine/legacy.tsx
 "use client";
 
 import React from "react";
 import NextImage from "next/image";
 import type { Brand, LogoMode, LayoutTokens } from "../../template-base/template.config";
-import { cx, containerClass, sectionPadY, heroPadY, radiusClass, resolveLayout } from "./theme";
+import { cx, containerClass, sectionPadY, heroPadY, radiusClass, radiusStyle, resolveLayout } from "./theme";
 
 type ThemeLike = {
   accentFrom: string;
@@ -52,9 +53,9 @@ function Surface({
   const l = resolveLayout(layout, globalLayout);
   return (
     <div
+      style={radiusStyle(l.radius)}
       className={cx(
-        radiusClass(l.radius),
-        "border",
+        "overflow-hidden border",
         theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white",
         className
       )}
@@ -171,7 +172,7 @@ export function LegacyHeader(props: {
   const orderedLinks = secs
     .filter((sec: any) => sec?.enabled !== false)
     .map((sec: any) => {
-      if (!sec?.type || sec.type === "header") return null;
+      if (!sec?.type || sec.type === "header" || sec.type === "top") return null;
       return { href: `#${sec.id}`, label: sec.title ?? sec.id };
     })
     .filter(Boolean) as { href: string; label: string }[];
@@ -231,7 +232,7 @@ export function LegacyHeader(props: {
   const headerPos = "fixed left-0 right-0 top-0";
   const headerZ = "z-50";
 
-  // ✅ Spacer is the ONLY compensation for fixed header
+  // ✅ spacer : remplace la hauteur du header fixed
   const Spacer = <div aria-hidden="true" style={{ height: "var(--header-h, 0px)" }} />;
 
   // A
@@ -444,6 +445,7 @@ export function LegacyHero({
     );
   }
 
+  // B
   if (variant === "B") {
     return HeroFrame(
       <div className="grid gap-8 md:grid-cols-2 items-start md:items-center p-6 md:p-10">
@@ -462,13 +464,19 @@ export function LegacyHero({
         </div>
 
         {img ? (
-          <div className={cx(radiusClass(l.radius), "relative overflow-hidden border border-slate-200/30 bg-slate-200/20")}>
+          <div
+            style={radiusStyle(l.radius)}
+            className="relative overflow-hidden border border-slate-200/30 bg-slate-200/20"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={img} alt={content?.heroImageAlt ?? "Illustration"} className="h-[320px] w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
           </div>
         ) : (
-          <div className={cx(radiusClass(l.radius), "border p-10", theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50")}>
+          <div
+            style={radiusStyle(l.radius)}
+            className={cx("border p-10 overflow-hidden", theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50")}
+          >
             <div className={cx("h-12 w-12 rounded-2xl bg-gradient-to-br", theme.accentFrom, theme.accentTo)} />
             <div className={cx("mt-4 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>
               (Ajoute <code>content.heroImage</code> pour activer l’image.)
@@ -526,12 +534,18 @@ export function LegacySplit({ theme, content, layout, globalLayout, sectionId }:
             </div>
 
             {img ? (
-              <div className={cx(radiusClass(l.radius), "overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}>
+              <div
+                style={radiusStyle(l.radius)}
+                className={cx("overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={img} alt={imgAlt} className="h-[320px] w-full object-cover" />
               </div>
             ) : (
-              <div className={cx(radiusClass(l.radius), "border p-10", theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50")}>
+              <div
+                style={radiusStyle(l.radius)}
+                className={cx("border p-10 overflow-hidden", theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50")}
+              >
                 <div className={cx("h-12 w-12 rounded-2xl bg-gradient-to-br", theme.accentFrom, theme.accentTo)} />
                 <div className={cx("mt-4 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>
                   (Ajoute <code>content.splitImage</code> pour afficher une image.)
@@ -670,8 +684,8 @@ export function LegacyGalleries(props: {
               key={i}
               type="button"
               onClick={() => enableLightbox && onOpen?.(img)}
+              style={radiusStyle(l.radius)}
               className={cx(
-                radiusClass(l.radius),
                 "group overflow-hidden border text-left shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
                 theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"
               )}
@@ -737,7 +751,10 @@ export function LegacyContact({ theme, content, layout, globalLayout, sectionId 
 
 function InfoCard({ label, value, dark, radius }: { label: string; value: string; dark: boolean; radius?: any }) {
   return (
-    <div className={cx(radiusClass(radius), "border p-4", dark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50")}>
+    <div
+      style={radiusStyle(radius)}
+      className={cx("overflow-hidden border p-4", dark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50")}
+    >
       <div className={cx("text-[11px] font-semibold uppercase tracking-wider", dark ? "text-white/60" : "text-slate-500")}>{label}</div>
       <div className={cx("mt-1 font-semibold", dark ? "text-white" : "text-slate-900")}>{value}</div>
     </div>

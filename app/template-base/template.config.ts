@@ -440,8 +440,7 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
   sections: [
     { id: "header", type: "header", title: "Header", variant: "D", enabled: true, lock: true },
 
-    // ✅ FIX: top = ancre 0px, hero = vrai hero
-    { id: "top", type: "top", title: "Top", variant: "A", enabled: true, lock: true },
+    // ✅ plus de "top" section qui met du padding
     { id: "hero", type: "hero", title: "Accueil", variant: "B", enabled: true, lock: true },
 
     { id: "split-1", type: "split", title: "Approche", variant: "A", enabled: true },
@@ -453,6 +452,7 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
     { id: "realisations", type: "gallery", title: "Réalisations", variant: "twoCol", enabled: true },
     { id: "contact", type: "contact", title: "Contact", variant: "AUTO", enabled: true, lock: true },
   ],
+
 };
 
 /* =======================

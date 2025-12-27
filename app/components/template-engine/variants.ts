@@ -14,11 +14,18 @@ import {
   LegacyContact,
 } from "./legacy";
 
-export type VariantMap = Partial<Record<SectionType, Record<string, ComponentType<any>>>>;
+/**
+ * Maps: sectionType -> variantKey -> React component
+ * ⚠️ Keep this PURE (no logic, no layout, no spacing)
+ */
+export type VariantMap = Partial<
+  Record<SectionType, Record<string, ComponentType<any>>>
+>;
 
 /**
- * ✅ The actual component registry used by TemplateEngine.
- * Keep it dumb: type -> variantKey -> component
+ * ============================================================
+ * ✅ MAIN REGISTRY
+ * ============================================================
  */
 export const VARIANTS: VariantMap = {
   header: {
@@ -76,11 +83,19 @@ export const VARIANTS: VariantMap = {
     B: LegacyContact,
     C: LegacyContact,
   },
+
+  /**
+   * ❌ IMPORTANT
+   * "top" is NOT a visual section → handled in TemplateEngine
+   * DO NOT register it here.
+   */
 };
 
 /**
- * ✅ Used by StudioPanel and/or TemplateEngine to populate variant dropdowns.
- * (This MUST exist, your build error was because it disappeared.)
+ * ============================================================
+ * ✅ VARIANT LISTS (StudioPanel / dropdowns)
+ * ============================================================
+ * ⚠️ Must stay in sync with VARIANTS
  */
 export const VARIANTS_BY_TYPE: Record<string, readonly string[]> = {
   header: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
@@ -91,4 +106,8 @@ export const VARIANTS_BY_TYPE: Record<string, readonly string[]> = {
   contact: ["AUTO", "A", "B", "C"],
   services: ["A", "B", "C"],
   team: ["A", "B", "C"],
+
+  /**
+   * ❌ no "top" here either
+   */
 };
