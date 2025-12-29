@@ -1,4 +1,3 @@
-// app/components/template-engine/variants.ts
 import type { ComponentType } from "react";
 import type { SectionType } from "./types";
 
@@ -14,20 +13,14 @@ import {
   LegacyContact,
 } from "./legacy";
 
-/**
- * Maps: sectionType -> variantKey -> React component
- * ⚠️ Keep this PURE (no logic, no layout, no spacing)
- */
-export type VariantMap = Partial<
-  Record<SectionType, Record<string, ComponentType<any>>>
->;
+type VariantMap = Record<string, ComponentType<any>>;
 
-/**
- * ============================================================
- * ✅ MAIN REGISTRY
- * ============================================================
- */
-export const VARIANTS: VariantMap = {
+// ✅ important: Partial = pas besoin de couvrir *tous* les SectionType possibles
+type Registry = Partial<Record<SectionType, VariantMap>>;
+
+export const VARIANTS: Registry = {
+  top: { A: () => null },
+
   header: {
     A: LegacyHeader,
     B: LegacyHeader,
@@ -42,34 +35,13 @@ export const VARIANTS: VariantMap = {
     K: LegacyHeader,
   },
 
-  hero: {
-    A: LegacyHero,
-    B: LegacyHero,
-    C: LegacyHero,
-    D: LegacyHero,
-    E: LegacyHero,
-  },
+  hero: { A: LegacyHero, B: LegacyHero },
 
-  split: {
-    A: LegacySplit,
-    B: LegacySplit,
-  },
+  split: { A: LegacySplit, B: LegacySplit },
 
-  proof: {
-    stats: ProofStats,
-  },
+  services: { A: LegacyServices, B: LegacyServices, C: LegacyServices },
 
-  services: {
-    A: LegacyServices,
-    B: LegacyServices,
-    C: LegacyServices,
-  },
-
-  team: {
-    A: LegacyTeam,
-    B: LegacyTeam,
-    C: LegacyTeam,
-  },
+  team: { A: LegacyTeam, B: LegacyTeam, C: LegacyTeam },
 
   gallery: {
     stack: LegacyGalleries,
@@ -77,37 +49,18 @@ export const VARIANTS: VariantMap = {
     threeCol: LegacyGalleries,
   },
 
-  contact: {
-    AUTO: LegacyContact,
-    A: LegacyContact,
-    B: LegacyContact,
-    C: LegacyContact,
-  },
+  proof: { stats: ProofStats },
 
-  /**
-   * ❌ IMPORTANT
-   * "top" is NOT a visual section → handled in TemplateEngine
-   * DO NOT register it here.
-   */
+  contact: { AUTO: LegacyContact, A: LegacyContact, B: LegacyContact, C: LegacyContact },
 };
 
-/**
- * ============================================================
- * ✅ VARIANT LISTS (StudioPanel / dropdowns)
- * ============================================================
- * ⚠️ Must stay in sync with VARIANTS
- */
 export const VARIANTS_BY_TYPE: Record<string, readonly string[]> = {
   header: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
-  hero: ["A", "B", "C", "D", "E"],
+  hero: ["A", "B"],
   split: ["A", "B"],
   proof: ["stats"],
   gallery: ["stack", "twoCol", "threeCol"],
   contact: ["AUTO", "A", "B", "C"],
   services: ["A", "B", "C"],
   team: ["A", "B", "C"],
-
-  /**
-   * ❌ no "top" here either
-   */
 };

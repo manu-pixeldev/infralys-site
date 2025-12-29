@@ -8,7 +8,7 @@ import Image from "next/image";
 import type { TemplateConfigInput } from "./types";
 import { getTheme, cx } from "./theme";
 import { VARIANTS } from "./variants";
-import { StudioPanel } from "./studio-panel";
+import StudioPanel from "./studio-panel";
 
 /** FX styles (global) */
 function FxStyles({ enabled, ambient }: { enabled: boolean; ambient: boolean }) {
@@ -65,7 +65,7 @@ function FxStyles({ enabled, ambient }: { enabled: boolean; ambient: boolean }) 
       }
 
       ${ambient ? `
-        .fx-ambient { position: relative; }
+        .fx-ambient { position: relative; isolation: isolate; }
         .fx-ambient::before{
           content:"";
           position:absolute;
@@ -75,12 +75,10 @@ function FxStyles({ enabled, ambient }: { enabled: boolean; ambient: boolean }) 
             radial-gradient(circle at 80% 10%, rgba(0,0,0,0.05), transparent 45%),
             radial-gradient(circle at 60% 90%, rgba(0,0,0,0.04), transparent 50%);
           pointer-events:none;
-          z-index: 0;
+          z-index: -1;
         }
-        .fx-ambient > * { position: relative; z-index: 1; }
       ` : ``}
 
-      /* Reveal one-shot */
       .reveal { will-change: opacity, transform; transition: opacity 520ms ease, transform 520ms ease; }
       .reveal[data-reveal="pending"] { opacity: 0; transform: translateY(14px); }
       .reveal.is-in { opacity: 1; transform: translateY(0); }
@@ -116,17 +114,15 @@ function resolveContactVariantFromHero(heroVariant: string): "A" | "B" {
 
 type AnyImg = { src: string; alt?: string; caption?: string } | null;
 
-function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
-  const clone =
-    typeof structuredClone === "function"
-      ? structuredClone(input)
-      : (JSON.parse(JSON.stringify(input)) as TemplateConfigInput);
+function cloneConfig<T>(v: T): T {
+  if (typeof (globalThis as any).structuredClone === "function") return (globalThis as any).structuredClone(v);
+  return JSON.parse(JSON.stringify(v));
+}
 
-  const next = clone as any;
+function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
+  const next = cloneConfig(input) as any;
 
   next.options = next.options ?? {};
-  next.options.fx = next.options.fx ?? {};
-
   next.options.fx = {
     enabled: !!next.options.fx?.enabled,
     ambient: !!next.options.fx?.ambient,
@@ -136,18 +132,23 @@ function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
     ...(next.options.fx ?? {}),
   };
 
+  // studio defaults (+ UI state)
+  next.options.studio = next.options.studio ?? {};
+  next.options.studio.enabled = next.options.studio.enabled ?? true;
+  next.options.studio.ui = next.options.studio.ui ?? {};
+  next.options.studio.ui.dock = next.options.studio.ui.dock ?? "right";
+  next.options.studio.ui.minimized = next.options.studio.ui.minimized ?? false;
+
+  // theme single source of truth
+  next.options.themeVariant = next.options.themeVariant ?? "amberOrange|classic";
+
   next.brand = next.brand ?? {};
   next.brand.logo = next.brand.logo ?? {};
+  next.brand.logo.mode = next.brand.logo.mode ?? "logoPlusText";
+  next.brand.logo.width = Math.max(24, Number(next.brand.logo.width ?? 80) || 80);
+  next.brand.logo.height = Math.max(24, Number(next.brand.logo.height ?? 80) || 80);
 
-  const mode = next.brand.logo.mode ?? "logoPlusText";
-  next.brand.logo.mode = mode;
-
-  const w = Number(next.brand.logo.width ?? 80);
-  const h = Number(next.brand.logo.height ?? 80);
-  next.brand.logo.width = Number.isFinite(w) ? Math.max(24, w) : 80;
-  next.brand.logo.height = Number.isFinite(h) ? Math.max(24, h) : 80;
-
-  if (mode === "textOnly") {
+  if (next.brand.logo.mode === "textOnly") {
     next.brand.logo.src = next.brand.logo.src ?? undefined;
   } else {
     next.brand.logo.src = next.brand.logo.src ?? "/brand/logo.svg";
@@ -155,6 +156,7 @@ function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
 
   next.content = next.content ?? {};
 
+  // compat split legacy
   const s = next.content?.split;
   if (s) {
     next.content.splitTitle = next.content.splitTitle ?? s.title ?? "";
@@ -166,7 +168,6 @@ function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
   }
 
   next.sections = Array.isArray(next.sections) ? next.sections : [];
-
   return next as TemplateConfigInput;
 }
 
@@ -190,6 +191,7 @@ export function TemplateEngine({
     });
   }, []);
 
+  // push to parent
   const lastSentRef = React.useRef<string>("");
   React.useEffect(() => {
     if (!setConfig) return;
@@ -210,47 +212,64 @@ export function TemplateEngine({
     shimmerCta: false,
   };
 
-  const themeVariant = (liveConfig as any).options?.themeVariant ?? "amberOrange";
+  const opt = (liveConfig as any).options ?? {};
+  const themeVariant = opt.themeVariant ?? "amberOrange|classic";
   const theme = React.useMemo(() => getTheme(themeVariant), [themeVariant]);
 
-/** ✅ Header measurements */
-const headerRef = React.useRef<HTMLElement>(null);
+  // Ctrl+K : toggle studio (rescue si tu l’as coupé)
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey) return;
+      if (e.key.toLowerCase() !== "k") return;
+      e.preventDefault();
+      setBoth((prev: any) => {
+        const next = cloneConfig(prev) as any;
+        next.options = next.options ?? {};
+        next.options.studio = next.options.studio ?? {};
+        next.options.studio.enabled = !next.options.studio.enabled;
+        return next;
+      });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setBoth]);
 
-React.useLayoutEffect(() => {
-  const el = headerRef.current;
-  if (!el) return;
+  /** Header measurements */
+  const headerRef = React.useRef<HTMLElement>(null);
+  React.useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
 
-  const apply = () => {
-    const headerH = Math.ceil(el.offsetHeight);
-    const SAFE_MAX = 220;
-    const safeH = Math.max(0, Math.min(headerH, SAFE_MAX));
-    const gap = 12;
+    const apply = () => {
+      const headerH = Math.ceil(el.offsetHeight);
+      const SAFE_MAX = 220;
+      const safeH = Math.max(0, Math.min(headerH, SAFE_MAX));
+      const gap = 16; // ✅ best practice : garde ce petit gap
 
-    document.documentElement.style.scrollPaddingTop = `${safeH + gap}px`;
-    document.documentElement.style.setProperty("--header-h", `${safeH}px`);
-    document.documentElement.style.setProperty("--header-offset", `${safeH + gap}px`);
-  };
+      document.documentElement.style.scrollPaddingTop = `${safeH + gap}px`;
+      document.documentElement.style.setProperty("--header-h", `${safeH}px`);
+      document.documentElement.style.setProperty("--header-offset", `${safeH + gap}px`);
+    };
 
-  apply();
+    apply();
 
-  const RO = (window as any).ResizeObserver as typeof ResizeObserver | undefined;
-  let ro: ResizeObserver | null = null;
-  let onResize: (() => void) | null = null;
+    const RO = (window as any).ResizeObserver as typeof ResizeObserver | undefined;
+    let ro: ResizeObserver | null = null;
+    let onResize: (() => void) | null = null;
 
-  if (RO) {
-    ro = new RO(() => apply());
-    ro.observe(el);
-  } else {
-    onResize = () => apply();
-    window.addEventListener("resize", onResize);
-  }
+    if (RO) {
+      ro = new RO(() => apply());
+      ro.observe(el);
+    } else {
+      onResize = () => apply();
+      window.addEventListener("resize", onResize);
+    }
 
-  return () => {
-    if (ro) ro.disconnect();
-    if (onResize) window.removeEventListener("resize", onResize);
-  };
-}, []); // ✅ deps vides
-
+    return () => {
+      if (ro) ro.disconnect();
+      if (onResize) window.removeEventListener("resize", onResize);
+    };
+  }, []);
 
   /** Header shrink */
   const [isScrolled, setIsScrolled] = React.useState(false);
@@ -269,10 +288,7 @@ React.useLayoutEffect(() => {
     );
 
     const ids = secs.map((s: any) => String(s.id));
-    const elements = ids
-      .map((id: string) => document.getElementById(id))
-      .filter(Boolean) as HTMLElement[];
-
+    const elements = ids.map((id: string) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
     if (!elements.length) return;
 
     const IO = (window as any).IntersectionObserver as typeof IntersectionObserver | undefined;
@@ -298,7 +314,6 @@ React.useLayoutEffect(() => {
 
   /** Smooth scroll */
   React.useEffect(() => {
-    if (typeof document === "undefined") return;
     const prev = document.documentElement.style.scrollBehavior;
     document.documentElement.style.scrollBehavior = "smooth";
     return () => {
@@ -342,9 +357,7 @@ React.useLayoutEffect(() => {
 
   const activeIndex = React.useMemo(() => {
     if (!activeImg) return -1;
-    return flatImages.findIndex(
-      (x) => x?.src === activeImg.src && (x?.caption ?? "") === (activeImg.caption ?? "")
-    );
+    return flatImages.findIndex((x) => x?.src === activeImg.src && (x?.caption ?? "") === (activeImg.caption ?? ""));
   }, [activeImg, flatImages]);
 
   const prevImg = React.useCallback(() => {
@@ -450,29 +463,7 @@ React.useLayoutEffect(() => {
       if (!revealed.current.has(id)) obs.observe(el);
     });
 
-    const recheck = () => {
-      const vh2 = window.innerHeight || 800;
-      const fold2 = vh2 + Math.floor(vh2 * 0.35);
-      entries.forEach(([id, el]) => {
-        if (revealed.current.has(id)) return;
-        const r = el.getBoundingClientRect();
-        if (r.top < fold2 && r.bottom > 0) {
-          el.classList.add("is-in");
-          el.setAttribute("data-reveal", "done");
-          revealed.current.add(id);
-          obs.unobserve(el);
-        }
-      });
-    };
-
-    const t1 = window.setTimeout(recheck, 220);
-    const t2 = window.setTimeout(recheck, 700);
-
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      obs.disconnect();
-    };
+    return () => obs.disconnect();
   }, [(liveConfig as any).sections, themeVariant]);
 
   const registerReveal = React.useCallback((id: string) => {
@@ -490,7 +481,7 @@ React.useLayoutEffect(() => {
         node.classList.add("is-in");
         node.setAttribute("data-reveal", "done");
       } else {
-        if (!node.getAttribute("data-reveal")) node.removeAttribute("data-reveal");
+        node.setAttribute("data-reveal", "pending");
       }
 
       revealRefs.current.set(id, node);
@@ -537,18 +528,15 @@ React.useLayoutEffect(() => {
         );
       }
 
-      // ✅ IMPORTANT: "top" ne doit jamais créer d'espacement visuel
       if (s.type === "top") {
-        return (
-          <div key={s.id} id="top" style={{ height: 0, scrollMarginTop: 0 }} aria-hidden="true" />
-        );
+        return <div key={s.id} id="top" style={{ height: 0, scrollMarginTop: 0 }} aria-hidden="true" />;
       }
 
       const wrap = (node: React.ReactNode) => (
         <div
           key={s.id}
           ref={registerReveal(String(s.id))}
-          className="reveal"
+          className={cx("reveal", fx.enabled && fx.softGlow && "fx-softglow")}
           style={{ scrollMarginTop: "var(--header-offset, 84px)" }}
         >
           {node}
@@ -557,39 +545,13 @@ React.useLayoutEffect(() => {
 
       switch (s.type) {
         case "hero":
-          return wrap(
-            <Comp
-              {...common}
-              content={(liveConfig as any).content}
-              brand={(liveConfig as any).brand}
-              hasServices={hasServices}
-              sectionId={s.id}
-            />
-          );
-
+          return wrap(<Comp {...common} content={(liveConfig as any).content} brand={(liveConfig as any).brand} hasServices={hasServices} />);
         case "proof":
-          return wrap(<Comp {...common} content={(liveConfig as any).content} sectionId={s.id} />);
-
+          return wrap(<Comp {...common} content={(liveConfig as any).content} />);
         case "services":
-          return wrap(
-            <Comp
-              {...common}
-              content={(liveConfig as any).content}
-              servicesVariant={s.variant}
-              sectionId={s.id}
-            />
-          );
-
+          return wrap(<Comp {...common} content={(liveConfig as any).content} servicesVariant={s.variant} />);
         case "team":
-          return wrap(
-            <Comp
-              {...common}
-              content={(liveConfig as any).content}
-              teamVariant={s.variant}
-              sectionId={s.id}
-            />
-          );
-
+          return wrap(<Comp {...common} content={(liveConfig as any).content} teamVariant={s.variant} />);
         case "gallery":
           return wrap(
             <Comp
@@ -598,107 +560,51 @@ React.useLayoutEffect(() => {
               galleryLayout={s.variant}
               onOpen={onOpenImage}
               enableLightbox={enableLightbox}
-              sectionId={s.id}
             />
           );
-
         case "contact": {
           const resolved = s.variant === "AUTO" ? resolveContactVariantFromHero(heroVariant) : (s.variant as any);
-          return wrap(
-            <Comp
-              {...common}
-              brand={(liveConfig as any).brand}
-              content={(liveConfig as any).content}
-              heroVariant={heroVariant}
-              variant={resolved}
-              sectionId={s.id}
-            />
-          );
+          return wrap(<Comp {...common} brand={(liveConfig as any).brand} content={(liveConfig as any).content} heroVariant={heroVariant} variant={resolved} />);
         }
-
         case "split":
-          return wrap(<Comp {...common} content={(liveConfig as any).content} sectionId={s.id} />);
-
+          return wrap(<Comp {...common} content={(liveConfig as any).content} />);
         default:
           return null;
       }
     },
-    [
-      theme,
-      fx,
-      galleryLinks,
-      showTeam,
-      hasServices,
-      onOpenImage,
-      enableLightbox,
-      heroVariant,
-      globalLayout,
-      activeHref,
-      isScrolled,
-      registerReveal,
-      liveConfig,
-    ]
+    [theme, fx, galleryLinks, showTeam, hasServices, onOpenImage, enableLightbox, heroVariant, globalLayout, activeHref, isScrolled, registerReveal, liveConfig]
   );
+
+  const studioEnabled = !!(liveConfig as any)?.options?.studio?.enabled;
 
   return (
     <>
       <main className={cx("min-h-screen", theme.bgPage, theme.text, fx.enabled && fx.ambient && "fx-ambient")}>
-        {/* ✅ ANCRE #top 0px garantie même si tu vires la section top */}
         <div id="top" style={{ height: 0 }} aria-hidden="true" />
-
         <FxStyles enabled={!!fx.enabled} ambient={!!fx.ambient} />
         {(((liveConfig as any).sections ?? []) as any[]).map(renderSection)}
       </main>
 
-      {mounted &&
-      (liveConfig as any).options?.studio?.enabled &&
-      typeof document !== "undefined"
-        ? ReactDOM.createPortal(
-            <StudioPanel config={liveConfig as any} setConfig={setBoth as any} />,
-            document.body
-          )
+      {mounted && studioEnabled && typeof document !== "undefined"
+        ? ReactDOM.createPortal(<StudioPanel config={liveConfig as any} setConfig={setBoth as any} />, document.body)
         : null}
 
-      {/* ✅ SINGLE lightbox */}
       {enableLightbox && lightboxOpen && activeImg?.src ? (
-        <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 p-4"
-          onMouseDown={closeLightbox}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="relative w-full max-w-5xl overflow-hidden rounded-2xl bg-black"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 p-4" onMouseDown={closeLightbox} role="dialog" aria-modal="true">
+          <div className="relative w-full max-w-5xl overflow-hidden rounded-2xl bg-black" onMouseDown={(e) => e.stopPropagation()}>
             <div className="relative aspect-[16/9] bg-black">
               <Image src={activeImg.src} alt={activeImg.alt || "Aperçu"} fill className="object-contain" />
             </div>
 
-            <button
-              type="button"
-              onClick={closeLightbox}
-              className="absolute right-3 top-3 rounded-full bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20"
-              aria-label="Fermer"
-            >
+            <button type="button" onClick={closeLightbox} className="absolute right-3 top-3 rounded-full bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20" aria-label="Fermer">
               Fermer ✕
             </button>
 
-            <button
-              type="button"
-              onClick={prevImg}
-              className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-white hover:bg-white/20"
-              aria-label="Précédent"
-            >
+            <button type="button" onClick={prevImg} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-white hover:bg-white/20" aria-label="Précédent">
               ←
             </button>
 
-            <button
-              type="button"
-              onClick={nextImg}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-white hover:bg-white/20"
-              aria-label="Suivant"
-            >
+            <button type="button" onClick={nextImg} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-white hover:bg-white/20" aria-label="Suivant">
               →
             </button>
           </div>
@@ -707,3 +613,5 @@ React.useLayoutEffect(() => {
     </>
   );
 }
+
+export default TemplateEngine;

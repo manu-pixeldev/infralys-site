@@ -389,9 +389,9 @@ export type EngineOptions = {
   enableLightbox?: boolean;
   layout?: LayoutTokens;
 
-  fx: Options["fx"] & { shimmerCta?: boolean };
-  studio: { enabled: boolean; allowRandomize: boolean };
-  maxDirectLinksInMenu: number;
+fx: Options["fx"] & { shimmerCta?: boolean };
+studio: { enabled: boolean; allowRandomize: boolean };
+maxDirectLinksInMenu: number;
 };
 
 export type TemplateConfig = {

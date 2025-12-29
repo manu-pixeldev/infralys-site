@@ -7,18 +7,11 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  
 
   /* Header runtime vars (set en JS) */
-  --header-h: 180px;
-  --header-offset: 192px;
+  --header-h: 0px;
+  --header-offset: 0px;
 }
-
-:root {
-  --header-h: 180px;
-  --header-offset: 192px;
-}
-
 
 @theme inline {
   --color-background: var(--background);
@@ -35,7 +28,7 @@
 }
 
 /* ============================================================
-   BASE RESET (IMPORTANT)
+   BASE RESET
    ============================================================ */
 
 html,
@@ -51,66 +44,63 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* font smoothing */
 * {
+  box-sizing: border-box;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  box-sizing: border-box;
 }
 
 /* ============================================================
-   FX AMBIENT — FIX DÉFINITIF DU GAP
-   (le pseudo-element NE DOIT PAS influencer le layout)
+   FX AMBIENT — FIX PROPRE (stacking context isolé)
+   - ::before derrière (z-index:-1) mais dans un contexte isolé
+   - n’influence pas le header fixed
    ============================================================ */
 
 .fx-ambient {
   position: relative;
-  overflow: hidden;
+  isolation: isolate; /* ✅ la clé */
+  overflow: hidden;   /* garde si tu veux éviter tout débordement visuel */
 }
 
-/* 🔴 AVANT : pseudo-element dans le flux → trou gigantesque
-   ✅ MAINTENANT : absolument positionné, hors layout */
 .fx-ambient::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: -1; /* ✅ derrière le contenu du main (dans le stacking isolé) */
 
-  /* ambient light subtil (pro) */
+  /* ✅ ambient plus “pro” (marche en clair + sombre) */
   background:
-    radial-gradient(
-      1200px 400px at 50% -200px,
-      rgba(0, 0, 0, 0.08),
-      transparent 70%
-    );
+    radial-gradient(1200px 420px at 50% -220px, rgba(0, 0, 0, 0.08), transparent 70%),
+    radial-gradient(900px 380px at 15% 15%, rgba(0, 0, 0, 0.04), transparent 60%),
+    radial-gradient(900px 380px at 85% 10%, rgba(0, 0, 0, 0.035), transparent 65%);
 }
 
-/* le contenu passe AU-DESSUS de l’ambient */
-.fx-ambient > * {
-  position: relative;
-  z-index: 1;
+/* Dark mode: on inverse un peu l’intensité (sinon quasi invisible) */
+@media (prefers-color-scheme: dark) {
+  .fx-ambient::before {
+    background:
+      radial-gradient(1200px 420px at 50% -220px, rgba(255, 255, 255, 0.06), transparent 70%),
+      radial-gradient(900px 380px at 15% 15%, rgba(255, 255, 255, 0.035), transparent 60%),
+      radial-gradient(900px 380px at 85% 10%, rgba(255, 255, 255, 0.03), transparent 65%);
+  }
 }
 
 /* ============================================================
-   HEADER FIXED HELPERS
+   HEADER / MAIN helpers
    ============================================================ */
 
-/* évite tout margin-collapse chelou sous header fixed */
 header {
-  margin: 0;
+  margin: 0; /* évite tout margin collapse chelou */
 }
 
-/* sécurité anti scroll fantôme */
 main {
   display: block;
 }
 
 /* ============================================================
-   DEBUG (à activer si un jour ça re-déconne)
+   DEBUG
    ============================================================ */
 /*
-section {
-  outline: 1px dashed red;
-}
+section { outline: 1px dashed red; }
 */
