@@ -2,7 +2,12 @@
    TEMPLATE CONFIG — V2040 (STABLE) + SPLIT + CTA + LOGO MODE
    + GLOBAL LAYOUT (container/density/radius) ✅
    + PROOF (stats) ✅
+   + THEME VARIANT "accent|canvas" ✅
    ============================================================ */
+
+/* =======================
+   BLOC A — VARIANTS TYPES
+   ======================= */
 
 export type GalleryStyle = "gridCards" | "masonry" | "carousel" | "split";
 export type HeroVariant = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H";
@@ -13,6 +18,7 @@ export type HeaderVariant =
 export type ContactVariant = "AUTO" | "A" | "B" | "C" | "D" | "E";
 export type ServicesVariant = "A" | "B" | "C" | "D" | "E";
 export type TeamVariant = "A" | "B" | "C";
+
 export type GalleryLayout =
   | "stack"
   | "twoCol"
@@ -20,10 +26,15 @@ export type GalleryLayout =
   | "proStack"
   | "proTwoCol"
   | "proThreeCol";
+
 export type SplitVariant = "A" | "B";
 
 /** ✅ PROOF */
 export type ProofVariant = "stats";
+
+/* =======================
+   BLOC B — THEME (accent|canvas)
+   ======================= */
 
 /** ✅ Theme: SOURCE OF TRUTH = "accent|canvas" (mais accepte aussi "accent" legacy) */
 export type ThemeAccent =
@@ -49,13 +60,23 @@ export type ThemeCanvas =
 /** ✅ "amberOrange|classic" etc. + compat "amberOrange" */
 export type ThemeVariant = `${ThemeAccent}|${ThemeCanvas}` | ThemeAccent;
 
-export type SocialKind = "website" | "facebook" | "whatsapp" | "instagram" | "linkedin";
+/* =======================
+   BLOC C — SOCIALS / BRAND
+   ======================= */
+
+export type SocialKind =
+  | "website"
+  | "facebook"
+  | "whatsapp"
+  | "instagram"
+  | "linkedin"
+  | "youtube";
 
 /** ✅ MANUEL : modes d'affichage du bloc "brand" */
 export type LogoMode = "logoOnly" | "logoPlusText" | "textOnly";
 
 /* =======================
-   CONTENT STRUCTURES
+   BLOC D — CONTENT STRUCTURES
    ======================= */
 
 export type GalleryImage = {
@@ -110,6 +131,8 @@ export type Content = {
   contact: { address: string; phone: string; email: string };
 
   galleries: Gallery[];
+
+  /** ✅ socials (ancien format record) */
   socials: Record<SocialKind, string | null>;
 
   cta?: {
@@ -138,7 +161,7 @@ export type Content = {
 };
 
 /* =======================
-   OPTIONS (legacy defaults)
+   BLOC E — OPTIONS (legacy defaults)
    ======================= */
 
 export type Options = {
@@ -201,6 +224,10 @@ export const DEFAULT_OPTIONS: Options = {
   },
 };
 
+/* =======================
+   BLOC F — DEFAULT BRAND / CONTENT
+   ======================= */
+
 export const DEFAULT_BRAND: Brand = {
   logo: {
     enabled: true,
@@ -226,18 +253,9 @@ export const DEFAULT_CONTENT: Content = {
   servicesTitle: "Nos services",
   servicesText: "Des prestations claires et adaptées à vos besoins.",
   services: [
-    {
-      title: "Accompagnement",
-      items: ["Analyse de la situation", "Conseils personnalisés", "Suivi clair"],
-    },
-    {
-      title: "Intervention",
-      items: ["Mise en œuvre efficace", "Respect des délais", "Travail soigné"],
-    },
-    {
-      title: "Optimisation",
-      items: ["Amélioration continue", "Solutions adaptées", "Approche durable"],
-    },
+    { title: "Accompagnement", items: ["Analyse de la situation", "Conseils personnalisés", "Suivi clair"] },
+    { title: "Intervention", items: ["Mise en œuvre efficace", "Respect des délais", "Travail soigné"] },
+    { title: "Optimisation", items: ["Amélioration continue", "Solutions adaptées", "Approche durable"] },
   ],
 
   teamTitle: "Qui sommes-nous",
@@ -262,6 +280,7 @@ export const DEFAULT_CONTENT: Content = {
     whatsapp: null,
     instagram: null,
     linkedin: null,
+    youtube: null,
   },
 
   galleries: [
@@ -315,7 +334,7 @@ export const DEFAULT_CONTENT: Content = {
 };
 
 /* =======================
-   ENGINE TYPES
+   BLOC G — ENGINE TYPES
    ======================= */
 
 export type Density = "compact" | "normal" | "spacious";
@@ -348,7 +367,6 @@ export type SectionType =
   | "links";
 
 export type SectionVariantByType = {
-  // ✅ top = dummy variant, unused
   top: "A";
 
   header: HeaderVariant;
@@ -370,10 +388,7 @@ export type Section<T extends SectionType = SectionType> = {
   id: string;
   type: T;
   title?: string;
-
-  /** IMPORTANT: variant = par type */
   variant: SectionVariantByType[T];
-
   enabled?: boolean;
   lock?: boolean;
   layout?: LayoutTokens;
@@ -383,14 +398,11 @@ export type Section<T extends SectionType = SectionType> = {
 export type SectionInput = {
   id: string;
   type: SectionType;
-
   title?: string;
   variant?: SectionVariantByType[SectionType] | string;
-
   enabled?: boolean;
   lock?: boolean;
   layout?: LayoutTokens;
-
   [k: string]: unknown;
 };
 
@@ -421,7 +433,6 @@ export type TemplateConfigInput = {
   };
 
   sections?: SectionInput[];
-
   [k: string]: unknown;
 };
 
@@ -430,7 +441,6 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
   content: DEFAULT_CONTENT,
 
   options: {
-    // ✅ FIX: format attendu par getTheme() + StudioPanel
     themeVariant: "amberOrange|classic",
     maxDirectLinksInMenu: DEFAULT_OPTIONS.maxDirectLinksInMenu,
     enableLightbox: DEFAULT_OPTIONS.enableLightbox,
@@ -450,7 +460,6 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
 
   sections: [
     { id: "header", type: "header", title: "Header", variant: "D", enabled: true, lock: true },
-
     { id: "hero", type: "hero", title: "Accueil", variant: "B", enabled: true, lock: true },
 
     { id: "split-1", type: "split", title: "Approche", variant: "A", enabled: true },
@@ -465,7 +474,7 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
 };
 
 /* =======================
-   HELPERS
+   BLOC H — HELPERS
    ======================= */
 
 export function captionOk(v?: string) {

@@ -8,8 +8,9 @@ import Image from "next/image";
 import type { TemplateConfigInput } from "./types";
 import { getTheme, cx } from "./theme";
 import { VARIANTS } from "./variants";
-import StudioPanel from "./studio-panel";
+import { StudioPanel } from "./studio-panel";
 import { FxStyles } from "./fx-styles";
+
 
 function fallbackVariant(type: string) {
   switch (type) {
@@ -54,11 +55,12 @@ function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
   // studio defaults (+ UI)
   next.options.studio = next.options.studio ?? {};
   next.options.studio.enabled = next.options.studio.enabled ?? true;
+  next.options.studio.allowRandomize = next.options.studio.allowRandomize ?? true;
   next.options.studio.ui = next.options.studio.ui ?? {};
   next.options.studio.ui.dock = next.options.studio.ui.dock ?? "right";
   next.options.studio.ui.minimized = next.options.studio.ui.minimized ?? false;
 
-  // ✅ keep safe if types.ts doesn't include it
+  // theme default safe
   (next.options as any).themeVariant = (next.options as any).themeVariant ?? "amberOrange|classic";
 
   next.brand = next.brand ?? {};
@@ -97,30 +99,55 @@ export function TemplateEngine({
   config: TemplateConfigInput;
   setConfig?: React.Dispatch<React.SetStateAction<TemplateConfigInput>>;
 }) {
+  // Anti feedback-loop (parent <-> child)
   const lastSentRef = React.useRef<string>("");
+  const lastRecvRef = React.useRef<string>("");
 
   const [liveConfig, setLiveConfig] = React.useState<TemplateConfigInput>(() => {
     const resolved = resolveConfig(config);
-    lastSentRef.current = JSON.stringify(resolved);
+    const s = JSON.stringify(resolved);
+    lastSentRef.current = s;
+    lastRecvRef.current = s;
     return resolved;
   });
 
-  // ✅ sync from parent without feedback loop
-  React.useEffect(() => {
-    const resolved = resolveConfig(config);
-    const serialized = JSON.stringify(resolved);
-    // only sync if really different
-    if (serialized === JSON.stringify(liveConfig)) return;
-    setLiveConfig(resolved);
-    // IMPORTANT: align lastSent to prevent immediate re-send
-    lastSentRef.current = serialized;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config]);
+  // ✅ sync from parent WITHOUT infinite loop
+// ✅ sync from parent WITHOUT infinite loop
+React.useEffect(() => {
+  const resolved = resolveConfig(config);
+  const serialized = JSON.stringify(resolved);
+
+  // ✅ ignore exact echo of what we just sent to parent
+  if (serialized === lastSentRef.current) {
+    lastRecvRef.current = serialized; // align
+    return;
+  }
+
+  // only update if parent truly changed
+  if (serialized === lastRecvRef.current) return;
+
+  lastRecvRef.current = serialized;
+  setLiveConfig(resolved);
+}, [config]);
+
+// push to parent (controlled mode)
+React.useEffect(() => {
+  if (!setConfig) return;
+  const serialized = JSON.stringify(liveConfig);
+
+  // don't send duplicates
+  if (serialized === lastSentRef.current) return;
+
+  lastSentRef.current = serialized;
+  lastRecvRef.current = serialized; // ✅ align to prevent bounce-back loop
+  setConfig(liveConfig);
+}, [liveConfig, setConfig]);
 
   const setBoth = React.useCallback((next: React.SetStateAction<TemplateConfigInput>) => {
     setLiveConfig((prev) => {
       const computed = typeof next === "function" ? (next as any)(prev) : next;
-      return resolveConfig(computed);
+      const resolved = resolveConfig(computed);
+      return resolved;
     });
   }, []);
 
@@ -128,9 +155,13 @@ export function TemplateEngine({
   React.useEffect(() => {
     if (!setConfig) return;
     const serialized = JSON.stringify(liveConfig);
+
+    // don't send duplicates
     if (serialized === lastSentRef.current) return;
+
     lastSentRef.current = serialized;
     setConfig(liveConfig);
+    // do NOT touch lastRecvRef here (that's parent source of truth)
   }, [liveConfig, setConfig]);
 
   const [mounted, setMounted] = React.useState(false);
@@ -195,8 +226,10 @@ export function TemplateEngine({
     return String(h?.variant ?? "A");
   }, [(liveConfig as any).sections]);
 
-  /** Header measurements */
+  /** Header measurements (stable + no tremble) */
   const headerRef = React.useRef<HTMLElement>(null);
+  const lastHeaderH = React.useRef<number>(-1);
+
   React.useLayoutEffect(() => {
     const el = headerRef.current;
     if (!el) return;
@@ -208,6 +241,10 @@ export function TemplateEngine({
       const SAFE_MAX = 260;
       const safeH = Math.max(0, Math.min(headerH, SAFE_MAX));
       const gap = 16;
+
+      // ✅ only write CSS vars if height changed
+      if (safeH === lastHeaderH.current) return;
+      lastHeaderH.current = safeH;
 
       document.documentElement.style.scrollPaddingTop = `${safeH + gap}px`;
       document.documentElement.style.setProperty("--header-h", `${safeH}px`);
@@ -456,8 +493,6 @@ export function TemplateEngine({
       if (s.enabled === false) return null;
 
       const map = (VARIANTS as any)[s.type];
-
-      // ✅ FIX TS: Comp est polymorphe (header/hero/etc). On force un ComponentType<any>.
       const Comp = (map?.[s.variant] ?? map?.[fallbackVariant(s.type)] ?? null) as React.ComponentType<any>;
       if (!Comp) return null;
 
@@ -490,6 +525,8 @@ export function TemplateEngine({
             activeHref={activeHref}
             isScrolled={isScrolled}
             scrollT={scrollT}
+            // ✅ allow immersive header based on canvas
+            canvasStyle={(theme as any).canvasStyle ?? "classic"}
           />
         );
       }
@@ -500,7 +537,7 @@ export function TemplateEngine({
 
       const wrap = (node: React.ReactNode) => (
         <div
-          key={`${s.id}:${s.variant ?? ""}`} // ✅ remount on variant change (fix split A/B not updating)
+          key={`${s.id}:${s.variant ?? ""}`}
           ref={registerReveal(String(s.id))}
           className={cx("reveal", fx.enabled && fx.softGlow && "fx-softglow")}
           style={{ scrollMarginTop: "var(--header-offset, 84px)" }}
@@ -575,7 +612,10 @@ export function TemplateEngine({
 
   return (
     <>
-      <main className={cx("min-h-screen", theme.bgPage, theme.text, fx.enabled && fx.ambient && "fx-ambient")}>
+      <main
+        style={(theme as any).canvasVar}
+        className={cx("min-h-screen", theme.bgPage, theme.text, fx.enabled && fx.ambient && "fx-ambient")}
+      >
         <div id="top" style={{ height: 0 }} aria-hidden="true" />
         <FxStyles enabled={!!fx.enabled} ambient={!!fx.ambient} />
         {(((liveConfig as any).sections ?? []) as any[]).map(renderSection)}

@@ -2,7 +2,7 @@
 "use client";
 
 import React from "react";
-import TemplateEngine from "../components/template-engine/template-engine";
+import { TemplateEngine } from "../components/template-engine/template-engine";
 import { DEFAULT_TEMPLATE_CONFIG } from "./template.config";
 import type { TemplateConfigInput } from "../components/template-engine/types";
 

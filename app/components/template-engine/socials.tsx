@@ -2,22 +2,15 @@
 
 import React from "react";
 
-export type SocialKind =
-  | "website"
-  | "facebook"
-  | "whatsapp"
-  | "instagram"
-  | "linkedin"
-  | "youtube";
+export type SocialKind = "website" | "facebook" | "whatsapp" | "instagram" | "linkedin" | "youtube";
 
 export type SocialDef = {
   label: string;
-  /** optional prefix helper (ex: wa.me/) */
-  hrefPrefix?: string;
+  hrefPrefix?: string; // ex: https://wa.me/
   Icon: React.FC<{ className?: string }>;
 };
 
-/** ✅ SAFE placeholder icons (replace with your SVG components later) */
+/** ✅ SAFE placeholder icons (tu remplaceras par des SVG plus tard) */
 const Glyph = ({ children, className }: { children: React.ReactNode; className?: string }) => (
   <span
     className={className}
@@ -53,20 +46,26 @@ export const SOCIAL_DEFS: Record<SocialKind, SocialDef> = {
   youtube: { label: "YouTube", Icon: IconYouTube },
 };
 
-export type SocialConfig = {
-  /** URLs or handles. Ex: { facebook:"https://fb.com/...", whatsapp:"3247..." } */
-  links?: Partial<Record<SocialKind, string>>;
-  /** enable/disable each item */
-  enabled?: Partial<Record<SocialKind, boolean>>;
-  /** order (optional) */
-  order?: SocialKind[];
-};
+/**
+ * ✅ Compat:
+ * - ancien format: { website:"...", facebook:null, ... }
+ * - nouveau format: { links, enabled, order }
+ */
+export type SocialRecord = Partial<Record<SocialKind, string | null>>;
+
+export type SocialConfig =
+  | SocialRecord
+  | {
+      links?: SocialRecord;
+      enabled?: Partial<Record<SocialKind, boolean>>;
+      order?: SocialKind[];
+    };
 
 function normalizeUrl(kind: SocialKind, raw: string, def: SocialDef) {
   const v = String(raw || "").trim();
   if (!v) return "";
 
-  // already absolute / anchor / mailto / tel
+  // absolute / protocol-relative / anchor / mailto / tel
   if (/^(https?:)?\/\//i.test(v) || v.startsWith("#") || v.startsWith("mailto:") || v.startsWith("tel:")) return v;
 
   // whatsapp: allow digits or +digits
@@ -79,10 +78,16 @@ function normalizeUrl(kind: SocialKind, raw: string, def: SocialDef) {
   return `https://${v}`;
 }
 
+function isNewShape(cfg: any): cfg is Exclude<SocialConfig, SocialRecord> {
+  return !!cfg && typeof cfg === "object" && ("links" in cfg || "enabled" in cfg || "order" in cfg);
+}
+
 export function resolveSocialLinks(cfg?: SocialConfig) {
-  const links = cfg?.links ?? {};
-  const enabled = cfg?.enabled ?? {};
-  const order = (cfg?.order?.length ? cfg.order : (Object.keys(SOCIAL_DEFS) as SocialKind[])) as SocialKind[];
+  const orderDefault = Object.keys(SOCIAL_DEFS) as SocialKind[];
+
+  const links: SocialRecord = !cfg ? {} : isNewShape(cfg) ? (cfg.links ?? {}) : (cfg as SocialRecord);
+  const enabled = isNewShape(cfg) ? (cfg.enabled ?? {}) : {};
+  const order = (isNewShape(cfg) && cfg.order?.length ? cfg.order : orderDefault) as SocialKind[];
 
   return order
     .filter((k) => enabled[k] !== false)

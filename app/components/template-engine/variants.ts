@@ -1,3 +1,4 @@
+// app/components/template-engine/variants.ts
 import type { ComponentType } from "react";
 import type { SectionType } from "./types";
 
@@ -21,7 +22,6 @@ export const VARIANTS: Registry = {
   top: { A: () => null },
 
   header: {
-    // template.config: A..K + PRO
     A: LegacyHeader,
     B: LegacyHeader,
     C: LegacyHeader,
@@ -37,7 +37,6 @@ export const VARIANTS: Registry = {
   },
 
   hero: {
-    // template.config: A..H (on map tout sur LegacyHero tant que tu n'as pas de HeroPro dédié)
     A: LegacyHero,
     B: LegacyHero,
     C: LegacyHero,
@@ -51,7 +50,6 @@ export const VARIANTS: Registry = {
   split: { A: LegacySplit, B: LegacySplit },
 
   services: {
-    // template.config: A..E
     A: LegacyServices,
     B: LegacyServices,
     C: LegacyServices,
@@ -62,11 +60,9 @@ export const VARIANTS: Registry = {
   team: { A: LegacyTeam, B: LegacyTeam, C: LegacyTeam },
 
   gallery: {
-    // template.config: stack/twoCol/threeCol + proStack/proTwoCol/proThreeCol
     stack: LegacyGalleries,
     twoCol: LegacyGalleries,
     threeCol: LegacyGalleries,
-
     proStack: ProGallery,
     proTwoCol: ProGallery,
     proThreeCol: ProGallery,
@@ -75,7 +71,6 @@ export const VARIANTS: Registry = {
   proof: { stats: ProofStats },
 
   contact: {
-    // template.config: AUTO + A..E (tu as D/E dans config)
     AUTO: LegacyContact,
     A: LegacyContact,
     B: LegacyContact,

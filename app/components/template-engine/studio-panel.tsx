@@ -28,7 +28,7 @@ import { VARIANTS_BY_TYPE } from "./variants";
 import type { SocialKind } from "./socials";
 import { SOCIAL_DEFS } from "./socials";
 
-/** Theme pickers (match getTheme keys) */
+/** Theme pickers (ACCENTS = gradients only) */
 const ACCENTS = [
   "amberOrange",
   "emeraldTeal",
@@ -39,10 +39,17 @@ const ACCENTS = [
   "monoDarkRose",
   "monoDarkGold",
   "monoDarkLime",
+
+  // 🔥 FUTUR / FX accents
+  "neon",
+  "aurora",
+  "volcano",
+  "cyber",
 ] as const;
 
-// ✅ more canvases (classic + premium)
+/** CANVAS = full page univers */
 const CANVAS = [
+  // light
   "classic",
   "pearl",
   "paper",
@@ -52,12 +59,21 @@ const CANVAS = [
   "cool",
   "forest",
   "sunset",
+
+  // dark classic
   "charcoal",
   "midnight",
   "graphite",
   "studio",
   "obsidian",
+
+  // 🔥 GLOBAL UNIVERSE (immersive only)
+  "neon",
+  "aurora",
+  "volcano",
+  "cyber",
 ] as const;
+
 
 const CONTAINERS = ["5xl", "6xl", "7xl", "full"] as const;
 const DENSITIES = ["compact", "normal", "spacious"] as const;
@@ -77,7 +93,8 @@ function cx(...c: (string | false | null | undefined)[]) {
 }
 
 function clone<T>(v: T): T {
-  if (typeof (globalThis as any).structuredClone === "function") return (globalThis as any).structuredClone(v);
+  if (typeof (globalThis as any).structuredClone === "function")
+    return (globalThis as any).structuredClone(v);
   return JSON.parse(JSON.stringify(v));
 }
 
@@ -118,18 +135,28 @@ function isTypingTarget(el: any) {
 
 /** Very small color helpers */
 function rgbToHsl(r: number, g: number, b: number) {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0;
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b);
+  let h = 0,
+    s = 0;
   const l = (max + min) / 2;
 
   const d = max - min;
   if (d !== 0) {
     s = d / (1 - Math.abs(2 * l - 1));
     switch (max) {
-      case r: h = ((g - b) / d) % 6; break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
+      case r:
+        h = ((g - b) / d) % 6;
+        break;
+      case g:
+        h = (b - r) / d + 2;
+        break;
+      case b:
+        h = (r - g) / d + 4;
+        break;
     }
     h *= 60;
     if (h < 0) h += 360;
@@ -142,7 +169,9 @@ function rgbToHsl(r: number, g: number, b: number) {
  * - Works best for same-origin images.
  * - If CORS blocks, it throws -> caller should fallback safely.
  */
-async function extractDominantRgb(src: string): Promise<{ r: number; g: number; b: number } | null> {
+async function extractDominantRgb(
+  src: string
+): Promise<{ r: number; g: number; b: number } | null> {
   if (!src) return null;
 
   // data: URLs OK; local public paths OK; external needs CORS
@@ -172,17 +201,22 @@ async function extractDominantRgb(src: string): Promise<{ r: number; g: number; 
   const data = ctx.getImageData(0, 0, w, h).data;
 
   // simple weighted average ignoring near-transparent + near-white/near-black
-  let rSum = 0, gSum = 0, bSum = 0, count = 0;
+  let rSum = 0,
+    gSum = 0,
+    bSum = 0,
+    count = 0;
 
   for (let i = 0; i < data.length; i += 4) {
     const a = data[i + 3];
     if (a < 60) continue;
-    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const r = data[i],
+      g = data[i + 1],
+      b = data[i + 2];
 
     // ignore extreme backgrounds
     const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
     if (lum > 245) continue; // near-white
-    if (lum < 10) continue;  // near-black
+    if (lum < 10) continue; // near-black
 
     rSum += r;
     gSum += g;
@@ -194,7 +228,12 @@ async function extractDominantRgb(src: string): Promise<{ r: number; g: number; 
   return { r: Math.round(rSum / count), g: Math.round(gSum / count), b: Math.round(bSum / count) };
 }
 
-function pickAccentFromHsl(h: number, s: number, l: number, mode: AutoAccentMode): typeof ACCENTS[number] {
+function pickAccentFromHsl(
+  h: number,
+  s: number,
+  l: number,
+  mode: AutoAccentMode
+): typeof ACCENTS[number] {
   // if low saturation -> mono-ish
   if (s < 0.18) {
     if (l < 0.35) return "monoDark";
@@ -257,11 +296,13 @@ function SectionCard({
   onToggleEnabled,
   onChangeVariant,
   onRemove,
+  onFocusCard,
 }: {
   s: any;
   onToggleEnabled: (id: string, enabled: boolean) => void;
   onChangeVariant: (id: string, variant: string) => void;
   onRemove: (id: string) => void;
+  onFocusCard: (id: string) => void;
 }) {
   const locked = s.lock === true;
 
@@ -274,7 +315,7 @@ function SectionCard({
 
   const opts = (VARIANTS_BY_TYPE[String(s.type)] ?? null) as readonly string[] | null;
   const current = String(s.variant ?? "A");
-  const value = opts && opts.includes(current) ? current : (opts?.[0] ?? current);
+  const value = opts && opts.includes(current) ? current : opts?.[0] ?? current;
 
   const canDelete = !locked && String(s.type) === "split";
 
@@ -288,6 +329,8 @@ function SectionCard({
       ref={setNodeRef}
       style={style}
       tabIndex={0}
+      onFocus={() => onFocusCard(String(s.id))}
+      onPointerDown={() => onFocusCard(String(s.id))}
       onKeyDown={(e) => {
         if (e.key === "ArrowLeft") {
           e.preventDefault();
@@ -495,6 +538,10 @@ export function StudioPanel({
   const canvasSelectRef = React.useRef<HTMLSelectElement>(null);
   const shellRef = React.useRef<HTMLDivElement>(null);
 
+  // ✅ keyboard scope + active section
+  const [activeScope, setActiveScope] = React.useState<null | "accent" | "canvas">(null);
+  const [activeSectionId, setActiveSectionId] = React.useState<string | null>(null);
+
   // ✅ Auto accent effect (guarded)
   const lastAutoRef = React.useRef<{ src: string; mode: AutoAccentMode; applied: string } | null>(null);
   const logoSrc = String((config as any)?.brand?.logo?.src ?? "");
@@ -556,7 +603,8 @@ export function StudioPanel({
       return d;
     });
 
-  const currentLogoMode = (((config as any)?.brand?.logo?.mode ?? "logoPlusText") as any) as (typeof LOGO_MODES)[number];
+  const currentLogoMode =
+    (((config as any)?.brand?.logo?.mode ?? "logoPlusText") as any) as (typeof LOGO_MODES)[number];
   const setLogoMode = (mode: (typeof LOGO_MODES)[number]) =>
     update((d) => {
       d.brand = d.brand ?? {};
@@ -728,6 +776,21 @@ export function StudioPanel({
     return [...pinnedNoTop, ...rest];
   }, [sectionsRaw]);
 
+  const cycleGlobalVariant = (dir: -1 | 1) => {
+    const id = activeSectionId ?? String(sectionsView?.[0]?.id ?? "");
+    if (!id) return;
+
+    const s = sectionsView.find((x: any) => String(x.id) === String(id));
+    if (!s) return;
+
+    const opts = (VARIANTS_BY_TYPE[String(s.type)] ?? null) as readonly string[] | null;
+    if (!opts?.length) return;
+
+    const current = String(s.variant ?? opts[0]);
+    const value = opts.includes(current) ? current : opts[0];
+    setSectionVariant(id, cycleInList(value, opts, dir));
+  };
+
   const sectionIds = React.useMemo(() => sectionsView.map((s) => s.id), [sectionsView]);
 
   const onDragEnd = (e: DragEndEvent) => {
@@ -789,33 +852,50 @@ export function StudioPanel({
         className={shell}
         tabIndex={0}
         onKeyDown={(e) => {
-          // ✅ Option A UX:
-          // - ArrowLeft/Right ONLY cycles when Accent select OR Canvas select is focused
-          // - otherwise, do not hijack arrows (prevents surprises)
           if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          if (e.altKey || e.ctrlKey || e.metaKey) return;
 
           const dir: -1 | 1 = e.key === "ArrowLeft" ? -1 : 1;
           const active = document.activeElement as any;
 
           // if user is typing somewhere else => never intercept
-          if (isTypingTarget(active) && active !== accentSelectRef.current && active !== canvasSelectRef.current) {
+          if (
+            isTypingTarget(active) &&
+            active !== accentSelectRef.current &&
+            active !== canvasSelectRef.current
+          ) {
             return;
           }
 
+          // 1) direct focus on selects
           if (active === accentSelectRef.current) {
+            if (autoAccentMode !== "off") return;
             e.preventDefault();
             cycleAccent(dir);
             return;
           }
-
           if (active === canvasSelectRef.current) {
             e.preventDefault();
             cycleCanvas(dir);
             return;
           }
 
-          // panel focused but not in theme selects -> do nothing
-          return;
+          // 2) scope chosen (clicked in theme blocks)
+          if (activeScope === "accent") {
+            if (autoAccentMode !== "off") return;
+            e.preventDefault();
+            cycleAccent(dir);
+            return;
+          }
+          if (activeScope === "canvas") {
+            e.preventDefault();
+            cycleCanvas(dir);
+            return;
+          }
+
+          // 3) global Option A: active section variant
+          e.preventDefault();
+          cycleGlobalVariant(dir);
         }}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur">
@@ -906,7 +986,7 @@ export function StudioPanel({
               </div>
 
               <div className="mt-2 text-[11px] text-slate-500">
-                Tip: pour le clavier, focus sur le select Accent/Fond puis <span className="font-semibold">←/→</span>.
+                Tip: focus Accent/Fond → <span className="font-semibold">←/→</span>. Sinon: flèches = variant de la section active.
               </div>
             </div>
 
@@ -936,7 +1016,13 @@ export function StudioPanel({
               </div>
             </div>
 
-            <div className="mb-4">
+            {/* Accent */}
+            <div
+              className="mb-4"
+              data-scope="accent"
+              onFocusCapture={() => setActiveScope("accent")}
+              onPointerDownCapture={() => setActiveScope("accent")}
+            >
               <div className="mb-2 text-xs font-semibold text-slate-700">Accent</div>
               <div className="flex items-center gap-2">
                 <IconBtn title="Accent précédent (←)" onClick={() => cycleAccent(-1)} disabled={autoAccentMode !== "off"}>
@@ -974,7 +1060,12 @@ export function StudioPanel({
               ) : null}
             </div>
 
-            <div>
+            {/* Canvas */}
+            <div
+              data-scope="canvas"
+              onFocusCapture={() => setActiveScope("canvas")}
+              onPointerDownCapture={() => setActiveScope("canvas")}
+            >
               <div className="mb-2 text-xs font-semibold text-slate-700">Fond (canvas)</div>
               <div className="flex items-center gap-2">
                 <IconBtn title="Fond précédent (←)" onClick={() => cycleCanvas(-1)}>◀</IconBtn>
@@ -1236,6 +1327,7 @@ export function StudioPanel({
                       onToggleEnabled={setSectionEnabled}
                       onChangeVariant={setSectionVariant}
                       onRemove={removeSection}
+                      onFocusCard={(id) => setActiveSectionId(id)}
                     />
                   ))}
                 </SortableContext>

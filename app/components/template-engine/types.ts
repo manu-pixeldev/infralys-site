@@ -14,4 +14,7 @@ export type {
   // sections
   Section,
   SectionType,
+
+  // ✅ IMPORTANT: socials kind (needed by socials.tsx)
+  SocialKind,
 } from "../../template-base/template.config";

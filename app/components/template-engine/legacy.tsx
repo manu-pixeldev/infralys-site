@@ -17,7 +17,10 @@ import {
 
 import { resolveSocialLinks, type SocialConfig } from "./socials";
 
-// Types "soft" (compat)
+/* ============================================================
+   BLOC 0 — TYPES (soft compat)
+   ============================================================ */
+
 type Brand = any;
 type LayoutTokens = any;
 type HeaderVariantX = any;
@@ -27,61 +30,9 @@ function hasText(v: any) {
   return typeof v === "string" && v.trim().length > 0;
 }
 
-/** Small section header (SaaS clean) */
-function SectionHead({
-  theme,
-  kicker,
-  title,
-  text,
-  align = "left",
-}: {
-  theme: ThemeLike;
-  kicker?: string;
-  title?: string;
-  text?: string;
-  align?: "left" | "center";
-}) {
-  if (!hasText(kicker) && !hasText(title) && !hasText(text)) return null;
-
-  const isCenter = align === "center";
-  return (
-    <div className={cx(isCenter ? "text-center" : "text-left", "mb-8")}>
-      {hasText(kicker) ? (
-        <div
-          className={cx(
-            "text-xs font-semibold uppercase tracking-[0.18em]",
-            theme.isDark ? "text-white/60" : "text-slate-500"
-          )}
-        >
-          {kicker}
-        </div>
-      ) : null}
-
-      {hasText(title) ? (
-        <h2
-          className={cx(
-            "mt-2 text-2xl md:text-3xl font-semibold tracking-tight",
-            theme.isDark ? "text-white" : "text-slate-950"
-          )}
-        >
-          {title}
-        </h2>
-      ) : null}
-
-      {hasText(text) ? (
-        <p
-          className={cx(
-            "mt-3 max-w-3xl",
-            isCenter ? "mx-auto" : "",
-            theme.isDark ? "text-white/70" : "text-slate-600"
-          )}
-        >
-          {text}
-        </p>
-      ) : null}
-    </div>
-  );
-}
+/* ============================================================
+   BLOC 1 — UI HELPERS
+   ============================================================ */
 
 function Wrap({
   children,
@@ -134,7 +85,7 @@ function Surface({
   );
 }
 
-/** Social icons row (optional, driven by content.socials) */
+/** Social icons row (optional) */
 function SocialRow({
   theme,
   cfg,
@@ -214,11 +165,8 @@ function DesktopOverflowMenu({
       <button
         type="button"
         className={cx(
-          // ✅ padding so it's not glued to the right edge in pill nav
           "group relative transition-colors px-2 py-1 rounded-lg",
-          theme.isDark
-            ? "text-white/80 hover:text-white"
-            : "text-slate-700 hover:text-slate-950"
+          theme.isDark ? "text-white/80 hover:text-white" : "text-slate-700 hover:text-slate-950"
         )}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
@@ -266,7 +214,7 @@ function DesktopOverflowMenu({
 }
 
 /* ============================================================
-   HEADER (FULL)
+   BLOC 2 — HEADER (A/B/C/D)
    ============================================================ */
 
 export function LegacyHeader(props: {
@@ -285,23 +233,21 @@ export function LegacyHeader(props: {
   scrollT?: number;
   layout?: LayoutTokens;
   globalLayout?: LayoutTokens;
+  canvasStyle?: "classic" | "immersive";
 }) {
-  const { theme, brand, headerVariant, headerRef, showTeam, maxDirectLinks, contact } =
-    props;
+  const { theme, brand, headerVariant, headerRef, showTeam, maxDirectLinks, contact } = props;
 
   const variant = (headerVariant ?? "A") as HeaderVariantX;
   const l = resolveLayout(props.layout, props.globalLayout);
 
   const activeHref = props.activeHref ?? "#top";
-  const t = Math.max(
-    0,
-    Math.min(1, Number(props.scrollT ?? (props.isScrolled ? 1 : 0)))
-  );
+  const t = Math.max(0, Math.min(1, Number(props.scrollT ?? (props.isScrolled ? 1 : 0))));
   const isScrolled = t > 0.15;
 
+  const canvasStyle = (props as any)?.canvasStyle ?? "classic";
+  const immersive = canvasStyle === "immersive";
   const lerp = (a: number, b: number) => a + (b - a) * t;
 
-  // padding fluide
   const padY = lerp(16, 10);
   const padY2 = lerp(14, 9);
   const navPadY = lerp(10, 8);
@@ -313,10 +259,7 @@ export function LegacyHeader(props: {
   const navBase = "text-[12px] font-semibold uppercase tracking-[0.14em]";
 
   const logoEnabled = (brand as any)?.logo?.enabled !== false;
-  const logoMode =
-    (((brand as any)?.logo?.mode ?? "logoPlusText") as LogoMode) ||
-    "logoPlusText";
-
+  const logoMode = (((brand as any)?.logo?.mode ?? "logoPlusText") as LogoMode) || "logoPlusText";
   const logoW = Math.max(32, Number((brand as any)?.logo?.width ?? 80));
   const logoH = Math.max(32, Number((brand as any)?.logo?.height ?? 80));
   const logoSrc = (brand as any)?.logo?.src;
@@ -343,31 +286,19 @@ export function LegacyHeader(props: {
         )
       : (
           <div
-            className={cx(
-              "rounded-2xl bg-gradient-to-br",
-              theme.accentFrom,
-              theme.accentTo
-            )}
+            className={cx("rounded-2xl bg-gradient-to-br", theme.accentFrom, theme.accentTo)}
             style={{ width: 56, height: 56 }}
             aria-hidden="true"
           />
         );
 
-  // ✅ FIX ANTI-TREMBLEMENT subtitle:
-  // - wrapper toujours rendu
-  // - réserve une hauteur stable
-  // - NBSP si vide (pas "—", pas opacity-0)
+  // ✅ Anti-tremblement subtitle : wrapper toujours rendu + hauteur réservée
   const subtitleRaw = (brand as any)?.text?.subtitle;
   const subtitleText = hasText(subtitleRaw) ? String(subtitleRaw) : "\u00A0";
 
   const BrandText = showTextBlock ? (
     <div className="min-w-0 leading-tight">
-      <div
-        className={cx(
-          "truncate font-semibold",
-          theme.isDark ? "text-white" : "text-slate-900"
-        )}
-      >
+      <div className={cx("truncate font-semibold", theme.isDark ? "text-white" : "text-slate-900")}>
         {(brand as any)?.text?.name ?? "Nom de la société"}
       </div>
 
@@ -398,7 +329,6 @@ export function LegacyHeader(props: {
     </a>
   ) : null;
 
-  // ✅ socials via content.socials (optional)
   const socialsCfg = (props.content?.socials ?? undefined) as SocialConfig | undefined;
 
   const secs = Array.isArray((props as any).sections) ? (props as any).sections : [];
@@ -426,7 +356,6 @@ export function LegacyHeader(props: {
     return true;
   });
 
-  // ✅ dropdown si trop d’items (desktop) - piloté par panel (maxDirectLinks)
   const MAX_INLINE = Math.max(0, Math.min(12, Number(maxDirectLinks ?? 6)));
   const inlineLinks = linksAll.slice(0, MAX_INLINE);
   const overflowLinks = linksAll.slice(MAX_INLINE);
@@ -439,15 +368,23 @@ export function LegacyHeader(props: {
     <>
       <header
         ref={headerRef as any}
+        style={
+          immersive
+            ? {
+                backgroundColor: isScrolled
+                  ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 88%, transparent)"
+                  : "var(--te-canvas, #0b0b0c)",
+              }
+            : undefined
+        }
         className={cx(
           headerPos,
           headerZ,
           "border-b shadow-[0_2px_18px_rgba(0,0,0,0.06)] transition-[background-color,backdrop-filter] duration-200",
-          theme.isDark
-            ? "border-white/10 bg-slate-950 text-white"
-            : "border-slate-200 bg-white text-slate-900",
-          isScrolled &&
-            (theme.isDark ? "bg-slate-950/88 backdrop-blur" : "bg-white/88 backdrop-blur")
+          theme.isDark ? "border-white/10 text-white" : "border-slate-200 text-slate-900",
+          !immersive && (theme.isDark ? "bg-slate-950" : "bg-white"),
+          !immersive && isScrolled && (theme.isDark ? "bg-slate-950/88 backdrop-blur" : "bg-white/88 backdrop-blur"),
+          immersive && isScrolled && "backdrop-blur"
         )}
       >
         {children}
@@ -457,13 +394,7 @@ export function LegacyHeader(props: {
   );
 
   const NavA = () => (
-    <nav
-      className={cx(
-        "hidden md:flex items-center gap-7",
-        navBase,
-        theme.isDark ? "text-white/80" : "text-slate-700"
-      )}
-    >
+    <nav className={cx("hidden md:flex items-center gap-7", navBase, theme.isDark ? "text-white/80" : "text-slate-700")}>
       {inlineLinks.map((lnk) => {
         const active = lnk.href === activeHref;
         return (
@@ -493,17 +424,10 @@ export function LegacyHeader(props: {
   );
 
   const NavB = () => (
-    <nav
-      className={cx(
-        "hidden md:flex items-center gap-2 rounded-2xl border p-1.5",
-        theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
-      )}
-    >
+    <nav className={cx("hidden md:flex items-center gap-2 rounded-2xl border p-1.5", theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50")}>
       {inlineLinks.map((lnk) => {
         const active = lnk.href === activeHref;
-        const activePill = theme.isDark
-          ? "text-white bg-white/10 shadow-sm"
-          : "text-slate-950 bg-white shadow-sm";
+        const activePill = theme.isDark ? "text-white bg-white/10 shadow-sm" : "text-slate-950 bg-white shadow-sm";
         const idlePill = theme.isDark
           ? "text-white/80 hover:text-white hover:bg-white/10"
           : "text-slate-700 hover:text-slate-950 hover:bg-white hover:shadow-sm";
@@ -512,11 +436,7 @@ export function LegacyHeader(props: {
           <a
             key={lnk.href}
             href={lnk.href}
-            className={cx(
-              "rounded-2xl px-5 py-2 transition text-center hover:-translate-y-[1px] active:translate-y-0",
-              navBase,
-              active ? activePill : idlePill
-            )}
+            className={cx("rounded-2xl px-5 py-2 transition text-center hover:-translate-y-[1px] active:translate-y-0", navBase, active ? activePill : idlePill)}
           >
             {lnk.label}
           </a>
@@ -530,13 +450,7 @@ export function LegacyHeader(props: {
   );
 
   const NavC = () => (
-    <nav
-      className={cx(
-        "hidden md:flex items-center justify-center gap-8",
-        navBase,
-        theme.isDark ? "text-white/80" : "text-slate-700"
-      )}
-    >
+    <nav className={cx("hidden md:flex items-center justify-center gap-8", navBase, theme.isDark ? "text-white/80" : "text-slate-700")}>
       {inlineLinks.map((lnk) => {
         const active = lnk.href === activeHref;
         return (
@@ -569,10 +483,7 @@ export function LegacyHeader(props: {
     const phone = contact?.phone ?? "";
     const email = contact?.email ?? "";
 
-    const pillBase = cx(
-      "rounded-2xl border px-4 transition-all duration-200",
-      theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
-    );
+    const pillBase = cx("rounded-2xl border px-4 transition-all duration-200", theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50");
     const pillLabel = theme.isDark ? "text-white/60" : "text-slate-500";
     const pillValue = theme.isDark ? "text-white" : "text-slate-900";
 
@@ -580,56 +491,42 @@ export function LegacyHeader(props: {
       <>
         <header
           ref={headerRef as any}
+          style={
+            immersive
+              ? {
+                  backgroundColor: isScrolled
+                    ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 88%, transparent)"
+                    : "var(--te-canvas, #0b0b0c)",
+                }
+              : undefined
+          }
           className={cx(
             headerPos,
             headerZ,
             "border-b shadow-[0_2px_18px_rgba(0,0,0,0.06)] transition-[background-color,backdrop-filter] duration-200",
-            theme.isDark
-              ? "border-white/10 bg-slate-950 text-white"
-              : "border-slate-200 bg-white text-slate-900",
-            isScrolled &&
-              (theme.isDark ? "bg-slate-950/88 backdrop-blur" : "bg-white/88 backdrop-blur")
+            theme.isDark ? "border-white/10 text-white" : "border-slate-200 text-slate-900",
+            !immersive && (theme.isDark ? "bg-slate-950" : "bg-white"),
+            !immersive && isScrolled && (theme.isDark ? "bg-slate-950/88 backdrop-blur" : "bg-white/88 backdrop-blur"),
+            immersive && isScrolled && "backdrop-blur"
           )}
         >
-          <Wrap
-            layout={props.layout}
-            globalLayout={props.globalLayout}
-            className={cx("grid grid-cols-[auto_1fr_auto] items-center gap-4")}
-            style={{ paddingTop: padY2, paddingBottom: padY2 }}
-          >
+          <Wrap layout={props.layout} globalLayout={props.globalLayout} className={cx("grid grid-cols-[auto_1fr_auto] items-center gap-4")} style={{ paddingTop: padY2, paddingBottom: padY2 }}>
             <a href="#top" className="flex items-center gap-3 min-w-0">
-              <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>
-                {LogoNode}
-              </div>
+              <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>{LogoNode}</div>
               {BrandText}
             </a>
 
-            <div
-              className={cx(
-                "hidden lg:flex items-center justify-center gap-3 transition-opacity duration-200",
-                isScrolled && "opacity-95"
-              )}
-            >
+            <div className={cx("hidden lg:flex items-center justify-center gap-3 transition-opacity duration-200", isScrolled && "opacity-95")}>
               {phone ? (
-                <div
-                  className={cx("max-w-[220px]", pillBase)}
-                  style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
-                >
-                  <div className={cx("text-[10px] font-semibold uppercase tracking-wider", pillLabel)}>
-                    Téléphone
-                  </div>
+                <div className={cx("max-w-[220px]", pillBase)} style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}>
+                  <div className={cx("text-[10px] font-semibold uppercase tracking-wider", pillLabel)}>Téléphone</div>
                   <div className={cx("truncate text-sm font-semibold", pillValue)}>{phone}</div>
                 </div>
               ) : null}
 
               {email ? (
-                <div
-                  className={cx("max-w-[260px]", pillBase)}
-                  style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
-                >
-                  <div className={cx("text-[10px] font-semibold uppercase tracking-wider", pillLabel)}>
-                    E-mail
-                  </div>
+                <div className={cx("max-w-[260px]", pillBase)} style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}>
+                  <div className={cx("text-[10px] font-semibold uppercase tracking-wider", pillLabel)}>E-mail</div>
                   <div className={cx("truncate text-sm font-semibold", pillValue)}>{email}</div>
                 </div>
               ) : null}
@@ -644,17 +541,10 @@ export function LegacyHeader(props: {
           </Wrap>
 
           <div
-            className={cx(
-              "border-t transition-[background-color] duration-200",
-              theme.isDark ? "border-white/10 bg-slate-950" : "border-slate-200 bg-white"
-            )}
+            style={immersive ? { backgroundColor: "var(--te-canvas, #0b0b0c)" } : undefined}
+            className={cx("border-t transition-[background-color] duration-200", theme.isDark ? "border-white/10" : "border-slate-200", !immersive && (theme.isDark ? "bg-slate-950" : "bg-white"))}
           >
-            <Wrap
-              layout={props.layout}
-              globalLayout={props.globalLayout}
-              className="flex justify-center"
-              style={{ paddingTop: navPadY, paddingBottom: navPadY }}
-            >
+            <Wrap layout={props.layout} globalLayout={props.globalLayout} className="flex justify-center" style={{ paddingTop: navPadY, paddingBottom: navPadY }}>
               {NavB()}
             </Wrap>
           </div>
@@ -666,16 +556,9 @@ export function LegacyHeader(props: {
 
   const RenderA = () =>
     HeaderShell(
-      <Wrap
-        layout={props.layout}
-        globalLayout={props.globalLayout}
-        className="flex items-center gap-4"
-        style={{ paddingTop: padY, paddingBottom: padY }}
-      >
+      <Wrap layout={props.layout} globalLayout={props.globalLayout} className="flex items-center gap-4" style={{ paddingTop: padY, paddingBottom: padY }}>
         <a href="#top" className="flex items-center gap-3 min-w-0 flex-[0_0_auto]">
-          <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>
-            {LogoNode}
-          </div>
+          <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>{LogoNode}</div>
           <div className="min-w-[180px] max-w-[320px]">{BrandText}</div>
         </a>
 
@@ -690,16 +573,9 @@ export function LegacyHeader(props: {
 
   const RenderB = () =>
     HeaderShell(
-      <Wrap
-        layout={props.layout}
-        globalLayout={props.globalLayout}
-        className="flex items-center gap-4"
-        style={{ paddingTop: padY, paddingBottom: padY }}
-      >
+      <Wrap layout={props.layout} globalLayout={props.globalLayout} className="flex items-center gap-4" style={{ paddingTop: padY, paddingBottom: padY }}>
         <a href="#top" className="flex items-center gap-3 min-w-0 flex-[0_0_auto]">
-          <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>
-            {LogoNode}
-          </div>
+          <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>{LogoNode}</div>
           <div className="min-w-[180px] max-w-[320px]">{BrandText}</div>
         </a>
 
@@ -714,17 +590,10 @@ export function LegacyHeader(props: {
 
   const RenderC = () =>
     HeaderShell(
-      <Wrap
-        layout={props.layout}
-        globalLayout={props.globalLayout}
-        className={cx("grid items-center gap-4", "grid-cols-[1fr_auto_1fr]")}
-        style={{ paddingTop: padY, paddingBottom: padY }}
-      >
+      <Wrap layout={props.layout} globalLayout={props.globalLayout} className={cx("grid items-center gap-4", "grid-cols-[1fr_auto_1fr]")} style={{ paddingTop: padY, paddingBottom: padY }}>
         <div className="justify-self-start">
           <a href="#top" className="flex items-center gap-3 min-w-0">
-            <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>
-              {LogoNode}
-            </div>
+            <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>{LogoNode}</div>
             <div className="min-w-[180px] max-w-[320px]">{BrandText}</div>
           </a>
         </div>
@@ -745,17 +614,10 @@ export function LegacyHeader(props: {
 }
 
 /* ============================================================
-   HERO (variants A/B)
+   BLOC 3 — HERO (A/B)
    ============================================================ */
 
-export function LegacyHero({
-  theme,
-  content,
-  layout,
-  globalLayout,
-  sectionId,
-  variant,
-}: any) {
+export function LegacyHero({ theme, content, layout, globalLayout, sectionId, variant }: any) {
   const l = resolveLayout(layout, globalLayout);
 
   const kicker = content?.heroKicker ?? "Sous-titre et/ou slogan";
@@ -764,11 +626,12 @@ export function LegacyHero({
     content?.heroText ??
     "Une approche professionnelle orientée qualité, transparence et solutions durables, adaptée aux particuliers comme aux entreprises.";
 
+  // ✅ paths minuscule (ton dossier = p4.jpg)
   const imgSrc = content?.heroImage ?? "/images/template-base/p4.jpg";
   const imgAlt = content?.heroImageAlt ?? "Illustration";
 
-  const cta1 = content?.cta?.primary ?? "Me contacter";
-  const cta2 = content?.cta?.secondary ?? "Voir nos services";
+  const cta1 = content?.cta?.heroPrimary ?? "Me contacter";
+  const cta2 = content?.cta?.heroSecondary ?? "Voir nos services";
 
   const v = String(variant ?? "A");
 
@@ -792,9 +655,7 @@ export function LegacyHero({
       className={cx(
         radiusClass(l.radius),
         "px-6 py-3 text-sm font-semibold border transition hover:-translate-y-[1px] active:translate-y-0",
-        theme.isDark
-          ? "border-white/15 text-white hover:bg-white/5"
-          : "border-slate-200 text-slate-900 hover:bg-slate-50"
+        theme.isDark ? "border-white/15 text-white hover:bg-white/5" : "border-slate-200 text-slate-900 hover:bg-slate-50"
       )}
     >
       {cta2}
@@ -805,42 +666,11 @@ export function LegacyHero({
     return (
       <section id={sectionId ?? "hero"} className={cx(heroPadY(l.density))}>
         <Wrap layout={layout} globalLayout={globalLayout}>
-          <Surface
-            theme={theme}
-            layout={layout}
-            globalLayout={globalLayout}
-            className={cx("p-10 md:p-14", theme.isDark && "bg-white/5")}
-          >
+          <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-10 md:p-14", theme.isDark && "bg-white/5")}>
             <div className="max-w-3xl mx-auto text-center">
-              {hasText(kicker) ? (
-                <div
-                  className={cx(
-                    "text-sm font-semibold",
-                    theme.isDark ? "text-white/70" : "text-slate-600"
-                  )}
-                >
-                  {kicker}
-                </div>
-              ) : null}
-
-              <h1
-                className={cx(
-                  "mt-3 text-4xl md:text-5xl font-semibold tracking-tight",
-                  theme.isDark ? "text-white" : "text-slate-950"
-                )}
-              >
-                {title}
-              </h1>
-
-              <p
-                className={cx(
-                  "mt-4 text-base md:text-lg leading-relaxed",
-                  theme.isDark ? "text-white/70" : "text-slate-600"
-                )}
-              >
-                {text}
-              </p>
-
+              {hasText(kicker) ? <div className={cx("text-sm font-semibold", theme.isDark ? "text-white/70" : "text-slate-600")}>{kicker}</div> : null}
+              <h1 className={cx("mt-3 text-4xl md:text-5xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h1>
+              <p className={cx("mt-4 text-base md:text-lg leading-relaxed", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 {PrimaryBtn}
                 {SecondaryBtn}
@@ -848,21 +678,9 @@ export function LegacyHero({
             </div>
 
             <div className="mt-10">
-              <div
-                style={radiusStyle(l.radius)}
-                className={cx(
-                  "relative overflow-hidden border",
-                  theme.isDark ? "border-white/10" : "border-slate-200"
-                )}
-              >
+              <div style={radiusStyle(l.radius)} className={cx("relative overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}>
                 <div className="relative aspect-[16/7]">
-                  <NextImage
-                    src={imgSrc}
-                    alt={imgAlt}
-                    fill
-                    className="object-cover"
-                    priority
-                  />
+                  <NextImage src={imgSrc} alt={imgAlt} fill className="object-cover" priority />
                 </div>
               </div>
             </div>
@@ -872,47 +690,15 @@ export function LegacyHero({
     );
   }
 
-  // default A
   return (
     <section id={sectionId ?? "hero"} className={cx(heroPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
-        <Surface
-          theme={theme}
-          layout={layout}
-          globalLayout={globalLayout}
-          className={cx("p-10 md:p-14", theme.isDark && "bg-white/5")}
-        >
+        <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-10 md:p-14", theme.isDark && "bg-white/5")}>
           <div className="grid items-center gap-10 md:grid-cols-2">
             <div>
-              {hasText(kicker) ? (
-                <div
-                  className={cx(
-                    "text-sm font-semibold",
-                    theme.isDark ? "text-white/70" : "text-slate-600"
-                  )}
-                >
-                  {kicker}
-                </div>
-              ) : null}
-
-              <h1
-                className={cx(
-                  "mt-3 text-4xl md:text-5xl font-semibold tracking-tight",
-                  theme.isDark ? "text-white" : "text-slate-950"
-                )}
-              >
-                {title}
-              </h1>
-
-              <p
-                className={cx(
-                  "mt-4 max-w-xl text-base md:text-lg leading-relaxed",
-                  theme.isDark ? "text-white/70" : "text-slate-600"
-                )}
-              >
-                {text}
-              </p>
-
+              {hasText(kicker) ? <div className={cx("text-sm font-semibold", theme.isDark ? "text-white/70" : "text-slate-600")}>{kicker}</div> : null}
+              <h1 className={cx("mt-3 text-4xl md:text-5xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h1>
+              <p className={cx("mt-4 max-w-xl text-base md:text-lg leading-relaxed", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 {PrimaryBtn}
                 {SecondaryBtn}
@@ -920,21 +706,9 @@ export function LegacyHero({
             </div>
 
             <div className="relative">
-              <div
-                style={radiusStyle(l.radius)}
-                className={cx(
-                  "relative overflow-hidden border",
-                  theme.isDark ? "border-white/10" : "border-slate-200"
-                )}
-              >
+              <div style={radiusStyle(l.radius)} className={cx("relative overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}>
                 <div className="relative aspect-[16/10]">
-                  <NextImage
-                    src={imgSrc}
-                    alt={imgAlt}
-                    fill
-                    className="object-cover"
-                    priority
-                  />
+                  <NextImage src={imgSrc} alt={imgAlt} fill className="object-cover" priority />
                 </div>
               </div>
             </div>
@@ -946,108 +720,52 @@ export function LegacyHero({
 }
 
 /* ============================================================
-   SPLIT (variants A/B)
+   BLOC 4 — SPLIT (A/B)
    ============================================================ */
 
-export function LegacySplit(props: {
-  theme: ThemeLike;
-  content?: any;
-  sectionId?: string;
-  layout?: LayoutTokens;
-  globalLayout?: LayoutTokens;
-  sectionTitle?: string; // ✅ vient du panel (s.title)
-  variant?: string; // ✅ A/B depuis registry
-}) {
-  const { theme } = props;
-  const l = resolveLayout(props.layout, props.globalLayout);
+export function LegacySplit(props: any) {
+  const { theme, content, layout, globalLayout, sectionId, variant } = props;
+  const l = resolveLayout(layout, globalLayout);
+  const v = String(variant ?? "A");
 
-  const v = String(props.variant ?? "A");
+  const title = content?.split?.title ?? content?.splitTitle ?? "Une approche simple, pro, efficace.";
+  const text = content?.split?.text ?? content?.splitText ?? "Diagnostic clair, intervention propre, résultat durable.";
+  const imgSrc = content?.split?.image ?? content?.splitImage ?? "/images/template-base/p2.jpg";
+  const imgAlt = content?.split?.imageAlt ?? content?.splitImageAlt ?? "Illustration";
+  const ctaLabel = content?.split?.ctaLabel ?? content?.splitCtaLabel ?? "Me contacter";
+  const ctaHref = content?.split?.ctaHref ?? content?.splitCtaHref ?? "#contact";
 
-  const title = hasText(props.sectionTitle)
-    ? props.sectionTitle
-    : props.content?.splitTitle ?? "Section split";
-
-  const text = props.content?.splitText ?? "";
-  const img = props.content?.splitImage ?? "";
-  const imgAlt = props.content?.splitImageAlt ?? "Illustration";
-  const ctaLabel = props.content?.splitCtaLabel ?? "En savoir plus";
-  const ctaHref = props.content?.splitCtaHref ?? "#contact";
-
-  const Media = (
-    <div className="relative min-h-[240px] lg:min-h-[360px]">
-      {img ? (
-        <NextImage
-          src={img}
-          alt={imgAlt}
-          fill
-          className="object-cover"
-          sizes="(max-width: 1024px) 100vw, 50vw"
-          priority={false}
-        />
-      ) : (
-        <div className={cx("h-full w-full", theme.isDark ? "bg-white/5" : "bg-slate-100")} />
-      )}
-    </div>
-  );
-
-  const Copy = (
-    <div className="p-6 md:p-10">
-      <h3
-        className={cx(
-          "mt-2 text-2xl md:text-3xl font-semibold tracking-tight",
-          theme.isDark ? "text-white" : "text-slate-950"
-        )}
-      >
-        {title}
-      </h3>
-
-      {hasText(text) ? (
-        <p className={cx("mt-4 leading-relaxed", theme.isDark ? "text-white/70" : "text-slate-600")}>
-          {text}
-        </p>
-      ) : null}
-
-      <div className="mt-6 flex items-center gap-3">
-        <a
-          href={ctaHref}
-          className={cx(
-            radiusClass(l.radius),
-            "inline-flex items-center justify-center px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition will-change-transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
-            theme.accentFrom,
-            theme.accentTo
-          )}
-        >
-          {ctaLabel}
-        </a>
-
-        <a
-          href="#services"
-          className={cx(
-            radiusClass(l.radius),
-            "inline-flex items-center justify-center px-5 py-3 text-sm font-semibold border transition",
-            theme.isDark
-              ? "border-white/15 text-white/85 hover:text-white hover:bg-white/5"
-              : "border-slate-200 text-slate-800 hover:text-slate-950 hover:bg-slate-50"
-          )}
-        >
-          Services
-        </a>
-      </div>
-    </div>
-  );
-
-  // ✅ A = texte à gauche / image à droite
-  // ✅ B = image à gauche / texte à droite
-  const Left = v === "B" ? Media : Copy;
-  const Right = v === "B" ? Copy : Media;
+  const reverse = v === "B" ? true : !!content?.split?.reverse;
 
   return (
-    <section id={props.sectionId} className={sectionPadY(l.density)}>
-      <Wrap layout={props.layout} globalLayout={props.globalLayout}>
-        <Surface theme={theme} layout={props.layout} globalLayout={props.globalLayout} className="overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-2">
-            {Left}
-            {Right}
+    <section id={sectionId ?? "split"} className={cx(sectionPadY(l.density))}>
+      <Wrap layout={layout} globalLayout={globalLayout}>
+        <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-8 md:p-10", theme.isDark && "bg-white/5")}>
+          <div className={cx("grid items-center gap-10 md:grid-cols-2", reverse && "md:[&>*:first-child]:order-2")}>
+            <div>
+              <h2 className={cx("text-2xl md:text-3xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h2>
+              <p className={cx("mt-3 max-w-xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
+
+              <div className="mt-6">
+                <a
+                  href={ctaHref}
+                  className={cx(
+                    radiusClass(l.radius),
+                    "inline-flex px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+                    theme.accentFrom,
+                    theme.accentTo
+                  )}
+                >
+                  {ctaLabel}
+                </a>
+              </div>
+            </div>
+
+            <div style={radiusStyle(l.radius)} className={cx("relative overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}>
+              <div className="relative aspect-[16/10]">
+                <NextImage src={imgSrc} alt={imgAlt} fill className="object-cover" />
+              </div>
+            </div>
           </div>
         </Surface>
       </Wrap>
@@ -1056,80 +774,85 @@ export function LegacySplit(props: {
 }
 
 /* ============================================================
-   SERVICES (variants A/B/C)
+   BLOC 5 — SERVICES (A/B/C/D/E)
    ============================================================ */
 
-export function LegacyServices({
-  theme,
-  content,
-  layout,
-  globalLayout,
-  sectionId,
-  variant,
-  servicesVariant,
-}: any) {
+export function LegacyServices(props: any) {
+  const { theme, content, layout, globalLayout, sectionId, variant } = props;
   const l = resolveLayout(layout, globalLayout);
+  const v = String(variant ?? "A");
 
-  const items = Array.isArray(content?.services)
-    ? content.services
-    : [
-        { title: "Accompagnement", text: "Description." },
-        { title: "Intervention", text: "Description." },
-        { title: "Optimisation", text: "Description." },
-      ];
+  const title = content?.servicesTitle ?? "Nos services";
+  const text = content?.servicesText ?? "Des prestations claires et adaptées à vos besoins.";
+  const items = Array.isArray(content?.services) ? content.services : [];
 
-  const v = String(servicesVariant ?? variant ?? "A");
+  const Card = ({ t, list }: { t: string; list: string[] }) => (
+    <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-6", theme.isDark && "bg-white/5")}>
+      <div className={cx("text-lg font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>{t}</div>
+      <ul className={cx("mt-3 space-y-2 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>
+        {list.map((x, i) => (
+          <li key={i} className="flex gap-2">
+            <span className={cx("mt-[6px] h-1.5 w-1.5 rounded-full bg-gradient-to-r", theme.accentFrom, theme.accentTo)} />
+            <span>{x}</span>
+          </li>
+        ))}
+      </ul>
+    </Surface>
+  );
 
   const gridCols =
-    v === "B" ? "md:grid-cols-2" : v === "C" ? "md:grid-cols-4" : "md:grid-cols-3";
-  const headAlign: "left" | "center" = v === "B" ? "center" : "left";
-
-  const title = content?.servicesTitle ?? "Services";
-  const kicker = content?.servicesKicker ?? "Ce qu’on fait";
-  const desc = content?.servicesText ?? "Des prestations claires, cadrées, livrées proprement.";
+    v === "B" ? "md:grid-cols-2" :
+    v === "C" ? "md:grid-cols-3" :
+    v === "D" ? "md:grid-cols-3" :
+    v === "E" ? "md:grid-cols-2" :
+    "md:grid-cols-3";
 
   return (
-    <section id={sectionId ?? "services"} className={sectionPadY(l.density)}>
+    <section id={sectionId ?? "services"} className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
-        <SectionHead theme={theme} kicker={kicker} title={title} text={desc} align={headAlign} />
+        <div className="mb-8">
+          <div className={cx("text-xs font-semibold uppercase tracking-[0.18em]", theme.isDark ? "text-white/60" : "text-slate-500")}>Services</div>
+          <h2 className={cx("mt-2 text-3xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h2>
+          <p className={cx("mt-3 max-w-3xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
+        </div>
 
-        <div className={cx("grid gap-4", gridCols)}>
-          {items.slice(0, 12).map((it: any, idx: number) => (
-            <Surface
-              key={idx}
-              theme={theme}
-              layout={layout}
-              globalLayout={globalLayout}
-              className={cx("p-6 transition will-change-transform hover:shadow-md")}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className={cx("text-sm font-semibold", theme.isDark ? "text-white/70" : "text-slate-600")}>
-                  {(idx + 1).toString().padStart(2, "0")}
-                </div>
+        <div className={cx("grid gap-6", gridCols)}>
+          {items.map((s: any, i: number) => <Card key={i} t={s.title ?? `Service ${i + 1}`} list={Array.isArray(s.items) ? s.items : []} />)}
+        </div>
+      </Wrap>
+    </section>
+  );
+}
 
-                {v === "B" ? (
-                  <div
-                    className={cx(
-                      "rounded-full border px-3 py-1 text-xs font-semibold",
-                      theme.isDark
-                        ? "border-white/10 bg-white/5 text-white/80"
-                        : "border-slate-200 bg-slate-50 text-slate-700"
-                    )}
-                  >
-                    {it.tag ?? "SaaS"}
-                  </div>
-                ) : null}
-              </div>
+/* ============================================================
+   BLOC 6 — TEAM (A/B/C)
+   ============================================================ */
 
-              <div className={cx("mt-3 text-lg font-semibold", theme.isDark ? "text-white" : "text-slate-900")}>
-                {it.title ?? `Service ${idx + 1}`}
-              </div>
+export function LegacyTeam(props: any) {
+  const { theme, content, layout, globalLayout, sectionId, variant } = props;
+  const l = resolveLayout(layout, globalLayout);
+  const v = String(variant ?? "A");
 
-              <p className={cx("mt-2 text-sm leading-relaxed", theme.isDark ? "text-white/70" : "text-slate-600")}>
-                {it.text ?? "Description."}
-              </p>
+  const title = content?.teamTitle ?? "Qui sommes-nous";
+  const text = content?.teamText ?? "Une équipe terrain orientée qualité.";
+  const cards = Array.isArray(content?.teamCards) ? content.teamCards : [];
 
-              <div className={cx("mt-4 h-[2px] w-16 bg-gradient-to-r", theme.accentFrom, theme.accentTo)} />
+  const cols = v === "B" ? "md:grid-cols-2" : v === "C" ? "md:grid-cols-3" : "md:grid-cols-3";
+
+  return (
+    <section id={sectionId ?? "team"} className={cx(sectionPadY(l.density))}>
+      <Wrap layout={layout} globalLayout={globalLayout}>
+        <div className="mb-8">
+          <div className={cx("text-xs font-semibold uppercase tracking-[0.18em]", theme.isDark ? "text-white/60" : "text-slate-500")}>Équipe</div>
+          <h2 className={cx("mt-2 text-3xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h2>
+          <p className={cx("mt-3 max-w-3xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
+        </div>
+
+        <div className={cx("grid gap-6", cols)}>
+          {cards.map((c: any, i: number) => (
+            <Surface key={i} theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-6", theme.isDark && "bg-white/5")}>
+              <div className={cx("text-lg font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>{c.title ?? `Bloc ${i + 1}`}</div>
+              <p className={cx("mt-2 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>{c.text ?? ""}</p>
             </Surface>
           ))}
         </div>
@@ -1139,124 +862,47 @@ export function LegacyServices({
 }
 
 /* ============================================================
-   TEAM (variants A/B/C)
+   BLOC 7 — GALLERIES (stack / twoCol / threeCol)
    ============================================================ */
 
-export function LegacyTeam({ theme, content, layout, globalLayout, sectionId, variant, teamVariant }: any) {
+export function LegacyGalleries(props: any) {
+  const { theme, content, layout, globalLayout, sectionId, onOpen, enableLightbox, variant } = props;
   const l = resolveLayout(layout, globalLayout);
 
-  const items = Array.isArray(content?.team)
-    ? content.team
-    : [
-        { name: "Prénom Nom", role: "Fonction" },
-        { name: "Prénom Nom", role: "Fonction" },
-        { name: "Prénom Nom", role: "Fonction" },
-      ];
-
-  const v = String(teamVariant ?? variant ?? "A");
-
-  const title = content?.teamTitle ?? "Équipe";
-  const kicker = content?.teamKicker ?? "Qui intervient";
-  const desc = content?.teamText ?? "Une équipe stable, des process propres, un rendu net.";
-
-  const gridCols = v === "B" ? "md:grid-cols-2" : v === "C" ? "md:grid-cols-4" : "md:grid-cols-3";
-
-  return (
-    <section id={sectionId ?? "team"} className={sectionPadY(l.density)}>
-      <Wrap layout={layout} globalLayout={globalLayout}>
-        <SectionHead theme={theme} kicker={kicker} title={title} text={desc} align={v === "B" ? "center" : "left"} />
-
-        <div className={cx("grid gap-4", gridCols)}>
-          {items.slice(0, 12).map((it: any, idx: number) => (
-            <Surface key={idx} theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-6", v === "C" && "p-5")}>
-              <div className="flex items-center gap-4">
-                <div className={cx("h-12 w-12 rounded-2xl bg-gradient-to-br", theme.accentFrom, theme.accentTo)} aria-hidden="true" />
-                <div className="min-w-0">
-                  <div className={cx("truncate font-semibold", theme.isDark ? "text-white" : "text-slate-900")}>
-                    {it.name ?? "Prénom Nom"}
-                  </div>
-                  <div className={cx("truncate text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>
-                    {it.role ?? "Fonction"}
-                  </div>
-                </div>
-              </div>
-
-              {v === "B" ? (
-                <div className={cx("mt-4 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>
-                  {it.bio ?? "Bio courte / expertise / zone d’intervention."}
-                </div>
-              ) : null}
-            </Surface>
-          ))}
-        </div>
-      </Wrap>
-    </section>
-  );
-}
-
-/* ============================================================
-   GALLERIES (stack/twoCol/threeCol)
-   ============================================================ */
-
-export function LegacyGalleries({
-  theme,
-  content,
-  layout,
-  globalLayout,
-  sectionId,
-  onOpen,
-  enableLightbox,
-  variant,
-  galleryLayout,
-}: any) {
-  const l = resolveLayout(layout, globalLayout);
+  const v = String(variant ?? "twoCol");
+  const cols = v === "threeCol" ? "md:grid-cols-3" : v === "stack" ? "md:grid-cols-1" : "md:grid-cols-2";
 
   const galleries = Array.isArray(content?.galleries) ? content.galleries : [];
-  const images = galleries.flatMap((g: any) => (Array.isArray(g?.images) ? g.images : []));
-  const list = images.length
-    ? images
-    : [
-        { src: "/images/template-base/p4.jpg", alt: "Image" },
-        { src: "/images/template-base/p4.jpg", alt: "Image" },
-        { src: "/images/template-base/p4.jpg", alt: "Image" },
-      ];
-
-  const gl = String(galleryLayout ?? variant ?? "threeCol");
-  const gridCols = gl === "stack" ? "grid-cols-1" : gl === "twoCol" ? "md:grid-cols-2" : "md:grid-cols-3";
-
-  const title = content?.galleryTitle ?? "Réalisations";
-  const kicker = content?.galleryKicker ?? "Preuves";
-  const desc = content?.galleryText ?? "Quelques exemples concrets (photos, chantiers, avant/après).";
+  const g = galleries.find((x: any) => x?.id === sectionId) ?? galleries[0];
+  const title = g?.title ?? "Galeries";
+  const desc = g?.description ?? "";
+  const images = Array.isArray(g?.images) ? g.images : [];
 
   return (
-    <section id={sectionId ?? "gallery"} className={sectionPadY(l.density)}>
+    <section id={sectionId ?? "realisations"} className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
-        <SectionHead theme={theme} kicker={kicker} title={title} text={desc} align={gl === "stack" ? "center" : "left"} />
+        <div className="mb-8">
+          <div className={cx("text-xs font-semibold uppercase tracking-[0.18em]", theme.isDark ? "text-white/60" : "text-slate-500")}>Galerie</div>
+          <h2 className={cx("mt-2 text-3xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h2>
+          {hasText(desc) ? <p className={cx("mt-3 max-w-3xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{desc}</p> : null}
+        </div>
 
-        <div className={cx("grid gap-4", gridCols)}>
-          {list.slice(0, 24).map((img: any, idx: number) => (
+        <div className={cx("grid gap-6", cols)}>
+          {images.map((img: any, i: number) => (
             <button
-              key={idx}
+              key={i}
               type="button"
+              className={cx("text-left", enableLightbox ? "cursor-zoom-in" : "cursor-default")}
               onClick={() => enableLightbox && onOpen?.(img)}
-              className={cx("text-left group")}
             >
-              <div
-                style={radiusStyle(l.radius)}
-                className={cx(
-                  "relative overflow-hidden border transition-[box-shadow] duration-200 group-hover:shadow-md",
-                  theme.isDark ? "border-white/10" : "border-slate-200"
-                )}
-              >
-                <div className={cx("relative", gl === "stack" ? "aspect-[16/7]" : "aspect-[4/3]")}>
-                  <NextImage
-                    src={img.src}
-                    alt={img.alt ?? "Image"}
-                    fill
-                    className="object-cover transition-transform duration-300 will-change-transform transform-gpu group-hover:scale-[1.02]"
-                  />
+              <div style={radiusStyle(l.radius)} className={cx("relative overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}>
+                <div className="relative aspect-[16/11]">
+                  <NextImage src={img.src} alt={img.alt ?? "Visuel"} fill className="object-cover" />
                 </div>
               </div>
+              {hasText(img.caption) ? (
+                <div className={cx("mt-2 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>{img.caption}</div>
+              ) : null}
             </button>
           ))}
         </div>
@@ -1266,141 +912,145 @@ export function LegacyGalleries({
 }
 
 /* ============================================================
-   CONTACT (variants A/B/C)
+   BLOC 8 — CONTACT (A/B) + socials en bas ✅
    ============================================================ */
 
-export function LegacyContact({ theme, content, layout, globalLayout, sectionId, variant }: any) {
+export function LegacyContact(props: any) {
+  const { theme, content, layout, globalLayout, sectionId, variant } = props;
   const l = resolveLayout(layout, globalLayout);
-
-  const title = content?.contactTitle ?? "Contact";
-  const text = content?.contactText ?? "Expliquez votre besoin, on répond rapidement.";
-  const phone = content?.contact?.phone ?? "";
-  const email = content?.contact?.email ?? "";
-  const address = content?.contact?.address ?? "";
-
-  const socialsCfg = (content?.socials ?? undefined) as SocialConfig | undefined;
 
   const v = String(variant ?? "A");
 
-  const InfoGrid = (
-    <div className={cx("mt-8 grid gap-3", v === "C" ? "md:grid-cols-2" : "md:grid-cols-3")}>
-      {phone ? <InfoCard label="Téléphone" value={phone} dark={theme.isDark} radius={l.radius} /> : null}
-      {email ? <InfoCard label="E-mail" value={email} dark={theme.isDark} radius={l.radius} /> : null}
-      {address ? <InfoCard label="Adresse" value={address} dark={theme.isDark} radius={l.radius} /> : null}
-    </div>
-  );
+  const kicker = content?.contactKicker ?? "Contact";
+  const title = content?.contactTitle ?? "Contact";
+  const text = content?.contactText ?? "Expliquez votre besoin en 2 lignes, nous vous répondrons rapidement.";
 
-  const MailCta = email ? (
-    <a
-      href={`mailto:${email}`}
-      className={cx(
-        radiusClass(l.radius),
-        "inline-flex px-6 py-3 font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
-        theme.accentFrom,
-        theme.accentTo
-      )}
-    >
-      Envoyer un e-mail
-    </a>
+  const address = content?.contact?.address ?? "";
+  const phone = content?.contact?.phone ?? "";
+  const email = content?.contact?.email ?? "";
+
+  const socialsCfg = (content?.socials ?? undefined) as SocialConfig | undefined;
+  const socials = React.useMemo(() => resolveSocialLinks(socialsCfg), [socialsCfg]);
+
+  const SocialBar = socials.length ? (
+    <div className="mt-6 flex flex-wrap items-center gap-2">
+      {socials.map(({ kind, href, def }: any) => (
+        <a
+          key={kind}
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className={cx(
+            "inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition hover:-translate-y-[1px] active:translate-y-0",
+            theme.isDark
+              ? "border-white/10 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white"
+              : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-950"
+          )}
+          title={def.label}
+          aria-label={def.label}
+        >
+          <def.Icon className="opacity-90" />
+        </a>
+      ))}
+    </div>
   ) : null;
 
-  const Socials = <SocialRow theme={theme} cfg={socialsCfg} className="mt-6 justify-center" />;
-
-  if (v === "B") {
-    return (
-      <section id={sectionId ?? "contact"} className={cx(sectionPadY(l.density), "pb-20")}>
-        <Wrap layout={layout} globalLayout={globalLayout}>
-          <Surface theme={theme} layout={layout} globalLayout={globalLayout} className="p-10">
-            <div className="max-w-3xl mx-auto text-center">
-              <SectionHead theme={theme} kicker="Parlons-en" title={title} text={text} align="center" />
-              {InfoGrid}
-              {Socials}
-              <div className="mt-10">{MailCta}</div>
-            </div>
-          </Surface>
-        </Wrap>
-      </section>
-    );
-  }
-
-  if (v === "C") {
-    return (
-      <section id={sectionId ?? "contact"} className={cx(sectionPadY(l.density), "pb-20")}>
-        <Wrap layout={layout} globalLayout={globalLayout}>
-          <Surface theme={theme} layout={layout} globalLayout={globalLayout} className="p-10">
-            <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-start">
-              <div>
-                <h2 className={cx("text-2xl md:text-3xl font-semibold", theme.isDark ? "text-white" : "text-slate-900")}>
-                  {title}
-                </h2>
-                <p className={cx("mt-2 max-w-2xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
-                {InfoGrid}
-                <div className="mt-6">
-                  <SocialRow theme={theme} cfg={socialsCfg} />
-                </div>
-              </div>
-
-              <div className="md:pt-2">{MailCta}</div>
-            </div>
-          </Surface>
-        </Wrap>
-      </section>
-    );
-  }
-
-  // A default
-  return (
-    <section id={sectionId ?? "contact"} className={cx(sectionPadY(l.density), "pb-20")}>
+  const RenderA = () => (
+    <section id={sectionId ?? "contact"} className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
-        <Surface theme={theme} layout={layout} globalLayout={globalLayout} className="p-10">
-          <h2 className={cx("text-2xl md:text-3xl font-semibold", theme.isDark ? "text-white" : "text-slate-900")}>
-            {title}
-          </h2>
+        <div className="grid gap-8 md:grid-cols-2">
+          <div>
+            {hasText(kicker) ? (
+              <div className={cx("text-xs font-semibold uppercase tracking-[0.18em]", theme.isDark ? "text-white/60" : "text-slate-500")}>
+                {kicker}
+              </div>
+            ) : null}
 
-          <p className={cx("mt-2 max-w-3xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
+            <h2 className={cx("mt-2 text-3xl md:text-4xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>
+              {title}
+            </h2>
 
-          {InfoGrid}
-          <div className="mt-6">
-            <SocialRow theme={theme} cfg={socialsCfg} />
+            {hasText(text) ? (
+              <p className={cx("mt-3 max-w-xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
+            ) : null}
+
+            <div className="mt-8 space-y-3 text-sm">
+              {hasText(address) ? (
+                <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}>
+                  <span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Adresse:</span> {address}
+                </div>
+              ) : null}
+              {hasText(phone) ? (
+                <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}>
+                  <span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Téléphone:</span> {phone}
+                </div>
+              ) : null}
+              {hasText(email) ? (
+                <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}>
+                  <span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>E-mail:</span> {email}
+                </div>
+              ) : null}
+            </div>
+
+            {SocialBar}
           </div>
 
-          {email ? <div className="mt-8">{MailCta}</div> : null}
+          <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-6 md:p-8", theme.isDark && "bg-white/5")}>
+            <div className={cx("text-lg font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Demande rapide</div>
+            <div className={cx("mt-1 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>(Démo) Brancher ici ton vrai formulaire plus tard.</div>
+
+            <div className="mt-6 space-y-3">
+              <input className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="Nom" />
+              <input className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="E-mail" />
+              <textarea rows={4} className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="Message" />
+              <button type="button" className={cx(radiusClass(l.radius), "mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0", theme.accentFrom, theme.accentTo)}>
+                Envoyer
+              </button>
+            </div>
+          </Surface>
+        </div>
+      </Wrap>
+    </section>
+  );
+
+  const RenderB = () => (
+    <section id={sectionId ?? "contact"} className={cx(sectionPadY(l.density))}>
+      <Wrap layout={layout} globalLayout={globalLayout}>
+        <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-8 md:p-10", theme.isDark && "bg-white/5")}>
+          <div className="grid gap-8 md:grid-cols-2">
+            <div>
+              {hasText(kicker) ? <div className={cx("text-xs font-semibold uppercase tracking-[0.18em]", theme.isDark ? "text-white/60" : "text-slate-500")}>{kicker}</div> : null}
+              <h2 className={cx("mt-2 text-3xl md:text-4xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h2>
+              {hasText(text) ? <p className={cx("mt-3 max-w-xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p> : null}
+
+              <div className="mt-8 space-y-3 text-sm">
+                {hasText(address) ? <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}><span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Adresse:</span> {address}</div> : null}
+                {hasText(phone) ? <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}><span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Téléphone:</span> {phone}</div> : null}
+                {hasText(email) ? <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}><span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>E-mail:</span> {email}</div> : null}
+              </div>
+
+              {SocialBar}
+            </div>
+
+            <div>
+              <div className={cx("text-lg font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Demande rapide</div>
+              <div className={cx("mt-1 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>(Démo) Brancher ici ton vrai formulaire plus tard.</div>
+
+              <div className="mt-6 space-y-3">
+                <input className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="Nom" />
+                <input className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="E-mail" />
+                <textarea rows={4} className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="Message" />
+                <button type="button" className={cx(radiusClass(l.radius), "mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0", theme.accentFrom, theme.accentTo)}>
+                  Envoyer
+                </button>
+              </div>
+            </div>
+          </div>
         </Surface>
       </Wrap>
     </section>
   );
-}
 
-function InfoCard({
-  label,
-  value,
-  dark,
-  radius,
-}: {
-  label: string;
-  value: string;
-  dark: boolean;
-  radius?: any;
-}) {
-  return (
-    <div
-      style={radiusStyle(radius)}
-      className={cx(
-        "overflow-hidden border p-4",
-        dark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
-      )}
-    >
-      <div
-        className={cx(
-          "text-[11px] font-semibold uppercase tracking-wider",
-          dark ? "text-white/60" : "text-slate-500"
-        )}
-      >
-        {label}
-      </div>
-      <div className={cx("mt-1 font-semibold", dark ? "text-white" : "text-slate-900")}>
-        {value}
-      </div>
-    </div>
-  );
+  if (v === "B") return <RenderB />;
+  return <RenderA />;
 }
