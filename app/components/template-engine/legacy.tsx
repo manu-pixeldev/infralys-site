@@ -173,6 +173,7 @@ function SocialRow({
 }
 
 /** Simple dropdown (desktop) */
+/** Simple dropdown (desktop) */
 function DesktopOverflowMenu({
   theme,
   label = "Plus",
@@ -209,24 +210,27 @@ function DesktopOverflowMenu({
 
   if (!items.length) return null;
 
+  const btnBase =
+    "inline-flex items-center gap-2 rounded-2xl px-4 py-2 transition will-change-transform hover:-translate-y-[1px] active:translate-y-0";
+  const btnTheme = theme.isDark
+    ? "text-white/85 hover:text-white bg-white/0 hover:bg-white/10"
+    : "text-slate-700 hover:text-slate-950 bg-white/0 hover:bg-white";
+
   return (
-    <div ref={ref} className="relative hidden md:block">
+    <div ref={ref} className="relative hidden md:block px-1">
       <button
         type="button"
-        className={cx(
-          "group relative transition-colors",
-          theme.isDark
-            ? "text-white/80 hover:text-white"
-            : "text-slate-700 hover:text-slate-950"
-        )}
+        className={cx("group relative", btnBase, btnTheme)}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
       >
         {label}
+        <span className="opacity-70">▾</span>
+
         <span
           className={cx(
-            "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity opacity-0 group-hover:opacity-100",
+            "pointer-events-none absolute left-3 right-3 -bottom-1 h-[2px] bg-gradient-to-r transition-opacity opacity-0 group-hover:opacity-100",
             theme.accentFrom,
             theme.accentTo
           )}
@@ -263,6 +267,7 @@ function DesktopOverflowMenu({
     </div>
   );
 }
+
 
 /* ============================================================
    HEADER (FULL)
@@ -427,7 +432,7 @@ export function LegacyHeader(props: {
   });
 
   // dropdown si trop d’items (desktop)
-  const MAX_INLINE = 6;
+  const MAX_INLINE = Math.max(0, Math.min(12, Number(maxDirectLinks ?? 6)));
   const inlineLinks = linksAll.slice(0, MAX_INLINE);
   const overflowLinks = linksAll.slice(MAX_INLINE);
 

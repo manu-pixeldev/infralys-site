@@ -109,10 +109,8 @@ export function TemplateEngine({
   React.useEffect(() => {
     const resolved = resolveConfig(config);
     const serialized = JSON.stringify(resolved);
-    // only sync if really different
     if (serialized === JSON.stringify(liveConfig)) return;
     setLiveConfig(resolved);
-    // IMPORTANT: align lastSent to prevent immediate re-send
     lastSentRef.current = serialized;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
@@ -147,6 +145,10 @@ export function TemplateEngine({
   const opt = (liveConfig as any).options ?? {};
   const themeVariant = (opt as any).themeVariant ?? "amberOrange|classic";
   const theme = React.useMemo(() => getTheme(themeVariant), [themeVariant]);
+
+  // ✅ immersive overlay hook (safe)
+  const immersiveOverlayClass =
+    theme.canvasFx?.kind === "immersive" ? theme.canvasFx?.pageOverlayClass : undefined;
 
   // Ctrl+K : toggle studio
   React.useEffect(() => {
@@ -498,7 +500,7 @@ export function TemplateEngine({
 
       const wrap = (node: React.ReactNode) => (
         <div
-          key={`${s.id}:${s.variant ?? ""}`} // ✅ remount on variant change (fix split A/B not updating)
+          key={`${s.id}:${s.variant ?? ""}`}
           ref={registerReveal(String(s.id))}
           className={cx("reveal", fx.enabled && fx.softGlow && "fx-softglow")}
           style={{ scrollMarginTop: "var(--header-offset, 84px)" }}
@@ -510,16 +512,12 @@ export function TemplateEngine({
       switch (s.type) {
         case "hero":
           return wrap(<Comp {...common} content={(liveConfig as any).content} brand={(liveConfig as any).brand} hasServices={hasServices} />);
-
         case "proof":
           return wrap(<Comp {...common} content={(liveConfig as any).content} />);
-
         case "services":
           return wrap(<Comp {...common} content={(liveConfig as any).content} servicesVariant={s.variant} />);
-
         case "team":
           return wrap(<Comp {...common} content={(liveConfig as any).content} teamVariant={s.variant} />);
-
         case "gallery":
           return wrap(
             <Comp
@@ -530,7 +528,6 @@ export function TemplateEngine({
               enableLightbox={enableLightbox}
             />
           );
-
         case "contact": {
           const resolved = s.variant === "AUTO" ? resolveContactVariantFromHero(heroVariant) : (s.variant as any);
           return wrap(
@@ -543,10 +540,8 @@ export function TemplateEngine({
             />
           );
         }
-
         case "split":
           return wrap(<Comp {...common} content={(liveConfig as any).content} sectionTitle={s.title} />);
-
         default:
           return null;
       }
@@ -574,9 +569,12 @@ export function TemplateEngine({
   return (
     <>
       <main className={cx("min-h-screen", theme.bgPage, theme.text, fx.enabled && fx.ambient && "fx-ambient")}>
-        <div id="top" style={{ height: 0 }} aria-hidden="true" />
-        <FxStyles enabled={!!fx.enabled} ambient={!!fx.ambient} />
-        {(((liveConfig as any).sections ?? []) as any[]).map(renderSection)}
+        {/* Immersive overlay wrapper (safe) */}
+        <div className={cx("min-h-screen relative isolate", immersiveOverlayClass)}>
+          <div id="top" style={{ height: 0 }} aria-hidden="true" />
+          <FxStyles enabled={!!fx.enabled} ambient={!!fx.ambient} />
+          {(((liveConfig as any).sections ?? []) as any[]).map(renderSection)}
+        </div>
       </main>
 
       {mounted && studioEnabled && typeof document !== "undefined"
@@ -584,7 +582,12 @@ export function TemplateEngine({
         : null}
 
       {enableLightbox && lightboxOpen && activeImg?.src ? (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 p-4" onMouseDown={closeLightbox} role="dialog" aria-modal="true">
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 p-4"
+          onMouseDown={closeLightbox}
+          role="dialog"
+          aria-modal="true"
+        >
           <div className="relative w-full max-w-5xl overflow-hidden rounded-2xl bg-black" onMouseDown={(e) => e.stopPropagation()}>
             <div className="relative aspect-[16/9] bg-black">
               <Image src={activeImg.src} alt={activeImg.alt || "Aperçu"} fill className="object-contain" />

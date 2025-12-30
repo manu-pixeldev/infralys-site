@@ -18,6 +18,13 @@ export type ThemeLike = {
   surfaceBorder: string;
 
   isDark: boolean;
+
+  /** optional: immersive overlay hook (used by template-engine if you want) */
+  canvasFx?: {
+    kind: "classic" | "immersive";
+    /** tailwind classes to apply on page wrapper (optional) */
+    pageOverlayClass?: string;
+  };
 };
 
 type AccentDef = { accentFrom: string; accentTo: string };
@@ -26,6 +33,8 @@ type CanvasDef = {
   isDark: boolean;
   surfaceBg?: string;
   surfaceBorder?: string;
+  /** optional overlay for immersive */
+  canvasFx?: ThemeLike["canvasFx"];
 };
 
 const ACCENTS: Record<string, AccentDef> = {
@@ -57,18 +66,94 @@ const CANVAS: Record<string, CanvasDef> = {
   forest: { bgPage: "bg-emerald-50", isDark: false, surfaceBg: "bg-white", surfaceBorder: "border-slate-200" },
   sunset: { bgPage: "bg-orange-50", isDark: false, surfaceBg: "bg-white", surfaceBorder: "border-slate-200" },
 
-  // dark (ton existant)
+  // dark (existing)
   charcoal: { bgPage: "bg-slate-950", isDark: true, surfaceBg: "bg-white/5", surfaceBorder: "border-white/10" },
 
-  // ✅ nouveaux dark “premium”
-  // plus “bleu nuit”, surfaces un peu plus contrastées
+  // premium dark
   midnight: { bgPage: "bg-[#060B1A]", isDark: true, surfaceBg: "bg-white/6", surfaceBorder: "border-white/12" },
-
-  // plus “graphite”, moins bleu, très SaaS
   graphite: { bgPage: "bg-[#0B0F14]", isDark: true, surfaceBg: "bg-white/5", surfaceBorder: "border-white/10" },
-
-  // look “studio / devtool”: dark + surfaces très lisibles
   studio: { bgPage: "bg-[#070A0F]", isDark: true, surfaceBg: "bg-white/7", surfaceBorder: "border-white/12" },
+
+  /* ============================================================
+     IMMERSIVE variants (canvas “univers” + surfaces intégrées)
+     ============================================================ */
+
+  charcoalImmersive: {
+    bgPage: "bg-slate-950",
+    isDark: true,
+    surfaceBg: "bg-white/6",
+    surfaceBorder: "border-white/12",
+    canvasFx: {
+      kind: "immersive",
+      // overlay prêt à l’emploi si tu l’appliques sur le wrapper page
+      pageOverlayClass:
+        // vignette + dégradés doux + léger grain (via opacity)
+        "relative before:pointer-events-none before:absolute before:inset-0 before:content-[''] before:opacity-100 " +
+        "before:bg-[radial-gradient(1200px_600px_at_20%_0%,rgba(255,255,255,0.08),transparent_60%)," +
+        "radial-gradient(900px_500px_at_80%_10%,rgba(56,189,248,0.10),transparent_60%)," +
+        "radial-gradient(900px_700px_at_50%_100%,rgba(244,63,94,0.06),transparent_60%)]",
+    },
+  },
+
+  monoDarkImmersive: {
+    bgPage: "bg-slate-950",
+    isDark: true,
+    surfaceBg: "bg-white/6",
+    surfaceBorder: "border-white/12",
+    canvasFx: {
+      kind: "immersive",
+      pageOverlayClass:
+        "relative before:pointer-events-none before:absolute before:inset-0 before:content-[''] " +
+        "before:bg-[radial-gradient(1200px_600px_at_20%_0%,rgba(34,211,238,0.10),transparent_60%)," +
+        "radial-gradient(900px_500px_at_80%_10%,rgba(59,130,246,0.10),transparent_60%)," +
+        "radial-gradient(900px_700px_at_50%_100%,rgba(255,255,255,0.05),transparent_60%)]",
+    },
+  },
+
+  midnightImmersive: {
+    bgPage: "bg-[#060B1A]",
+    isDark: true,
+    surfaceBg: "bg-white/7",
+    surfaceBorder: "border-white/12",
+    canvasFx: {
+      kind: "immersive",
+      pageOverlayClass:
+        "relative before:pointer-events-none before:absolute before:inset-0 before:content-[''] " +
+        "before:bg-[radial-gradient(1200px_700px_at_15%_0%,rgba(99,102,241,0.12),transparent_60%)," +
+        "radial-gradient(900px_600px_at_85%_10%,rgba(56,189,248,0.10),transparent_60%)," +
+        "radial-gradient(900px_800px_at_50%_100%,rgba(255,255,255,0.05),transparent_60%)]",
+    },
+  },
+
+  graphiteImmersive: {
+    bgPage: "bg-[#0B0F14]",
+    isDark: true,
+    surfaceBg: "bg-white/6",
+    surfaceBorder: "border-white/12",
+    canvasFx: {
+      kind: "immersive",
+      pageOverlayClass:
+        "relative before:pointer-events-none before:absolute before:inset-0 before:content-[''] " +
+        "before:bg-[radial-gradient(1000px_600px_at_20%_0%,rgba(255,255,255,0.06),transparent_60%)," +
+        "radial-gradient(900px_600px_at_80%_10%,rgba(168,85,247,0.09),transparent_60%)," +
+        "radial-gradient(900px_800px_at_50%_100%,rgba(244,63,94,0.06),transparent_60%)]",
+    },
+  },
+
+  studioImmersive: {
+    bgPage: "bg-[#070A0F]",
+    isDark: true,
+    surfaceBg: "bg-white/8",
+    surfaceBorder: "border-white/12",
+    canvasFx: {
+      kind: "immersive",
+      pageOverlayClass:
+        "relative before:pointer-events-none before:absolute before:inset-0 before:content-[''] " +
+        "before:bg-[radial-gradient(1100px_650px_at_20%_0%,rgba(34,211,238,0.10),transparent_60%)," +
+        "radial-gradient(900px_600px_at_80%_10%,rgba(251,113,133,0.08),transparent_60%)," +
+        "radial-gradient(900px_800px_at_50%_100%,rgba(255,255,255,0.05),transparent_60%)]",
+    },
+  },
 };
 
 function normalizeAccentKey(k: string) {
@@ -118,6 +203,7 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
     surfaceBg,
     surfaceBorder,
     isDark,
+    canvasFx: canvas.canvasFx ?? { kind: "classic" },
   };
 }
 
