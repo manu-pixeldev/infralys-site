@@ -173,7 +173,6 @@ function SocialRow({
 }
 
 /** Simple dropdown (desktop) */
-/** Simple dropdown (desktop) */
 function DesktopOverflowMenu({
   theme,
   label = "Plus",
@@ -210,27 +209,25 @@ function DesktopOverflowMenu({
 
   if (!items.length) return null;
 
-  const btnBase =
-    "inline-flex items-center gap-2 rounded-2xl px-4 py-2 transition will-change-transform hover:-translate-y-[1px] active:translate-y-0";
-  const btnTheme = theme.isDark
-    ? "text-white/85 hover:text-white bg-white/0 hover:bg-white/10"
-    : "text-slate-700 hover:text-slate-950 bg-white/0 hover:bg-white";
-
   return (
-    <div ref={ref} className="relative hidden md:block px-1">
+    <div ref={ref} className="relative hidden md:block">
       <button
         type="button"
-        className={cx("group relative", btnBase, btnTheme)}
+        className={cx(
+          // ✅ padding so it's not glued to the right edge in pill nav
+          "group relative transition-colors px-2 py-1 rounded-lg",
+          theme.isDark
+            ? "text-white/80 hover:text-white"
+            : "text-slate-700 hover:text-slate-950"
+        )}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
       >
         {label}
-        <span className="opacity-70">▾</span>
-
         <span
           className={cx(
-            "pointer-events-none absolute left-3 right-3 -bottom-1 h-[2px] bg-gradient-to-r transition-opacity opacity-0 group-hover:opacity-100",
+            "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity opacity-0 group-hover:opacity-100",
             theme.accentFrom,
             theme.accentTo
           )}
@@ -267,7 +264,6 @@ function DesktopOverflowMenu({
     </div>
   );
 }
-
 
 /* ============================================================
    HEADER (FULL)
@@ -357,10 +353,10 @@ export function LegacyHeader(props: {
           />
         );
 
-  // ✅ FIX ANTI-TREMBLEMENT:
-  // - subtitle wrapper toujours rendu
-  // - réserve une ligne (min-h + leading)
-  // - si vide => NBSP (pas "—", pas opacity-0)
+  // ✅ FIX ANTI-TREMBLEMENT subtitle:
+  // - wrapper toujours rendu
+  // - réserve une hauteur stable
+  // - NBSP si vide (pas "—", pas opacity-0)
   const subtitleRaw = (brand as any)?.text?.subtitle;
   const subtitleText = hasText(subtitleRaw) ? String(subtitleRaw) : "\u00A0";
 
@@ -379,7 +375,6 @@ export function LegacyHeader(props: {
         className={cx(
           "truncate text-xs",
           theme.isDark ? "text-white/70" : "text-slate-500",
-          // réserve une hauteur stable (1 ligne)
           "min-h-[1.125rem] leading-[1.125rem]"
         )}
       >
@@ -431,7 +426,7 @@ export function LegacyHeader(props: {
     return true;
   });
 
-  // dropdown si trop d’items (desktop)
+  // ✅ dropdown si trop d’items (desktop) - piloté par panel (maxDirectLinks)
   const MAX_INLINE = Math.max(0, Math.min(12, Number(maxDirectLinks ?? 6)));
   const inlineLinks = linksAll.slice(0, MAX_INLINE);
   const overflowLinks = linksAll.slice(MAX_INLINE);
@@ -589,8 +584,11 @@ export function LegacyHeader(props: {
             headerPos,
             headerZ,
             "border-b shadow-[0_2px_18px_rgba(0,0,0,0.06)] transition-[background-color,backdrop-filter] duration-200",
-            theme.isDark ? "border-white/10 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-900",
-            isScrolled && (theme.isDark ? "bg-slate-950/88 backdrop-blur" : "bg-white/88 backdrop-blur")
+            theme.isDark
+              ? "border-white/10 bg-slate-950 text-white"
+              : "border-slate-200 bg-white text-slate-900",
+            isScrolled &&
+              (theme.isDark ? "bg-slate-950/88 backdrop-blur" : "bg-white/88 backdrop-blur")
           )}
         >
           <Wrap
@@ -613,15 +611,25 @@ export function LegacyHeader(props: {
               )}
             >
               {phone ? (
-                <div className={cx("max-w-[220px]", pillBase)} style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}>
-                  <div className={cx("text-[10px] font-semibold uppercase tracking-wider", pillLabel)}>Téléphone</div>
+                <div
+                  className={cx("max-w-[220px]", pillBase)}
+                  style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
+                >
+                  <div className={cx("text-[10px] font-semibold uppercase tracking-wider", pillLabel)}>
+                    Téléphone
+                  </div>
                   <div className={cx("truncate text-sm font-semibold", pillValue)}>{phone}</div>
                 </div>
               ) : null}
 
               {email ? (
-                <div className={cx("max-w-[260px]", pillBase)} style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}>
-                  <div className={cx("text-[10px] font-semibold uppercase tracking-wider", pillLabel)}>E-mail</div>
+                <div
+                  className={cx("max-w-[260px]", pillBase)}
+                  style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
+                >
+                  <div className={cx("text-[10px] font-semibold uppercase tracking-wider", pillLabel)}>
+                    E-mail
+                  </div>
                   <div className={cx("truncate text-sm font-semibold", pillValue)}>{email}</div>
                 </div>
               ) : null}
@@ -805,16 +813,31 @@ export function LegacyHero({
           >
             <div className="max-w-3xl mx-auto text-center">
               {hasText(kicker) ? (
-                <div className={cx("text-sm font-semibold", theme.isDark ? "text-white/70" : "text-slate-600")}>
+                <div
+                  className={cx(
+                    "text-sm font-semibold",
+                    theme.isDark ? "text-white/70" : "text-slate-600"
+                  )}
+                >
                   {kicker}
                 </div>
               ) : null}
 
-              <h1 className={cx("mt-3 text-4xl md:text-5xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>
+              <h1
+                className={cx(
+                  "mt-3 text-4xl md:text-5xl font-semibold tracking-tight",
+                  theme.isDark ? "text-white" : "text-slate-950"
+                )}
+              >
                 {title}
               </h1>
 
-              <p className={cx("mt-4 text-base md:text-lg leading-relaxed", theme.isDark ? "text-white/70" : "text-slate-600")}>
+              <p
+                className={cx(
+                  "mt-4 text-base md:text-lg leading-relaxed",
+                  theme.isDark ? "text-white/70" : "text-slate-600"
+                )}
+              >
                 {text}
               </p>
 
@@ -827,10 +850,19 @@ export function LegacyHero({
             <div className="mt-10">
               <div
                 style={radiusStyle(l.radius)}
-                className={cx("relative overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}
+                className={cx(
+                  "relative overflow-hidden border",
+                  theme.isDark ? "border-white/10" : "border-slate-200"
+                )}
               >
                 <div className="relative aspect-[16/7]">
-                  <NextImage src={imgSrc} alt={imgAlt} fill className="object-cover" priority />
+                  <NextImage
+                    src={imgSrc}
+                    alt={imgAlt}
+                    fill
+                    className="object-cover"
+                    priority
+                  />
                 </div>
               </div>
             </div>
@@ -844,20 +876,40 @@ export function LegacyHero({
   return (
     <section id={sectionId ?? "hero"} className={cx(heroPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
-        <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-10 md:p-14", theme.isDark && "bg-white/5")}>
+        <Surface
+          theme={theme}
+          layout={layout}
+          globalLayout={globalLayout}
+          className={cx("p-10 md:p-14", theme.isDark && "bg-white/5")}
+        >
           <div className="grid items-center gap-10 md:grid-cols-2">
             <div>
               {hasText(kicker) ? (
-                <div className={cx("text-sm font-semibold", theme.isDark ? "text-white/70" : "text-slate-600")}>
+                <div
+                  className={cx(
+                    "text-sm font-semibold",
+                    theme.isDark ? "text-white/70" : "text-slate-600"
+                  )}
+                >
                   {kicker}
                 </div>
               ) : null}
 
-              <h1 className={cx("mt-3 text-4xl md:text-5xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>
+              <h1
+                className={cx(
+                  "mt-3 text-4xl md:text-5xl font-semibold tracking-tight",
+                  theme.isDark ? "text-white" : "text-slate-950"
+                )}
+              >
                 {title}
               </h1>
 
-              <p className={cx("mt-4 max-w-xl text-base md:text-lg leading-relaxed", theme.isDark ? "text-white/70" : "text-slate-600")}>
+              <p
+                className={cx(
+                  "mt-4 max-w-xl text-base md:text-lg leading-relaxed",
+                  theme.isDark ? "text-white/70" : "text-slate-600"
+                )}
+              >
                 {text}
               </p>
 
@@ -870,10 +922,19 @@ export function LegacyHero({
             <div className="relative">
               <div
                 style={radiusStyle(l.radius)}
-                className={cx("relative overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}
+                className={cx(
+                  "relative overflow-hidden border",
+                  theme.isDark ? "border-white/10" : "border-slate-200"
+                )}
               >
                 <div className="relative aspect-[16/10]">
-                  <NextImage src={imgSrc} alt={imgAlt} fill className="object-cover" priority />
+                  <NextImage
+                    src={imgSrc}
+                    alt={imgAlt}
+                    fill
+                    className="object-cover"
+                    priority
+                  />
                 </div>
               </div>
             </div>
@@ -931,7 +992,12 @@ export function LegacySplit(props: {
 
   const Copy = (
     <div className="p-6 md:p-10">
-      <h3 className={cx("mt-2 text-2xl md:text-3xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>
+      <h3
+        className={cx(
+          "mt-2 text-2xl md:text-3xl font-semibold tracking-tight",
+          theme.isDark ? "text-white" : "text-slate-950"
+        )}
+      >
         {title}
       </h3>
 
@@ -1014,7 +1080,8 @@ export function LegacyServices({
 
   const v = String(servicesVariant ?? variant ?? "A");
 
-  const gridCols = v === "B" ? "md:grid-cols-2" : v === "C" ? "md:grid-cols-4" : "md:grid-cols-3";
+  const gridCols =
+    v === "B" ? "md:grid-cols-2" : v === "C" ? "md:grid-cols-4" : "md:grid-cols-3";
   const headAlign: "left" | "center" = v === "B" ? "center" : "left";
 
   const title = content?.servicesTitle ?? "Services";
@@ -1323,10 +1390,17 @@ function InfoCard({
         dark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
       )}
     >
-      <div className={cx("text-[11px] font-semibold uppercase tracking-wider", dark ? "text-white/60" : "text-slate-500")}>
+      <div
+        className={cx(
+          "text-[11px] font-semibold uppercase tracking-wider",
+          dark ? "text-white/60" : "text-slate-500"
+        )}
+      >
         {label}
       </div>
-      <div className={cx("mt-1 font-semibold", dark ? "text-white" : "text-slate-900")}>{value}</div>
+      <div className={cx("mt-1 font-semibold", dark ? "text-white" : "text-slate-900")}>
+        {value}
+      </div>
     </div>
   );
 }
