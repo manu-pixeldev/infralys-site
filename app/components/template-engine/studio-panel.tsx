@@ -1,3 +1,4 @@
+// app/components/template-engine/studio-panel.tsx
 "use client";
 
 import React from "react";
@@ -40,8 +41,23 @@ const ACCENTS = [
   "monoDarkLime",
 ] as const;
 
-// base canvases (the toggle adds Immersive suffix)
-const CANVAS_BASE = ["classic", "warm", "cool", "forest", "sunset", "charcoal", "midnight", "graphite", "studio"] as const;
+// ✅ more canvases (classic + premium)
+const CANVAS = [
+  "classic",
+  "pearl",
+  "paper",
+  "frost",
+  "sand",
+  "warm",
+  "cool",
+  "forest",
+  "sunset",
+  "charcoal",
+  "midnight",
+  "graphite",
+  "studio",
+  "obsidian",
+] as const;
 
 const CONTAINERS = ["5xl", "6xl", "7xl", "full"] as const;
 const DENSITIES = ["compact", "normal", "spacious"] as const;
@@ -50,6 +66,11 @@ const RADII = [16, 24, 32] as const;
 const LOGO_MODES = ["logoPlusText", "logoOnly", "textOnly"] as const;
 
 type DockSide = "left" | "right";
+type CanvasStyle = "classic" | "immersive";
+
+type AutoAccentMode = "off" | "muted" | "vivid";
+
+/* ------------------------ utils ------------------------ */
 
 function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ");
@@ -65,26 +86,13 @@ function clampIndex(i: number, len: number) {
   return (i % len + len) % len;
 }
 
-function stripImmersive(canvas: string) {
-  return String(canvas || "classic").replace(/Immersive$/i, "");
-}
-
-function isImmersiveCanvas(canvas: string) {
-  return /Immersive$/i.test(String(canvas || ""));
-}
-
 function parseThemeVariant(v?: string) {
   const raw = String(v ?? "amberOrange|classic").trim();
   const [a, c] = raw.includes("|") ? raw.split("|") : [raw, "classic"];
-  const accent = (a || "amberOrange").trim();
-  const canvasRaw = (c || "classic").trim();
-  const immersive = isImmersiveCanvas(canvasRaw);
-  const baseCanvas = stripImmersive(canvasRaw);
-  return { accent, baseCanvas, immersive };
+  return { accent: (a || "amberOrange").trim(), canvas: (c || "classic").trim() };
 }
 
-function joinThemeVariant(accent: string, baseCanvas: string, immersive: boolean) {
-  const canvas = immersive ? `${baseCanvas}Immersive` : baseCanvas;
+function joinThemeVariant(accent: string, canvas: string) {
   return `${accent}|${canvas}`;
 }
 
@@ -101,6 +109,118 @@ function cycleInList(current: string, list: readonly string[], dir: -1 | 1) {
   const idx = list.indexOf(current);
   const i = idx >= 0 ? idx : 0;
   return list[(i + dir + list.length) % list.length];
+}
+
+function isTypingTarget(el: any) {
+  const tag = String(el?.tagName ?? "").toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select" || !!el?.isContentEditable;
+}
+
+/** Very small color helpers */
+function rgbToHsl(r: number, g: number, b: number) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+
+  const d = max - min;
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    switch (max) {
+      case r: h = ((g - b) / d) % 6; break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return { h, s, l };
+}
+
+/**
+ * Extract a dominant-ish color from an image via canvas sampling.
+ * - Works best for same-origin images.
+ * - If CORS blocks, it throws -> caller should fallback safely.
+ */
+async function extractDominantRgb(src: string): Promise<{ r: number; g: number; b: number } | null> {
+  if (!src) return null;
+
+  // data: URLs OK; local public paths OK; external needs CORS
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+
+  const p = new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("image load failed"));
+  });
+
+  img.src = src;
+  await p;
+
+  const w = Math.max(8, Math.min(64, img.naturalWidth || 64));
+  const h = Math.max(8, Math.min(64, img.naturalHeight || 64));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const data = ctx.getImageData(0, 0, w, h).data;
+
+  // simple weighted average ignoring near-transparent + near-white/near-black
+  let rSum = 0, gSum = 0, bSum = 0, count = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    if (a < 60) continue;
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+
+    // ignore extreme backgrounds
+    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    if (lum > 245) continue; // near-white
+    if (lum < 10) continue;  // near-black
+
+    rSum += r;
+    gSum += g;
+    bSum += b;
+    count++;
+  }
+
+  if (!count) return null;
+  return { r: Math.round(rSum / count), g: Math.round(gSum / count), b: Math.round(bSum / count) };
+}
+
+function pickAccentFromHsl(h: number, s: number, l: number, mode: AutoAccentMode): typeof ACCENTS[number] {
+  // if low saturation -> mono-ish
+  if (s < 0.18) {
+    if (l < 0.35) return "monoDark";
+    // give a bit of character:
+    return mode === "vivid" ? "slateIndigo" : "monoDark";
+  }
+
+  // map hue to closest buckets
+  // red(0) -> blueRed; orange(30) -> amberOrange; green(120) -> emeraldTeal; blue(210) -> slateIndigo; purple(290) -> purplePink
+  const hue = h;
+
+  // "muted" tends to more slate/mono, "vivid" keeps color
+  if (mode === "muted") {
+    if (hue >= 90 && hue <= 170) return "emeraldTeal";
+    if (hue >= 200 && hue <= 260) return "slateIndigo";
+    if (hue >= 260 && hue <= 330) return "monoDarkRose";
+    if (hue >= 20 && hue <= 70) return "monoDarkGold";
+    return "monoDark";
+  }
+
+  // vivid (default)
+  if (hue >= 90 && hue <= 170) return "emeraldTeal";
+  if (hue >= 200 && hue <= 260) return "slateIndigo";
+  if (hue >= 260 && hue <= 330) return "purplePink";
+  if (hue >= 20 && hue <= 70) return "amberOrange";
+  return "blueRed";
 }
 
 function IconBtn({
@@ -301,13 +421,18 @@ export function StudioPanel({
   setConfig: React.Dispatch<React.SetStateAction<TemplateConfigInput>>;
 }) {
   const themeVariantRaw = (config as any)?.options?.themeVariant ?? "amberOrange|classic";
-  const { accent, baseCanvas, immersive } = parseThemeVariant(themeVariantRaw);
+  const { accent, canvas } = parseThemeVariant(themeVariantRaw);
 
   const ui = (config as any)?.options?.studio?.ui ?? {};
   const dock: DockSide = (ui.dock ?? "right") as DockSide;
   const minimized = !!ui.minimized;
 
   const studioEnabled = !!(config as any)?.options?.studio?.enabled;
+  const canvasStyle: CanvasStyle = (((config as any)?.options?.canvasStyle ?? "classic") as CanvasStyle) || "classic";
+
+  // ✅ Auto accent settings
+  const autoAccentMode: AutoAccentMode =
+    (((config as any)?.options?.autoAccentMode ?? "off") as AutoAccentMode) || "off";
 
   const update = (fn: (draft: any) => any) => setConfig((prev) => fn(clone(prev)));
 
@@ -332,24 +457,85 @@ export function StudioPanel({
     });
 
   const accentIndex = Math.max(0, (ACCENTS as readonly string[]).indexOf(accent));
-  const canvasIndex = Math.max(0, (CANVAS_BASE as readonly string[]).indexOf(baseCanvas));
+  const canvasIndex = Math.max(0, (CANVAS as readonly string[]).indexOf(canvas));
 
-  const setThemeVariant = (nextAccent: string, nextBaseCanvas: string, nextImmersive: boolean) =>
+  const setThemeVariant = (nextAccent: string, nextCanvas: string) =>
     update((d) => {
       d.options = d.options ?? {};
-      d.options.themeVariant = joinThemeVariant(nextAccent, nextBaseCanvas, nextImmersive);
+      d.options.themeVariant = joinThemeVariant(nextAccent, nextCanvas);
       return d;
     });
 
   const cycleAccent = (dir: -1 | 1) => {
     const next = ACCENTS[clampIndex(accentIndex + dir, ACCENTS.length)];
-    setThemeVariant(next, baseCanvas, immersive);
+    setThemeVariant(next, canvas);
   };
 
   const cycleCanvas = (dir: -1 | 1) => {
-    const next = CANVAS_BASE[clampIndex(canvasIndex + dir, CANVAS_BASE.length)];
-    setThemeVariant(accent, next, immersive);
+    const next = CANVAS[clampIndex(canvasIndex + dir, CANVAS.length)];
+    setThemeVariant(accent, next);
   };
+
+  const setCanvasStyle = (style: CanvasStyle) =>
+    update((d) => {
+      d.options = d.options ?? {};
+      d.options.canvasStyle = style;
+      return d;
+    });
+
+  const setAutoAccentMode = (mode: AutoAccentMode) =>
+    update((d) => {
+      d.options = d.options ?? {};
+      d.options.autoAccentMode = mode;
+      return d;
+    });
+
+  // ✅ refs: keyboard focus-aware for theme selects (Option A)
+  const accentSelectRef = React.useRef<HTMLSelectElement>(null);
+  const canvasSelectRef = React.useRef<HTMLSelectElement>(null);
+  const shellRef = React.useRef<HTMLDivElement>(null);
+
+  // ✅ Auto accent effect (guarded)
+  const lastAutoRef = React.useRef<{ src: string; mode: AutoAccentMode; applied: string } | null>(null);
+  const logoSrc = String((config as any)?.brand?.logo?.src ?? "");
+  React.useEffect(() => {
+    if (autoAccentMode === "off") return;
+    if (!logoSrc) return;
+
+    const key = { src: logoSrc, mode: autoAccentMode };
+    const last = lastAutoRef.current;
+    if (last && last.src === key.src && last.mode === key.mode && last.applied === accent) {
+      return; // already applied for this exact state
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const rgb = await extractDominantRgb(logoSrc);
+        if (cancelled || !rgb) return;
+
+        const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+        const picked = pickAccentFromHsl(hsl.h, hsl.s, hsl.l, autoAccentMode);
+
+        if (cancelled) return;
+        if (picked && picked !== accent) {
+          setThemeVariant(picked, canvas);
+          lastAutoRef.current = { src: logoSrc, mode: autoAccentMode, applied: picked };
+        } else {
+          lastAutoRef.current = { src: logoSrc, mode: autoAccentMode, applied: accent };
+        }
+      } catch {
+        // CORS / decode / canvas tainted -> just stop safely (no loops)
+        lastAutoRef.current = { src: logoSrc, mode: autoAccentMode, applied: accent };
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logoSrc, autoAccentMode]); // intentionally not depending on accent/canvas to avoid churn
 
   const maxDirect = Number((config as any)?.options?.maxDirectLinksInMenu ?? 4);
   const setMaxDirect = (n: number) =>
@@ -431,11 +617,8 @@ export function StudioPanel({
   // ---------------------------
   const socialKinds = allSocialKinds();
   const socialsCfg = ((config as any)?.content?.socials ?? {}) as any;
-
   const socialsOrder: SocialKind[] =
-    Array.isArray(socialsCfg.order) && socialsCfg.order.length
-      ? socialsCfg.order
-      : socialKinds;
+    Array.isArray(socialsCfg.order) && socialsCfg.order.length ? socialsCfg.order : socialKinds;
 
   const ensureSocialsRoot = (d: any) => {
     d.content = d.content ?? {};
@@ -451,18 +634,6 @@ export function StudioPanel({
       d.content.socials.enabled[kind] = enabled;
       const o: SocialKind[] = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
       if (enabled && !o.includes(kind)) o.push(kind);
-      d.content.socials.order = o;
-      return d;
-    });
-
-  const enableAllSocials = () =>
-    update((d) => {
-      ensureSocialsRoot(d);
-      const o: SocialKind[] = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
-      socialKinds.forEach((k) => {
-        d.content.socials.enabled[k] = true;
-        if (!o.includes(k)) o.push(k);
-      });
       d.content.socials.order = o;
       return d;
     });
@@ -539,14 +710,22 @@ export function StudioPanel({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // ✅ UI: hide TOP completely
+  // ✅ UI: pin top+header first (UI ONLY) + hide "top" from list
+  const pinnedTypes = new Set(["top", "header"]);
   const sectionsRaw: any[] = Array.isArray((config as any).sections) ? (config as any).sections : [];
   const sectionsView = React.useMemo(() => {
-    const filtered = sectionsRaw.filter((s) => String(s.type) !== "top");
-    // header pinned first in UI
-    const header = filtered.filter((s) => String(s.type) === "header");
-    const rest = filtered.filter((s) => String(s.type) !== "header");
-    return [...header, ...rest];
+    const pinned = sectionsRaw.filter((s) => pinnedTypes.has(String(s.type)));
+    const rest = sectionsRaw.filter((s) => !pinnedTypes.has(String(s.type)));
+
+    pinned.sort((a, b) => {
+      const pa = String(a.type) === "top" ? 0 : 1;
+      const pb = String(b.type) === "top" ? 0 : 1;
+      return pa - pb;
+    });
+
+    // ✅ filter out top from UI (never editable)
+    const pinnedNoTop = pinned.filter((s) => String(s.type) !== "top");
+    return [...pinnedNoTop, ...rest];
   }, [sectionsRaw]);
 
   const sectionIds = React.useMemo(() => sectionsView.map((s) => s.id), [sectionsView]);
@@ -558,23 +737,23 @@ export function StudioPanel({
 
     update((d) => {
       const arr: any[] = Array.isArray(d.sections) ? d.sections : [];
+      const ids = arr.map((x: any) => String(x.id));
 
-      // keep TOP stable at index 0 if exists
-      const top = arr.find((x) => String(x.type) === "top");
-      const others = arr.filter((x) => String(x.type) !== "top");
-
-      const ids = others.map((x: any) => String(x.id));
       const oldIndex = ids.indexOf(String(active.id));
       const newIndex = ids.indexOf(String(over.id));
       if (oldIndex < 0 || newIndex < 0) return d;
 
-      const moving = others[oldIndex];
-      const target = others[newIndex];
+      const moving = arr[oldIndex];
+      const target = arr[newIndex];
+
+      // ✅ forbid dragging pinned
+      if (pinnedTypes.has(String(moving?.type))) return d;
+      if (pinnedTypes.has(String(target?.type))) return d;
+
       if (moving?.lock) return d;
       if (target?.lock) return d;
 
-      const next = arrayMove(others, oldIndex, newIndex);
-      d.sections = top ? [top, ...next] : next;
+      d.sections = arrayMove(arr, oldIndex, newIndex);
       return d;
     });
   };
@@ -605,7 +784,40 @@ export function StudioPanel({
 
   return (
     <div className={panelPos}>
-      <div className={shell}>
+      <div
+        ref={shellRef}
+        className={shell}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          // ✅ Option A UX:
+          // - ArrowLeft/Right ONLY cycles when Accent select OR Canvas select is focused
+          // - otherwise, do not hijack arrows (prevents surprises)
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+
+          const dir: -1 | 1 = e.key === "ArrowLeft" ? -1 : 1;
+          const active = document.activeElement as any;
+
+          // if user is typing somewhere else => never intercept
+          if (isTypingTarget(active) && active !== accentSelectRef.current && active !== canvasSelectRef.current) {
+            return;
+          }
+
+          if (active === accentSelectRef.current) {
+            e.preventDefault();
+            cycleAccent(dir);
+            return;
+          }
+
+          if (active === canvasSelectRef.current) {
+            e.preventDefault();
+            cycleCanvas(dir);
+            return;
+          }
+
+          // panel focused but not in theme selects -> do nothing
+          return;
+        }}
+      >
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur">
           <div className="min-w-0">
             <div className="text-sm font-semibold text-slate-900">StudioPanel</div>
@@ -663,62 +875,127 @@ export function StudioPanel({
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">THÈME</div>
 
+            {/* Canvas style toggle */}
+            <div className="mb-4 rounded-3xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">Canvas style</div>
+                  <div className="text-xs text-slate-500 truncate">
+                    Classic = cards nettes • Immersive = univers (fond + modules)
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCanvasStyle(canvasStyle === "classic" ? "immersive" : "classic")}
+                    className={cx(
+                      "relative h-7 w-12 rounded-full border transition",
+                      canvasStyle === "immersive" ? "bg-slate-900" : "bg-white"
+                    )}
+                    aria-pressed={canvasStyle === "immersive"}
+                    title="Classic / Immersive"
+                  >
+                    <span
+                      className={cx(
+                        "absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition",
+                        canvasStyle === "immersive" ? "left-6 bg-white" : "left-1 bg-slate-900"
+                      )}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-2 text-[11px] text-slate-500">
+                Tip: pour le clavier, focus sur le select Accent/Fond puis <span className="font-semibold">←/→</span>.
+              </div>
+            </div>
+
+            {/* Auto Accent */}
+            <div className="mb-4 rounded-3xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">Accent auto (logo)</div>
+                  <div className="text-xs text-slate-500 truncate">
+                    Extrait une couleur dominante du logo et choisit un accent proche.
+                  </div>
+                </div>
+                <select
+                  value={autoAccentMode}
+                  onChange={(e) => setAutoAccentMode(e.target.value as AutoAccentMode)}
+                  className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+                  title="Auto accent mode"
+                >
+                  <option value="off">Off</option>
+                  <option value="muted">Muted</option>
+                  <option value="vivid">Vivid</option>
+                </select>
+              </div>
+
+              <div className="mt-2 text-[11px] text-slate-500">
+                Note: PNG/JPG externe sans CORS → fallback silencieux (pas de crash).
+              </div>
+            </div>
+
             <div className="mb-4">
               <div className="mb-2 text-xs font-semibold text-slate-700">Accent</div>
               <div className="flex items-center gap-2">
-                <IconBtn title="Accent précédent" onClick={() => cycleAccent(-1)}>◀</IconBtn>
+                <IconBtn title="Accent précédent (←)" onClick={() => cycleAccent(-1)} disabled={autoAccentMode !== "off"}>
+                  ◀
+                </IconBtn>
+
                 <select
-                  className="h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+                  ref={accentSelectRef}
+                  className={cx(
+                    "h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm",
+                    autoAccentMode !== "off" && "opacity-60 cursor-not-allowed"
+                  )}
                   value={accent}
-                  onChange={(e) => setThemeVariant(e.target.value, baseCanvas, immersive)}
+                  disabled={autoAccentMode !== "off"}
+                  onChange={(e) => setThemeVariant(e.target.value, canvas)}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowLeft") { e.preventDefault(); cycleAccent(-1); }
+                    if (e.key === "ArrowRight") { e.preventDefault(); cycleAccent(1); }
+                  }}
                 >
                   {ACCENTS.map((k) => (
                     <option key={k} value={k}>{k}</option>
                   ))}
                 </select>
-                <IconBtn title="Accent suivant" onClick={() => cycleAccent(1)}>▶</IconBtn>
+
+                <IconBtn title="Accent suivant (→)" onClick={() => cycleAccent(1)} disabled={autoAccentMode !== "off"}>
+                  ▶
+                </IconBtn>
               </div>
+
+              {autoAccentMode !== "off" ? (
+                <div className="mt-2 text-[11px] text-slate-500">
+                  Accent manuel désactivé (mode auto).
+                </div>
+              ) : null}
             </div>
 
-            <div className="mb-3">
+            <div>
               <div className="mb-2 text-xs font-semibold text-slate-700">Fond (canvas)</div>
               <div className="flex items-center gap-2">
-                <IconBtn title="Fond précédent" onClick={() => cycleCanvas(-1)}>◀</IconBtn>
+                <IconBtn title="Fond précédent (←)" onClick={() => cycleCanvas(-1)}>◀</IconBtn>
                 <select
+                  ref={canvasSelectRef}
                   className="h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
-                  value={baseCanvas}
-                  onChange={(e) => setThemeVariant(accent, e.target.value, immersive)}
+                  value={canvas}
+                  onChange={(e) => setThemeVariant(accent, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowLeft") { e.preventDefault(); cycleCanvas(-1); }
+                    if (e.key === "ArrowRight") { e.preventDefault(); cycleCanvas(1); }
+                  }}
                 >
-                  {CANVAS_BASE.map((k) => (
+                  {CANVAS.map((k) => (
                     <option key={k} value={k}>{k}</option>
                   ))}
                 </select>
-                <IconBtn title="Fond suivant" onClick={() => cycleCanvas(1)}>▶</IconBtn>
+                <IconBtn title="Fond suivant (→)" onClick={() => cycleCanvas(1)}>▶</IconBtn>
               </div>
-            </div>
-
-            <div className="rounded-3xl border border-slate-200 bg-white p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-900">Canvas style</div>
-                  <div className="text-xs text-slate-500 truncate">
-                    Classic = simple. Immersive = fonds premium + surfaces plus “blend”.
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setThemeVariant(accent, baseCanvas, !immersive)}
-                  className={cx("relative h-7 w-12 rounded-full border transition", immersive ? "bg-slate-900" : "bg-white")}
-                  aria-pressed={immersive}
-                  title="Classic / Immersive"
-                >
-                  <span
-                    className={cx(
-                      "absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition",
-                      immersive ? "left-6 bg-white" : "left-1 bg-slate-900"
-                    )}
-                  />
-                </button>
+              <div className="mt-2 text-[11px] text-slate-500">
+                Raccourcis: focus select → <span className="font-semibold">←/→</span>
               </div>
             </div>
           </div>
@@ -789,18 +1066,8 @@ export function StudioPanel({
 
           {/* SOCIALS */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs font-semibold tracking-wide text-slate-600">SOCIALS</div>
-              <button
-                type="button"
-                onClick={enableAllSocials}
-                className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-              >
-                Enable all
-              </button>
-            </div>
-
-            <div className="mt-3 space-y-3">
+            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">SOCIALS</div>
+            <div className="space-y-3">
               {socialsOrder.map((k, idx) => {
                 const def = SOCIAL_DEFS[k];
                 const enabled = ((socialsCfg.enabled ?? {}) as any)[k] !== false;
@@ -847,9 +1114,8 @@ export function StudioPanel({
                 );
               })}
             </div>
-
             <div className="mt-2 text-xs text-slate-500">
-              Les flèches modifient l’ordre d’affichage (header + contact).
+              Les flèches ici modifient l’ordre d’affichage (header + contact).
             </div>
           </div>
 
@@ -911,9 +1177,7 @@ export function StudioPanel({
               onChange={(e) => setMaxDirect(parseInt(e.target.value || "0", 10))}
               className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
             />
-            <div className="mt-2 text-xs text-slate-500">
-              (Le header affiche jusqu’à N liens, puis “Plus”)
-            </div>
+            <div className="mt-2 text-xs text-slate-500">(Les headers utilisent sections/galleries pour générer le menu)</div>
           </div>
 
           {/* FX */}
@@ -977,7 +1241,7 @@ export function StudioPanel({
                 </SortableContext>
               </DndContext>
               <div className="text-[11px] text-slate-500">
-                “top” est caché (ancre technique). Header est épinglé en haut dans l’UI.
+                “header” est fixé en haut dans l’UI. “top” est masqué (ancre technique).
               </div>
             </div>
           </div>
