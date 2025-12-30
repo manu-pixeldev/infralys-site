@@ -1,4 +1,3 @@
-// app/components/template-engine/studio-panel.tsx
 "use client";
 
 import React from "react";
@@ -41,7 +40,7 @@ const ACCENTS = [
   "monoDarkLime",
 ] as const;
 
-// Base canvases (classic). Immersive is a style toggle that maps to *Immersive keys.
+// base canvases (the toggle adds Immersive suffix)
 const CANVAS_BASE = ["classic", "warm", "cool", "forest", "sunset", "charcoal", "midnight", "graphite", "studio"] as const;
 
 const CONTAINERS = ["5xl", "6xl", "7xl", "full"] as const;
@@ -51,7 +50,6 @@ const RADII = [16, 24, 32] as const;
 const LOGO_MODES = ["logoPlusText", "logoOnly", "textOnly"] as const;
 
 type DockSide = "left" | "right";
-type CanvasStyle = "classic" | "immersive";
 
 function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ");
@@ -67,13 +65,26 @@ function clampIndex(i: number, len: number) {
   return (i % len + len) % len;
 }
 
+function stripImmersive(canvas: string) {
+  return String(canvas || "classic").replace(/Immersive$/i, "");
+}
+
+function isImmersiveCanvas(canvas: string) {
+  return /Immersive$/i.test(String(canvas || ""));
+}
+
 function parseThemeVariant(v?: string) {
   const raw = String(v ?? "amberOrange|classic").trim();
   const [a, c] = raw.includes("|") ? raw.split("|") : [raw, "classic"];
-  return { accent: (a || "amberOrange").trim(), canvas: (c || "classic").trim() };
+  const accent = (a || "amberOrange").trim();
+  const canvasRaw = (c || "classic").trim();
+  const immersive = isImmersiveCanvas(canvasRaw);
+  const baseCanvas = stripImmersive(canvasRaw);
+  return { accent, baseCanvas, immersive };
 }
 
-function joinThemeVariant(accent: string, canvas: string) {
+function joinThemeVariant(accent: string, baseCanvas: string, immersive: boolean) {
+  const canvas = immersive ? `${baseCanvas}Immersive` : baseCanvas;
   return `${accent}|${canvas}`;
 }
 
@@ -90,25 +101,6 @@ function cycleInList(current: string, list: readonly string[], dir: -1 | 1) {
   const idx = list.indexOf(current);
   const i = idx >= 0 ? idx : 0;
   return list[(i + dir + list.length) % list.length];
-}
-
-function isImmersiveCanvasKey(canvasKey: string) {
-  return String(canvasKey || "").toLowerCase().endsWith("immersive");
-}
-
-function baseFromCanvasKey(canvasKey: string): string {
-  const k = String(canvasKey || "classic").trim();
-  if (!isImmersiveCanvasKey(k)) return k;
-  return k.slice(0, -"Immersive".length);
-}
-
-function styleFromCanvasKey(canvasKey: string): CanvasStyle {
-  return isImmersiveCanvasKey(canvasKey) ? "immersive" : "classic";
-}
-
-function canvasKeyFromBase(base: string, style: CanvasStyle): string {
-  const b = String(base || "classic").trim();
-  return style === "immersive" ? `${b}Immersive` : b;
 }
 
 function IconBtn({
@@ -145,20 +137,17 @@ function SectionCard({
   onToggleEnabled,
   onChangeVariant,
   onRemove,
-  canDrag,
 }: {
   s: any;
   onToggleEnabled: (id: string, enabled: boolean) => void;
   onChangeVariant: (id: string, variant: string) => void;
   onRemove: (id: string) => void;
-  canDrag: boolean;
 }) {
   const locked = s.lock === true;
-  const dragDisabled = locked || !canDrag;
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: s.id,
-    disabled: dragDisabled,
+    disabled: locked,
   });
 
   const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition };
@@ -201,14 +190,14 @@ function SectionCard({
               type="button"
               className={cx(
                 "inline-flex h-9 w-9 items-center justify-center rounded-2xl border text-xs font-semibold",
-                dragDisabled
+                locked
                   ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
                   : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-grab active:cursor-grabbing"
               )}
-              title={dragDisabled ? "Section fixée" : "Glisser pour réordonner"}
+              title={locked ? "Section verrouillée" : "Glisser pour réordonner"}
               {...attributes}
               {...listeners}
-              disabled={dragDisabled}
+              disabled={locked}
             >
               ⠿
             </button>
@@ -312,14 +301,7 @@ export function StudioPanel({
   setConfig: React.Dispatch<React.SetStateAction<TemplateConfigInput>>;
 }) {
   const themeVariantRaw = (config as any)?.options?.themeVariant ?? "amberOrange|classic";
-  const parsed = parseThemeVariant(themeVariantRaw);
-
-  const accent = parsed.accent;
-  const canvasKey = parsed.canvas;
-
-  const canvasStyle: CanvasStyle = styleFromCanvasKey(canvasKey);
-  const canvasBaseRaw = baseFromCanvasKey(canvasKey);
-  const canvasBase = (CANVAS_BASE as readonly string[]).includes(canvasBaseRaw) ? canvasBaseRaw : "classic";
+  const { accent, baseCanvas, immersive } = parseThemeVariant(themeVariantRaw);
 
   const ui = (config as any)?.options?.studio?.ui ?? {};
   const dock: DockSide = (ui.dock ?? "right") as DockSide;
@@ -350,34 +332,23 @@ export function StudioPanel({
     });
 
   const accentIndex = Math.max(0, (ACCENTS as readonly string[]).indexOf(accent));
-  const canvasIndex = Math.max(0, (CANVAS_BASE as readonly string[]).indexOf(canvasBase));
+  const canvasIndex = Math.max(0, (CANVAS_BASE as readonly string[]).indexOf(baseCanvas));
 
-  const setThemeVariant = (nextAccent: string, nextCanvasKey: string) =>
+  const setThemeVariant = (nextAccent: string, nextBaseCanvas: string, nextImmersive: boolean) =>
     update((d) => {
       d.options = d.options ?? {};
-      d.options.themeVariant = joinThemeVariant(nextAccent, nextCanvasKey);
+      d.options.themeVariant = joinThemeVariant(nextAccent, nextBaseCanvas, nextImmersive);
       return d;
     });
 
-  const setCanvasBase = (nextBase: string) => {
-    const nextKey = canvasKeyFromBase(nextBase, canvasStyle);
-    setThemeVariant(accent, nextKey);
-  };
-
-  const setCanvasStyle = (nextStyle: CanvasStyle) => {
-    const nextKey = canvasKeyFromBase(canvasBase, nextStyle);
-    setThemeVariant(accent, nextKey);
-  };
-
   const cycleAccent = (dir: -1 | 1) => {
     const next = ACCENTS[clampIndex(accentIndex + dir, ACCENTS.length)];
-    setThemeVariant(next, canvasKey);
+    setThemeVariant(next, baseCanvas, immersive);
   };
 
-  const cycleCanvasBase = (dir: -1 | 1) => {
+  const cycleCanvas = (dir: -1 | 1) => {
     const next = CANVAS_BASE[clampIndex(canvasIndex + dir, CANVAS_BASE.length)];
-    const nextKey = canvasKeyFromBase(next, canvasStyle);
-    setThemeVariant(accent, nextKey);
+    setThemeVariant(accent, next, immersive);
   };
 
   const maxDirect = Number((config as any)?.options?.maxDirectLinksInMenu ?? 4);
@@ -460,6 +431,7 @@ export function StudioPanel({
   // ---------------------------
   const socialKinds = allSocialKinds();
   const socialsCfg = ((config as any)?.content?.socials ?? {}) as any;
+
   const socialsOrder: SocialKind[] =
     Array.isArray(socialsCfg.order) && socialsCfg.order.length
       ? socialsCfg.order
@@ -477,10 +449,20 @@ export function StudioPanel({
     update((d) => {
       ensureSocialsRoot(d);
       d.content.socials.enabled[kind] = enabled;
-
-      // auto: si on active et pas dans order → on l’ajoute
       const o: SocialKind[] = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
       if (enabled && !o.includes(kind)) o.push(kind);
+      d.content.socials.order = o;
+      return d;
+    });
+
+  const enableAllSocials = () =>
+    update((d) => {
+      ensureSocialsRoot(d);
+      const o: SocialKind[] = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
+      socialKinds.forEach((k) => {
+        d.content.socials.enabled[k] = true;
+        if (!o.includes(k)) o.push(k);
+      });
       d.content.socials.order = o;
       return d;
     });
@@ -489,8 +471,6 @@ export function StudioPanel({
     update((d) => {
       ensureSocialsRoot(d);
       d.content.socials.links[kind] = value;
-
-      // auto: si user tape un lien, on active
       if (String(value || "").trim().length) {
         d.content.socials.enabled[kind] = d.content.socials.enabled[kind] ?? true;
         const o: SocialKind[] = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
@@ -512,15 +492,6 @@ export function StudioPanel({
       const [it] = copy.splice(idx, 1);
       copy.splice(next, 0, it);
       d.content.socials.order = copy;
-      return d;
-    });
-
-  const enableAllSocials = () =>
-    update((d) => {
-      ensureSocialsRoot(d);
-      const o: SocialKind[] = socialKinds.slice();
-      d.content.socials.order = o;
-      for (const k of o) d.content.socials.enabled[k] = true;
       return d;
     });
 
@@ -551,17 +522,9 @@ export function StudioPanel({
     update((d) => {
       d.sections = Array.isArray(d.sections) ? d.sections : [];
       const id = nextId(d.sections, "split");
-
       const heroIndex = d.sections.findIndex((x: any) => x.type === "hero");
       const insertAt = heroIndex >= 0 ? heroIndex + 1 : Math.min(1, d.sections.length);
-
       d.sections.splice(insertAt, 0, { id, type: "split", title: "Section split", variant: "A", enabled: true });
-
-      // keep top stable at beginning if exists
-      const tops = d.sections.filter((s: any) => String(s.type) === "top");
-      const rest = d.sections.filter((s: any) => String(s.type) !== "top");
-      d.sections = [...tops, ...rest];
-
       return d;
     });
 
@@ -576,26 +539,17 @@ export function StudioPanel({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // UI rules:
-  // - hide "top"
-  // - keep header pinned first in UI
+  // ✅ UI: hide TOP completely
   const sectionsRaw: any[] = Array.isArray((config as any).sections) ? (config as any).sections : [];
-  const sectionsUI = React.useMemo(() => {
-    const withoutTop = sectionsRaw.filter((s) => String(s.type) !== "top");
-    const header = withoutTop.filter((s) => String(s.type) === "header");
-    const rest = withoutTop.filter((s) => String(s.type) !== "header");
+  const sectionsView = React.useMemo(() => {
+    const filtered = sectionsRaw.filter((s) => String(s.type) !== "top");
+    // header pinned first in UI
+    const header = filtered.filter((s) => String(s.type) === "header");
+    const rest = filtered.filter((s) => String(s.type) !== "header");
     return [...header, ...rest];
   }, [sectionsRaw]);
 
-  const sectionIds = React.useMemo(() => sectionsUI.map((s) => s.id), [sectionsUI]);
-
-  const canDragSection = (s: any) => {
-    const type = String(s?.type || "");
-    if (type === "header") return false;
-    if (type === "top") return false;
-    if (s?.lock) return false;
-    return true;
-  };
+  const sectionIds = React.useMemo(() => sectionsView.map((s) => s.id), [sectionsView]);
 
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
@@ -603,35 +557,24 @@ export function StudioPanel({
     if (active.id === over.id) return;
 
     update((d) => {
-      const arrAll: any[] = Array.isArray(d.sections) ? d.sections : [];
-      const tops = arrAll.filter((s: any) => String(s.type) === "top");
+      const arr: any[] = Array.isArray(d.sections) ? d.sections : [];
 
-      const uiArr = arrAll.filter((s: any) => String(s.type) !== "top");
+      // keep TOP stable at index 0 if exists
+      const top = arr.find((x) => String(x.type) === "top");
+      const others = arr.filter((x) => String(x.type) !== "top");
 
-      // pin header in UI always first
-      const header = uiArr.filter((s: any) => String(s.type) === "header");
-      const rest = uiArr.filter((s: any) => String(s.type) !== "header");
-      const uiPinned = [...header, ...rest];
-
-      const ids = uiPinned.map((x: any) => String(x.id));
+      const ids = others.map((x: any) => String(x.id));
       const oldIndex = ids.indexOf(String(active.id));
       const newIndex = ids.indexOf(String(over.id));
       if (oldIndex < 0 || newIndex < 0) return d;
 
-      const moving = uiPinned[oldIndex];
-      const target = uiPinned[newIndex];
+      const moving = others[oldIndex];
+      const target = others[newIndex];
+      if (moving?.lock) return d;
+      if (target?.lock) return d;
 
-      // forbid dragging header / dropping onto header
-      if (!canDragSection(moving)) return d;
-      if (String(target?.type) === "header") return d;
-
-      const nextUi = arrayMove(uiPinned, oldIndex, newIndex);
-
-      // re-pin header at start no matter what
-      const nextHeader = nextUi.filter((s: any) => String(s.type) === "header");
-      const nextRest = nextUi.filter((s: any) => String(s.type) !== "header");
-      d.sections = [...tops, ...nextHeader, ...nextRest];
-
+      const next = arrayMove(others, oldIndex, newIndex);
+      d.sections = top ? [top, ...next] : next;
       return d;
     });
   };
@@ -727,7 +670,7 @@ export function StudioPanel({
                 <select
                   className="h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                   value={accent}
-                  onChange={(e) => setThemeVariant(e.target.value, canvasKey)}
+                  onChange={(e) => setThemeVariant(e.target.value, baseCanvas, immersive)}
                 >
                   {ACCENTS.map((k) => (
                     <option key={k} value={k}>{k}</option>
@@ -737,42 +680,42 @@ export function StudioPanel({
               </div>
             </div>
 
-            <div className="mb-4">
+            <div className="mb-3">
               <div className="mb-2 text-xs font-semibold text-slate-700">Fond (canvas)</div>
               <div className="flex items-center gap-2">
-                <IconBtn title="Fond précédent" onClick={() => cycleCanvasBase(-1)}>◀</IconBtn>
+                <IconBtn title="Fond précédent" onClick={() => cycleCanvas(-1)}>◀</IconBtn>
                 <select
                   className="h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
-                  value={canvasBase}
-                  onChange={(e) => setCanvasBase(e.target.value)}
+                  value={baseCanvas}
+                  onChange={(e) => setThemeVariant(accent, e.target.value, immersive)}
                 >
                   {CANVAS_BASE.map((k) => (
                     <option key={k} value={k}>{k}</option>
                   ))}
                 </select>
-                <IconBtn title="Fond suivant" onClick={() => cycleCanvasBase(1)}>▶</IconBtn>
+                <IconBtn title="Fond suivant" onClick={() => cycleCanvas(1)}>▶</IconBtn>
               </div>
+            </div>
 
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+            <div className="rounded-3xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-xs font-semibold text-slate-900">Canvas style</div>
-                  <div className="text-[11px] text-slate-500 truncate">Classic = simple. Immersive = “canvas qui englobe”.</div>
+                  <div className="text-sm font-semibold text-slate-900">Canvas style</div>
+                  <div className="text-xs text-slate-500 truncate">
+                    Classic = simple. Immersive = fonds premium + surfaces plus “blend”.
+                  </div>
                 </div>
-
                 <button
                   type="button"
-                  onClick={() => setCanvasStyle(canvasStyle === "classic" ? "immersive" : "classic")}
-                  className={cx(
-                    "relative h-7 w-12 rounded-full border transition shrink-0",
-                    canvasStyle === "immersive" ? "bg-slate-900" : "bg-white"
-                  )}
-                  aria-pressed={canvasStyle === "immersive"}
+                  onClick={() => setThemeVariant(accent, baseCanvas, !immersive)}
+                  className={cx("relative h-7 w-12 rounded-full border transition", immersive ? "bg-slate-900" : "bg-white")}
+                  aria-pressed={immersive}
                   title="Classic / Immersive"
                 >
                   <span
                     className={cx(
                       "absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition",
-                      canvasStyle === "immersive" ? "left-6 bg-white" : "left-1 bg-slate-900"
+                      immersive ? "left-6 bg-white" : "left-1 bg-slate-900"
                     )}
                   />
                 </button>
@@ -846,19 +789,18 @@ export function StudioPanel({
 
           {/* SOCIALS */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center justify-between gap-2">
               <div className="text-xs font-semibold tracking-wide text-slate-600">SOCIALS</div>
               <button
                 type="button"
                 onClick={enableAllSocials}
                 className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-                title="Activer tout + ordre par défaut"
               >
                 Enable all
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="mt-3 space-y-3">
               {socialsOrder.map((k, idx) => {
                 const def = SOCIAL_DEFS[k];
                 const enabled = ((socialsCfg.enabled ?? {}) as any)[k] !== false;
@@ -896,7 +838,9 @@ export function StudioPanel({
                         placeholder={k === "whatsapp" ? "ex: +3247... ou 3247..." : "ex: https://..."}
                       />
                       <div className="mt-1 text-[11px] text-slate-500">
-                        {k === "whatsapp" ? "WhatsApp: tu peux mettre juste les chiffres, on normalise au rendu." : "Astuce: URL complète recommandée."}
+                        {k === "whatsapp"
+                          ? "WhatsApp: tu peux mettre juste les chiffres, on normalise au rendu."
+                          : "Astuce: URL complète recommandée."}
                       </div>
                     </div>
                   </div>
@@ -905,7 +849,7 @@ export function StudioPanel({
             </div>
 
             <div className="mt-2 text-xs text-slate-500">
-              L’ordre ici pilote l’affichage (header + contact).
+              Les flèches modifient l’ordre d’affichage (header + contact).
             </div>
           </div>
 
@@ -967,7 +911,9 @@ export function StudioPanel({
               onChange={(e) => setMaxDirect(parseInt(e.target.value || "0", 10))}
               className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
             />
-            <div className="mt-2 text-xs text-slate-500">(Ce param doit être utilisé par le header pour couper avant le dropdown)</div>
+            <div className="mt-2 text-xs text-slate-500">
+              (Le header affiche jusqu’à N liens, puis “Plus”)
+            </div>
           </div>
 
           {/* FX */}
@@ -1019,20 +965,19 @@ export function StudioPanel({
             <div className="mt-3 space-y-3">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                 <SortableContext items={sectionIds} strategy={verticalListSortingStrategy}>
-                  {sectionsUI.map((s: any) => (
+                  {sectionsView.map((s: any) => (
                     <SectionCard
                       key={s.id}
                       s={s}
                       onToggleEnabled={setSectionEnabled}
                       onChangeVariant={setSectionVariant}
                       onRemove={removeSection}
-                      canDrag={canDragSection(s)}
                     />
                   ))}
                 </SortableContext>
               </DndContext>
               <div className="text-[11px] text-slate-500">
-                “top” est caché (ancre technique). “header” est fixé en haut (non-draggable).
+                “top” est caché (ancre technique). Header est épinglé en haut dans l’UI.
               </div>
             </div>
           </div>

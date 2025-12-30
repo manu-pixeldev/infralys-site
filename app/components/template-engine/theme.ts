@@ -18,13 +18,6 @@ export type ThemeLike = {
   surfaceBorder: string;
 
   isDark: boolean;
-
-  /** optional: immersive overlay hook (used by template-engine if you want) */
-  canvasFx?: {
-    kind: "classic" | "immersive";
-    /** tailwind classes to apply on page wrapper (optional) */
-    pageOverlayClass?: string;
-  };
 };
 
 type AccentDef = { accentFrom: string; accentTo: string };
@@ -33,8 +26,6 @@ type CanvasDef = {
   isDark: boolean;
   surfaceBg?: string;
   surfaceBorder?: string;
-  /** optional overlay for immersive */
-  canvasFx?: ThemeLike["canvasFx"];
 };
 
 const ACCENTS: Record<string, AccentDef> = {
@@ -58,6 +49,17 @@ const ALIASES: Record<string, string> = {
   slateMono: "monoDark",
 };
 
+// Helpers: “immersive” canvas strings (just tailwind classes)
+// NOTE: tailwind arbitrary bg works fine: bg-[radial-gradient(...)]
+const IMM_BG_CHARCOAL =
+  "bg-[#050814] bg-[radial-gradient(1100px_circle_at_15%_0%,rgba(56,189,248,0.12),transparent_55%),radial-gradient(900px_circle_at_80%_20%,rgba(244,114,182,0.10),transparent_55%),linear-gradient(to_bottom,#020617,#0b1220)]";
+const IMM_BG_MIDNIGHT =
+  "bg-[#040818] bg-[radial-gradient(1100px_circle_at_20%_0%,rgba(99,102,241,0.16),transparent_55%),radial-gradient(900px_circle_at_85%_25%,rgba(34,211,238,0.12),transparent_55%),linear-gradient(to_bottom,#020617,#070B1A)]";
+const IMM_BG_GRAPHITE =
+  "bg-[#070A0F] bg-[radial-gradient(1100px_circle_at_15%_10%,rgba(148,163,184,0.12),transparent_55%),radial-gradient(900px_circle_at_85%_30%,rgba(56,189,248,0.10),transparent_55%),linear-gradient(to_bottom,#020617,#0B0F14)]";
+const IMM_BG_STUDIO =
+  "bg-[#05070D] bg-[radial-gradient(1100px_circle_at_18%_0%,rgba(34,211,238,0.14),transparent_55%),radial-gradient(900px_circle_at_82%_25%,rgba(168,85,247,0.10),transparent_55%),linear-gradient(to_bottom,#020617,#070A0F)]";
+
 const CANVAS: Record<string, CanvasDef> = {
   // light
   classic: { bgPage: "bg-slate-50", isDark: false, surfaceBg: "bg-white", surfaceBorder: "border-slate-200" },
@@ -66,94 +68,44 @@ const CANVAS: Record<string, CanvasDef> = {
   forest: { bgPage: "bg-emerald-50", isDark: false, surfaceBg: "bg-white", surfaceBorder: "border-slate-200" },
   sunset: { bgPage: "bg-orange-50", isDark: false, surfaceBg: "bg-white", surfaceBorder: "border-slate-200" },
 
-  // dark (existing)
+  // dark (existants)
   charcoal: { bgPage: "bg-slate-950", isDark: true, surfaceBg: "bg-white/5", surfaceBorder: "border-white/10" },
-
-  // premium dark
   midnight: { bgPage: "bg-[#060B1A]", isDark: true, surfaceBg: "bg-white/6", surfaceBorder: "border-white/12" },
   graphite: { bgPage: "bg-[#0B0F14]", isDark: true, surfaceBg: "bg-white/5", surfaceBorder: "border-white/10" },
   studio: { bgPage: "bg-[#070A0F]", isDark: true, surfaceBg: "bg-white/7", surfaceBorder: "border-white/12" },
 
-  /* ============================================================
-     IMMERSIVE variants (canvas “univers” + surfaces intégrées)
-     ============================================================ */
-
+  // ✅ IMMERSIVE canvases (englobent + surfaces plus “premium”)
   charcoalImmersive: {
-    bgPage: "bg-slate-950",
+    bgPage: IMM_BG_CHARCOAL,
     isDark: true,
-    surfaceBg: "bg-white/6",
-    surfaceBorder: "border-white/12",
-    canvasFx: {
-      kind: "immersive",
-      // overlay prêt à l’emploi si tu l’appliques sur le wrapper page
-      pageOverlayClass:
-        // vignette + dégradés doux + léger grain (via opacity)
-        "relative before:pointer-events-none before:absolute before:inset-0 before:content-[''] before:opacity-100 " +
-        "before:bg-[radial-gradient(1200px_600px_at_20%_0%,rgba(255,255,255,0.08),transparent_60%)," +
-        "radial-gradient(900px_500px_at_80%_10%,rgba(56,189,248,0.10),transparent_60%)," +
-        "radial-gradient(900px_700px_at_50%_100%,rgba(244,63,94,0.06),transparent_60%)]",
-    },
+    surfaceBg: "bg-white/4 backdrop-blur",
+    surfaceBorder: "border-white/10",
   },
-
-  monoDarkImmersive: {
-    bgPage: "bg-slate-950",
-    isDark: true,
-    surfaceBg: "bg-white/6",
-    surfaceBorder: "border-white/12",
-    canvasFx: {
-      kind: "immersive",
-      pageOverlayClass:
-        "relative before:pointer-events-none before:absolute before:inset-0 before:content-[''] " +
-        "before:bg-[radial-gradient(1200px_600px_at_20%_0%,rgba(34,211,238,0.10),transparent_60%)," +
-        "radial-gradient(900px_500px_at_80%_10%,rgba(59,130,246,0.10),transparent_60%)," +
-        "radial-gradient(900px_700px_at_50%_100%,rgba(255,255,255,0.05),transparent_60%)]",
-    },
-  },
-
   midnightImmersive: {
-    bgPage: "bg-[#060B1A]",
+    bgPage: IMM_BG_MIDNIGHT,
     isDark: true,
-    surfaceBg: "bg-white/7",
+    surfaceBg: "bg-white/5 backdrop-blur",
     surfaceBorder: "border-white/12",
-    canvasFx: {
-      kind: "immersive",
-      pageOverlayClass:
-        "relative before:pointer-events-none before:absolute before:inset-0 before:content-[''] " +
-        "before:bg-[radial-gradient(1200px_700px_at_15%_0%,rgba(99,102,241,0.12),transparent_60%)," +
-        "radial-gradient(900px_600px_at_85%_10%,rgba(56,189,248,0.10),transparent_60%)," +
-        "radial-gradient(900px_800px_at_50%_100%,rgba(255,255,255,0.05),transparent_60%)]",
-    },
   },
-
   graphiteImmersive: {
-    bgPage: "bg-[#0B0F14]",
+    bgPage: IMM_BG_GRAPHITE,
     isDark: true,
-    surfaceBg: "bg-white/6",
+    surfaceBg: "bg-white/4 backdrop-blur",
+    surfaceBorder: "border-white/10",
+  },
+  studioImmersive: {
+    bgPage: IMM_BG_STUDIO,
+    isDark: true,
+    surfaceBg: "bg-white/5 backdrop-blur",
     surfaceBorder: "border-white/12",
-    canvasFx: {
-      kind: "immersive",
-      pageOverlayClass:
-        "relative before:pointer-events-none before:absolute before:inset-0 before:content-[''] " +
-        "before:bg-[radial-gradient(1000px_600px_at_20%_0%,rgba(255,255,255,0.06),transparent_60%)," +
-        "radial-gradient(900px_600px_at_80%_10%,rgba(168,85,247,0.09),transparent_60%)," +
-        "radial-gradient(900px_800px_at_50%_100%,rgba(244,63,94,0.06),transparent_60%)]",
-    },
   },
 
-  studioImmersive: {
-    bgPage: "bg-[#070A0F]",
-    isDark: true,
-    surfaceBg: "bg-white/8",
-    surfaceBorder: "border-white/12",
-    canvasFx: {
-      kind: "immersive",
-      pageOverlayClass:
-        "relative before:pointer-events-none before:absolute before:inset-0 before:content-[''] " +
-        "before:bg-[radial-gradient(1100px_650px_at_20%_0%,rgba(34,211,238,0.10),transparent_60%)," +
-        "radial-gradient(900px_600px_at_80%_10%,rgba(251,113,133,0.08),transparent_60%)," +
-        "radial-gradient(900px_800px_at_50%_100%,rgba(255,255,255,0.05),transparent_60%)]",
-    },
-  },
+  // (optionnel mais pratique) light immersive — safe/simple
+  classicImmersive: { bgPage: "bg-slate-50", isDark: false, surfaceBg: "bg-white/95 backdrop-blur", surfaceBorder: "border-slate-200" },
+  warmImmersive: { bgPage: "bg-amber-50", isDark: false, surfaceBg: "bg-white/95 backdrop-blur", surfaceBorder: "border-slate-200" },
+  coolImmersive: { bgPage: "bg-slate-50", isDark: false, surfaceBg: "bg-white/95 backdrop-blur", surfaceBorder: "border-slate-200" },
+  forestImmersive: { bgPage: "bg-emerald-50", isDark: false, surfaceBg: "bg-white/95 backdrop-blur", surfaceBorder: "border-slate-200" },
+  sunsetImmersive: { bgPage: "bg-orange-50", isDark: false, surfaceBg: "bg-white/95 backdrop-blur", surfaceBorder: "border-slate-200" },
 };
 
 function normalizeAccentKey(k: string) {
@@ -203,7 +155,6 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
     surfaceBg,
     surfaceBorder,
     isDark,
-    canvasFx: canvas.canvasFx ?? { kind: "classic" },
   };
 }
 
