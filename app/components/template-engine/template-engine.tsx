@@ -9,90 +9,7 @@ import type { TemplateConfigInput } from "./types";
 import { getTheme, cx } from "./theme";
 import { VARIANTS } from "./variants";
 import StudioPanel from "./studio-panel";
-
-/** FX styles (global) */
-function FxStyles({ enabled, ambient }: { enabled: boolean; ambient: boolean }) {
-  if (!enabled) return null;
-
-  return (
-    <style jsx global>{`
-      @keyframes scanBorder {
-        0% { background-position: 0% 50%; }
-        100% { background-position: 200% 50%; }
-      }
-      .fx-border-scan { position: relative; }
-      .fx-border-scan::before {
-        content: "";
-        position: absolute;
-        inset: -1px;
-        border-radius: 24px;
-        padding: 1px;
-        background: linear-gradient(
-            90deg,
-            rgba(255, 255, 255, 0) 0%,
-            rgba(255, 255, 255, 0.25) 25%,
-            rgba(255, 255, 255, 0) 50%
-          )
-          0% 50% / 200% 200%;
-        mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-        mask-composite: exclude;
-        -webkit-mask-composite: xor;
-        opacity: 0.55;
-        pointer-events: none;
-        animation: scanBorder 5s linear infinite;
-      }
-
-      .fx-softglow { box-shadow: 0 18px 60px rgba(0,0,0,0.08); }
-
-      @keyframes shimmer {
-        0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
-        20% { opacity: 0.55; }
-        60% { opacity: 0.35; }
-        100% { transform: translateX(120%) skewX(-18deg); opacity: 0; }
-      }
-      .fx-shimmer { position: relative; overflow: hidden; }
-      .fx-shimmer::after {
-        content: "";
-        position: absolute;
-        top: -20%;
-        left: -40%;
-        width: 40%;
-        height: 140%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
-        animation: shimmer 2.8s ease-in-out infinite;
-        pointer-events: none;
-      }
-
-      ${ambient ? `
-        .fx-ambient { position: relative; isolation: isolate; }
-        .fx-ambient::before{
-          content:"";
-          position:absolute;
-          inset:0;
-          background:
-            radial-gradient(circle at 20% 20%, rgba(0,0,0,0.06), transparent 40%),
-            radial-gradient(circle at 80% 10%, rgba(0,0,0,0.05), transparent 45%),
-            radial-gradient(circle at 60% 90%, rgba(0,0,0,0.04), transparent 50%);
-          pointer-events:none;
-          z-index: -1;
-        }
-      ` : ``}
-
-      .reveal { will-change: opacity, transform; transition: opacity 520ms ease, transform 520ms ease; }
-      .reveal[data-reveal="pending"] { opacity: 0; transform: translateY(14px); }
-      .reveal.is-in { opacity: 1; transform: translateY(0); }
-
-      @media (prefers-reduced-motion: reduce) {
-        .reveal, .reveal[data-reveal="pending"] {
-          opacity: 1 !important;
-          transform: none !important;
-          transition: none !important;
-        }
-      }
-    `}</style>
-  );
-}
+import { FxStyles } from "./fx-styles";
 
 function fallbackVariant(type: string) {
   switch (type) {
@@ -115,7 +32,9 @@ function resolveContactVariantFromHero(heroVariant: string): "A" | "B" {
 type AnyImg = { src: string; alt?: string; caption?: string } | null;
 
 function cloneConfig<T>(v: T): T {
-  if (typeof (globalThis as any).structuredClone === "function") return (globalThis as any).structuredClone(v);
+  if (typeof (globalThis as any).structuredClone === "function") {
+    return (globalThis as any).structuredClone(v);
+  }
   return JSON.parse(JSON.stringify(v));
 }
 
@@ -132,15 +51,15 @@ function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
     ...(next.options.fx ?? {}),
   };
 
-  // studio defaults (+ UI state)
+  // studio defaults (+ UI)
   next.options.studio = next.options.studio ?? {};
   next.options.studio.enabled = next.options.studio.enabled ?? true;
   next.options.studio.ui = next.options.studio.ui ?? {};
   next.options.studio.ui.dock = next.options.studio.ui.dock ?? "right";
   next.options.studio.ui.minimized = next.options.studio.ui.minimized ?? false;
 
-  // theme single source of truth
-  next.options.themeVariant = next.options.themeVariant ?? "amberOrange|classic";
+  // ✅ keep safe if types.ts doesn't include it
+  (next.options as any).themeVariant = (next.options as any).themeVariant ?? "amberOrange|classic";
 
   next.brand = next.brand ?? {};
   next.brand.logo = next.brand.logo ?? {};
@@ -178,10 +97,24 @@ export function TemplateEngine({
   config: TemplateConfigInput;
   setConfig?: React.Dispatch<React.SetStateAction<TemplateConfigInput>>;
 }) {
-  const [liveConfig, setLiveConfig] = React.useState<TemplateConfigInput>(() => resolveConfig(config));
+  const lastSentRef = React.useRef<string>("");
 
+  const [liveConfig, setLiveConfig] = React.useState<TemplateConfigInput>(() => {
+    const resolved = resolveConfig(config);
+    lastSentRef.current = JSON.stringify(resolved);
+    return resolved;
+  });
+
+  // ✅ sync from parent without feedback loop
   React.useEffect(() => {
-    setLiveConfig(resolveConfig(config));
+    const resolved = resolveConfig(config);
+    const serialized = JSON.stringify(resolved);
+    // only sync if really different
+    if (serialized === JSON.stringify(liveConfig)) return;
+    setLiveConfig(resolved);
+    // IMPORTANT: align lastSent to prevent immediate re-send
+    lastSentRef.current = serialized;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
 
   const setBoth = React.useCallback((next: React.SetStateAction<TemplateConfigInput>) => {
@@ -191,8 +124,7 @@ export function TemplateEngine({
     });
   }, []);
 
-  // push to parent
-  const lastSentRef = React.useRef<string>("");
+  // push to parent (controlled mode)
   React.useEffect(() => {
     if (!setConfig) return;
     const serialized = JSON.stringify(liveConfig);
@@ -213,10 +145,10 @@ export function TemplateEngine({
   };
 
   const opt = (liveConfig as any).options ?? {};
-  const themeVariant = opt.themeVariant ?? "amberOrange|classic";
+  const themeVariant = (opt as any).themeVariant ?? "amberOrange|classic";
   const theme = React.useMemo(() => getTheme(themeVariant), [themeVariant]);
 
-  // Ctrl+K : toggle studio (rescue si tu l’as coupé)
+  // Ctrl+K : toggle studio
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.ctrlKey) return;
@@ -234,21 +166,60 @@ export function TemplateEngine({
     return () => window.removeEventListener("keydown", onKey);
   }, [setBoth]);
 
+  /** Smooth header shrink (0..1) */
+  const [scrollT, setScrollT] = React.useState(0);
+  React.useEffect(() => {
+    let raf = 0;
+    const MAX = 64;
+    const onScroll = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        const y = Math.max(0, window.scrollY || 0);
+        const t = Math.max(0, Math.min(1, y / MAX));
+        setScrollT(t);
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+  const isScrolled = scrollT > 0.15;
+
+  /** Header variant (pour déclencher re-measure) */
+  const headerVariant = React.useMemo(() => {
+    const h = (((liveConfig as any).sections ?? []) as any[]).find((x) => x.type === "header");
+    return String(h?.variant ?? "A");
+  }, [(liveConfig as any).sections]);
+
   /** Header measurements */
   const headerRef = React.useRef<HTMLElement>(null);
   React.useLayoutEffect(() => {
     const el = headerRef.current;
     if (!el) return;
 
+    let raf = 0;
+
     const apply = () => {
-      const headerH = Math.ceil(el.offsetHeight);
-      const SAFE_MAX = 220;
+      const headerH = Math.ceil(el.getBoundingClientRect().height || el.offsetHeight || 0);
+      const SAFE_MAX = 260;
       const safeH = Math.max(0, Math.min(headerH, SAFE_MAX));
-      const gap = 16; // ✅ best practice : garde ce petit gap
+      const gap = 16;
 
       document.documentElement.style.scrollPaddingTop = `${safeH + gap}px`;
       document.documentElement.style.setProperty("--header-h", `${safeH}px`);
       document.documentElement.style.setProperty("--header-offset", `${safeH + gap}px`);
+    };
+
+    const schedule = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        apply();
+      });
     };
 
     apply();
@@ -258,27 +229,19 @@ export function TemplateEngine({
     let onResize: (() => void) | null = null;
 
     if (RO) {
-      ro = new RO(() => apply());
+      ro = new RO(schedule);
       ro.observe(el);
     } else {
-      onResize = () => apply();
+      onResize = schedule;
       window.addEventListener("resize", onResize);
     }
 
     return () => {
+      if (raf) window.cancelAnimationFrame(raf);
       if (ro) ro.disconnect();
       if (onResize) window.removeEventListener("resize", onResize);
     };
-  }, []);
-
-  /** Header shrink */
-  const [isScrolled, setIsScrolled] = React.useState(false);
-  React.useEffect(() => {
-    const onScroll = () => setIsScrolled(window.scrollY > 12);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [headerVariant, themeVariant]);
 
   /** Active section */
   const [activeHref, setActiveHref] = React.useState<string>("#top");
@@ -396,7 +359,7 @@ export function TemplateEngine({
   );
 
   const hasServices = React.useMemo(
-    () => !!(((liveConfig as any).sections ?? []).some((x: any) => x.type === "services" && x.enabled !== false)),
+    () => (((liveConfig as any).sections ?? []) as any[]).some((x: any) => x.type === "services" && x.enabled !== false),
     [(liveConfig as any).sections]
   );
 
@@ -508,7 +471,7 @@ export function TemplateEngine({
       if (s.type === "header") {
         return (
           <Comp
-            key={s.id}
+            key={`${s.id}:${s.variant ?? ""}`}
             {...common}
             brand={(liveConfig as any).brand}
             headerRef={headerRef}
@@ -524,17 +487,18 @@ export function TemplateEngine({
             sections={(liveConfig as any).sections}
             activeHref={activeHref}
             isScrolled={isScrolled}
+            scrollT={scrollT}
           />
         );
       }
 
       if (s.type === "top") {
-        return <div key={s.id} id="top" style={{ height: 0, scrollMarginTop: 0 }} aria-hidden="true" />;
+        return <div key={`${s.id}:${s.variant ?? ""}`} id="top" style={{ height: 0, scrollMarginTop: 0 }} aria-hidden="true" />;
       }
 
       const wrap = (node: React.ReactNode) => (
         <div
-          key={s.id}
+          key={`${s.id}:${s.variant ?? ""}`} // ✅ remount on variant change (fix split A/B not updating)
           ref={registerReveal(String(s.id))}
           className={cx("reveal", fx.enabled && fx.softGlow && "fx-softglow")}
           style={{ scrollMarginTop: "var(--header-offset, 84px)" }}
@@ -546,12 +510,16 @@ export function TemplateEngine({
       switch (s.type) {
         case "hero":
           return wrap(<Comp {...common} content={(liveConfig as any).content} brand={(liveConfig as any).brand} hasServices={hasServices} />);
+
         case "proof":
           return wrap(<Comp {...common} content={(liveConfig as any).content} />);
+
         case "services":
           return wrap(<Comp {...common} content={(liveConfig as any).content} servicesVariant={s.variant} />);
+
         case "team":
           return wrap(<Comp {...common} content={(liveConfig as any).content} teamVariant={s.variant} />);
+
         case "gallery":
           return wrap(
             <Comp
@@ -562,17 +530,43 @@ export function TemplateEngine({
               enableLightbox={enableLightbox}
             />
           );
+
         case "contact": {
           const resolved = s.variant === "AUTO" ? resolveContactVariantFromHero(heroVariant) : (s.variant as any);
-          return wrap(<Comp {...common} brand={(liveConfig as any).brand} content={(liveConfig as any).content} heroVariant={heroVariant} variant={resolved} />);
+          return wrap(
+            <Comp
+              {...common}
+              brand={(liveConfig as any).brand}
+              content={(liveConfig as any).content}
+              heroVariant={heroVariant}
+              variant={resolved}
+            />
+          );
         }
+
         case "split":
-          return wrap(<Comp {...common} content={(liveConfig as any).content} />);
+          return wrap(<Comp {...common} content={(liveConfig as any).content} sectionTitle={s.title} />);
+
         default:
           return null;
       }
     },
-    [theme, fx, galleryLinks, showTeam, hasServices, onOpenImage, enableLightbox, heroVariant, globalLayout, activeHref, isScrolled, registerReveal, liveConfig]
+    [
+      theme,
+      fx,
+      galleryLinks,
+      showTeam,
+      hasServices,
+      onOpenImage,
+      enableLightbox,
+      heroVariant,
+      globalLayout,
+      activeHref,
+      isScrolled,
+      scrollT,
+      registerReveal,
+      liveConfig,
+    ]
   );
 
   const studioEnabled = !!(liveConfig as any)?.options?.studio?.enabled;
@@ -596,15 +590,30 @@ export function TemplateEngine({
               <Image src={activeImg.src} alt={activeImg.alt || "Aperçu"} fill className="object-contain" />
             </div>
 
-            <button type="button" onClick={closeLightbox} className="absolute right-3 top-3 rounded-full bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20" aria-label="Fermer">
+            <button
+              type="button"
+              onClick={closeLightbox}
+              className="absolute right-3 top-3 rounded-full bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20"
+              aria-label="Fermer"
+            >
               Fermer ✕
             </button>
 
-            <button type="button" onClick={prevImg} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-white hover:bg-white/20" aria-label="Précédent">
+            <button
+              type="button"
+              onClick={prevImg}
+              className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-white hover:bg-white/20"
+              aria-label="Précédent"
+            >
               ←
             </button>
 
-            <button type="button" onClick={nextImg} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-white hover:bg-white/20" aria-label="Suivant">
+            <button
+              type="button"
+              onClick={nextImg}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-white hover:bg-white/20"
+              aria-label="Suivant"
+            >
               →
             </button>
           </div>

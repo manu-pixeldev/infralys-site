@@ -21,7 +21,12 @@ export type ThemeLike = {
 };
 
 type AccentDef = { accentFrom: string; accentTo: string };
-type CanvasDef = { bgPage: string; isDark: boolean; surfaceBg?: string; surfaceBorder?: string };
+type CanvasDef = {
+  bgPage: string;
+  isDark: boolean;
+  surfaceBg?: string;
+  surfaceBorder?: string;
+};
 
 const ACCENTS: Record<string, AccentDef> = {
   amberOrange: { accentFrom: "from-amber-500", accentTo: "to-orange-500" },
@@ -45,13 +50,25 @@ const ALIASES: Record<string, string> = {
 };
 
 const CANVAS: Record<string, CanvasDef> = {
+  // light
   classic: { bgPage: "bg-slate-50", isDark: false, surfaceBg: "bg-white", surfaceBorder: "border-slate-200" },
   warm: { bgPage: "bg-amber-50", isDark: false, surfaceBg: "bg-white", surfaceBorder: "border-slate-200" },
   cool: { bgPage: "bg-slate-50", isDark: false, surfaceBg: "bg-white", surfaceBorder: "border-slate-200" },
   forest: { bgPage: "bg-emerald-50", isDark: false, surfaceBg: "bg-white", surfaceBorder: "border-slate-200" },
   sunset: { bgPage: "bg-orange-50", isDark: false, surfaceBg: "bg-white", surfaceBorder: "border-slate-200" },
 
+  // dark (ton existant)
   charcoal: { bgPage: "bg-slate-950", isDark: true, surfaceBg: "bg-white/5", surfaceBorder: "border-white/10" },
+
+  // ✅ nouveaux dark “premium”
+  // plus “bleu nuit”, surfaces un peu plus contrastées
+  midnight: { bgPage: "bg-[#060B1A]", isDark: true, surfaceBg: "bg-white/6", surfaceBorder: "border-white/12" },
+
+  // plus “graphite”, moins bleu, très SaaS
+  graphite: { bgPage: "bg-[#0B0F14]", isDark: true, surfaceBg: "bg-white/5", surfaceBorder: "border-white/10" },
+
+  // look “studio / devtool”: dark + surfaces très lisibles
+  studio: { bgPage: "bg-[#070A0F]", isDark: true, surfaceBg: "bg-white/7", surfaceBorder: "border-white/12" },
 };
 
 function normalizeAccentKey(k: string) {
@@ -73,20 +90,13 @@ function parseThemeVariant(v?: string) {
   return { accent: raw, canvas: "classic" };
 }
 
-export type GetThemeArg =
-  | ThemeVariant
-  | { accent?: string; canvas?: string }
-  | undefined;
+export type GetThemeArg = ThemeVariant | { accent?: string; canvas?: string } | undefined;
 
 export function getTheme(arg?: GetThemeArg): ThemeLike {
-  // ✅ accepte string OU objet
   const parsed =
     typeof arg === "string" || typeof arg === "undefined"
       ? parseThemeVariant(arg)
-      : {
-          accent: String(arg.accent ?? "amberOrange"),
-          canvas: String(arg.canvas ?? "classic"),
-        };
+      : { accent: String(arg.accent ?? "amberOrange"), canvas: String(arg.canvas ?? "classic") };
 
   const accentKey = normalizeAccentKey(parsed.accent);
   const accent = ACCENTS[accentKey] ?? ACCENTS.amberOrange;

@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { SectionType } from "./types";
 
+import { ProHeader, ProServices, ProGallery } from "./pro";
 import { ProofStats } from "./proof";
 
 import {
@@ -14,14 +15,13 @@ import {
 } from "./legacy";
 
 type VariantMap = Record<string, ComponentType<any>>;
-
-// ✅ important: Partial = pas besoin de couvrir *tous* les SectionType possibles
 type Registry = Partial<Record<SectionType, VariantMap>>;
 
 export const VARIANTS: Registry = {
   top: { A: () => null },
 
   header: {
+    // template.config: A..K + PRO
     A: LegacyHeader,
     B: LegacyHeader,
     C: LegacyHeader,
@@ -33,34 +33,65 @@ export const VARIANTS: Registry = {
     I: LegacyHeader,
     J: LegacyHeader,
     K: LegacyHeader,
+    PRO: ProHeader,
   },
 
-  hero: { A: LegacyHero, B: LegacyHero },
+  hero: {
+    // template.config: A..H (on map tout sur LegacyHero tant que tu n'as pas de HeroPro dédié)
+    A: LegacyHero,
+    B: LegacyHero,
+    C: LegacyHero,
+    D: LegacyHero,
+    E: LegacyHero,
+    F: LegacyHero,
+    G: LegacyHero,
+    H: LegacyHero,
+  },
 
   split: { A: LegacySplit, B: LegacySplit },
 
-  services: { A: LegacyServices, B: LegacyServices, C: LegacyServices },
+  services: {
+    // template.config: A..E
+    A: LegacyServices,
+    B: LegacyServices,
+    C: LegacyServices,
+    D: ProServices,
+    E: LegacyServices,
+  },
 
   team: { A: LegacyTeam, B: LegacyTeam, C: LegacyTeam },
 
   gallery: {
+    // template.config: stack/twoCol/threeCol + proStack/proTwoCol/proThreeCol
     stack: LegacyGalleries,
     twoCol: LegacyGalleries,
     threeCol: LegacyGalleries,
+
+    proStack: ProGallery,
+    proTwoCol: ProGallery,
+    proThreeCol: ProGallery,
   },
 
   proof: { stats: ProofStats },
 
-  contact: { AUTO: LegacyContact, A: LegacyContact, B: LegacyContact, C: LegacyContact },
+  contact: {
+    // template.config: AUTO + A..E (tu as D/E dans config)
+    AUTO: LegacyContact,
+    A: LegacyContact,
+    B: LegacyContact,
+    C: LegacyContact,
+    D: LegacyContact,
+    E: LegacyContact,
+  },
 };
 
 export const VARIANTS_BY_TYPE: Record<string, readonly string[]> = {
-  header: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
-  hero: ["A", "B"],
+  header: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "PRO"],
+  hero: ["A", "B", "C", "D", "E", "F", "G", "H"],
   split: ["A", "B"],
   proof: ["stats"],
-  gallery: ["stack", "twoCol", "threeCol"],
-  contact: ["AUTO", "A", "B", "C"],
-  services: ["A", "B", "C"],
+  gallery: ["stack", "twoCol", "threeCol", "proStack", "proTwoCol", "proThreeCol"],
+  contact: ["AUTO", "A", "B", "C", "D", "E"],
+  services: ["A", "B", "C", "D", "E"],
   team: ["A", "B", "C"],
 };

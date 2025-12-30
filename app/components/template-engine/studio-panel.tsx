@@ -1,4 +1,3 @@
-// app/components/template-engine/studio-panel.tsx
 "use client";
 
 import React from "react";
@@ -24,6 +23,10 @@ import {
 
 import { CSS } from "@dnd-kit/utilities";
 
+import { VARIANTS_BY_TYPE } from "./variants";
+import type { SocialKind } from "./socials";
+import { SOCIAL_DEFS } from "./socials";
+
 /** Theme pickers (match getTheme keys) */
 const ACCENTS = [
   "amberOrange",
@@ -37,6 +40,8 @@ const ACCENTS = [
   "monoDarkLime",
 ] as const;
 
+// NOTE: ici on garde la liste telle quelle pour ne pas casser l’existant.
+// Les “immersive canvas” arriveront ensuite (roadmap).
 const CANVAS = ["classic", "warm", "cool", "forest", "sunset", "charcoal"] as const;
 
 const CONTAINERS = ["5xl", "6xl", "7xl", "full"] as const;
@@ -44,18 +49,6 @@ const DENSITIES = ["compact", "normal", "spacious"] as const;
 const RADII = [16, 24, 32] as const;
 
 const LOGO_MODES = ["logoPlusText", "logoOnly", "textOnly"] as const;
-
-/** UI variants (si tu veux limiter, adapte) */
-const VARIANTS_BY_TYPE: Record<string, readonly string[]> = {
-  header: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
-  hero: ["A", "B", "C", "D", "E"],
-  split: ["A", "B"],
-  proof: ["stats"],
-  gallery: ["stack", "twoCol", "threeCol"],
-  contact: ["AUTO", "A", "B", "C"],
-  services: ["A", "B", "C"],
-  team: ["A", "B", "C"],
-};
 
 type DockSide = "left" | "right";
 
@@ -102,17 +95,25 @@ function IconBtn({
   title,
   onClick,
   children,
+  disabled,
 }: {
   title: string;
   onClick: () => void;
   children: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       title={title}
       onClick={onClick}
-      className="h-10 w-10 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50"
+      disabled={disabled}
+      className={cx(
+        "h-10 w-10 rounded-2xl border text-sm font-semibold",
+        disabled
+          ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+          : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+      )}
     >
       {children}
     </button>
@@ -130,30 +131,43 @@ function SectionCard({
   onChangeVariant: (id: string, variant: string) => void;
   onRemove: (id: string) => void;
 }) {
-  const locked = s.lock === true;
+  const locked = s.lock === true || String(s.type) === "header"; // header = no-dnd (stabilité)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: s.id,
     disabled: locked,
   });
 
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition };
 
-  const opts = VARIANTS_BY_TYPE[String(s.type)] ?? null;
+  const opts = (VARIANTS_BY_TYPE[String(s.type)] ?? null) as readonly string[] | null;
   const current = String(s.variant ?? "A");
   const value = opts && opts.includes(current) ? current : (opts?.[0] ?? current);
 
   const canDelete = !locked && String(s.type) === "split";
 
+  const cycle = (dir: -1 | 1) => {
+    if (!opts?.length) return;
+    onChangeVariant(String(s.id), cycleInList(value, opts, dir));
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          cycle(-1);
+        }
+        if (e.key === "ArrowRight") {
+          e.preventDefault();
+          cycle(1);
+        }
+      }}
       className={cx(
-        "rounded-3xl border border-slate-200 bg-white p-3",
+        "rounded-3xl border border-slate-200 bg-white p-3 outline-none focus:ring-2 focus:ring-slate-300",
         isDragging && "opacity-70 ring-2 ring-slate-300"
       )}
     >
@@ -177,11 +191,10 @@ function SectionCard({
             </button>
 
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-slate-900">
-                {s.title ?? s.type}
-              </div>
+              <div className="truncate text-sm font-semibold text-slate-900">{s.title ?? s.type}</div>
               <div className="truncate text-xs text-slate-500">
-                {s.type} — {s.id}{locked ? " — lock" : ""}
+                {s.type} — {s.id}
+                {locked ? " — lock" : ""}
               </div>
             </div>
           </div>
@@ -205,6 +218,7 @@ function SectionCard({
               type="checkbox"
               checked={s.enabled !== false}
               onChange={(e) => onToggleEnabled(s.id, e.target.checked)}
+              disabled={locked}
             />
           </label>
         </div>
@@ -213,18 +227,36 @@ function SectionCard({
       <div className="mt-3">
         {opts ? (
           <div className="flex items-center gap-2">
-            <IconBtn title="Variant précédent" onClick={() => onChangeVariant(s.id, cycleInList(value, opts, -1))}>◀</IconBtn>
+            <IconBtn title="Variant précédent (←)" onClick={() => cycle(-1)} disabled={!opts?.length}>
+              ◀
+            </IconBtn>
+
             <select
               value={value}
               onChange={(e) => onChangeVariant(s.id, e.target.value)}
               className="h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
               title="Variant"
+              onKeyDown={(e) => {
+                if (e.key === "ArrowLeft") {
+                  e.preventDefault();
+                  cycle(-1);
+                }
+                if (e.key === "ArrowRight") {
+                  e.preventDefault();
+                  cycle(1);
+                }
+              }}
             >
               {opts.map((v) => (
-                <option key={v} value={v}>{v}</option>
+                <option key={v} value={v}>
+                  {v}
+                </option>
               ))}
             </select>
-            <IconBtn title="Variant suivant" onClick={() => onChangeVariant(s.id, cycleInList(value, opts, 1))}>▶</IconBtn>
+
+            <IconBtn title="Variant suivant (→)" onClick={() => cycle(1)} disabled={!opts?.length}>
+              ▶
+            </IconBtn>
           </div>
         ) : (
           <input
@@ -234,9 +266,19 @@ function SectionCard({
             placeholder="variant (ex: A, B, stats...)"
           />
         )}
+
+        {opts?.length ? (
+          <div className="mt-2 text-[11px] text-slate-500">
+            Tip: clique la carte puis utilise <span className="font-semibold">←</span>/<span className="font-semibold">→</span>
+          </div>
+        ) : null}
       </div>
     </div>
   );
+}
+
+function allSocialKinds(): SocialKind[] {
+  return Object.keys(SOCIAL_DEFS) as SocialKind[];
 }
 
 export function StudioPanel({
@@ -372,6 +414,84 @@ export function StudioPanel({
       return d;
     });
 
+  // ---------------------------
+  // SOCIALS (content.socials)
+  // ---------------------------
+  const socialKinds = allSocialKinds();
+  const socialsCfg = ((config as any)?.content?.socials ?? {}) as any;
+
+  const socialsOrder: SocialKind[] = React.useMemo(() => {
+    const raw: any = socialsCfg.order;
+    const fromCfg = Array.isArray(raw) && raw.length ? (raw as SocialKind[]) : socialKinds;
+    // ensure unique + keep only known kinds + append missing
+    const cleaned = fromCfg.filter((k) => socialKinds.includes(k));
+    for (const k of socialKinds) if (!cleaned.includes(k)) cleaned.push(k);
+    return cleaned;
+  }, [socialsCfg.order, socialKinds.join("|")]);
+
+  const ensureSocialsRoot = (d: any) => {
+    d.content = d.content ?? {};
+    d.content.socials = d.content.socials ?? {};
+    d.content.socials.links = d.content.socials.links ?? {};
+    d.content.socials.enabled = d.content.socials.enabled ?? {};
+    d.content.socials.order = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
+  };
+
+  const setSocialEnabled = (kind: SocialKind, enabled: boolean) =>
+    update((d) => {
+      ensureSocialsRoot(d);
+      d.content.socials.enabled[kind] = enabled;
+
+      // si activation et pas dans order → ajouter (ordre stable)
+      const o: SocialKind[] = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
+      if (enabled && !o.includes(kind)) o.push(kind);
+      d.content.socials.order = o;
+      return d;
+    });
+
+  const setSocialLink = (kind: SocialKind, value: string) =>
+    update((d) => {
+      ensureSocialsRoot(d);
+      d.content.socials.links[kind] = value;
+
+      // si user tape un lien => auto-enable (sans surprise)
+      if (String(value || "").trim().length) {
+        if (d.content.socials.enabled[kind] === false) d.content.socials.enabled[kind] = true;
+        const o: SocialKind[] = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
+        if (!o.includes(kind)) o.push(kind);
+        d.content.socials.order = o;
+      }
+      return d;
+    });
+
+  const moveSocial = (kind: SocialKind, dir: -1 | 1) =>
+    update((d) => {
+      ensureSocialsRoot(d);
+      const o: SocialKind[] = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
+      const idx = o.indexOf(kind);
+      if (idx < 0) return d;
+      const next = idx + dir;
+      if (next < 0 || next >= o.length) return d;
+
+      const copy = [...o];
+      const [it] = copy.splice(idx, 1);
+      copy.splice(next, 0, it);
+      d.content.socials.order = copy;
+      return d;
+    });
+
+  const enableAllSocials = () =>
+    update((d) => {
+      ensureSocialsRoot(d);
+      for (const k of socialKinds) d.content.socials.enabled[k] = true;
+      // force order propre (stable, complet)
+      d.content.socials.order = [...socialKinds];
+      return d;
+    });
+
+  // ---------------------------
+  // SECTIONS
+  // ---------------------------
   const setSectionEnabled = (id: string, enabled: boolean) =>
     update((d) => {
       const s = (d.sections ?? []).find((x: any) => String(x.id) === String(id));
@@ -396,18 +516,9 @@ export function StudioPanel({
     update((d) => {
       d.sections = Array.isArray(d.sections) ? d.sections : [];
       const id = nextId(d.sections, "split");
-
       const heroIndex = d.sections.findIndex((x: any) => x.type === "hero");
       const insertAt = heroIndex >= 0 ? heroIndex + 1 : Math.min(1, d.sections.length);
-
-      d.sections.splice(insertAt, 0, {
-        id,
-        type: "split",
-        title: "Section split",
-        variant: "A",
-        enabled: true,
-      });
-
+      d.sections.splice(insertAt, 0, { id, type: "split", title: "Section split", variant: "A", enabled: true });
       return d;
     });
 
@@ -422,7 +533,18 @@ export function StudioPanel({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const sectionIds = React.useMemo(() => (config as any).sections?.map((s: any) => s.id) ?? [], [config]);
+  const sectionsRaw: any[] = Array.isArray((config as any).sections) ? (config as any).sections : [];
+
+  // ✅ V11: TOP caché du panel + non draggable (et surtout pas dans le DND context)
+  // On garde HEADER visible/pinné (stabilité).
+  const sectionsView = React.useMemo(() => {
+    const withoutTop = sectionsRaw.filter((s) => String(s.type) !== "top");
+    const header = withoutTop.filter((s) => String(s.type) === "header");
+    const rest = withoutTop.filter((s) => String(s.type) !== "header");
+    return [...header, ...rest];
+  }, [sectionsRaw]);
+
+  const sectionIds = React.useMemo(() => sectionsView.map((s) => s.id), [sectionsView]);
 
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
@@ -430,18 +552,40 @@ export function StudioPanel({
     if (active.id === over.id) return;
 
     update((d) => {
-      const ids = (d.sections ?? []).map((x: any) => String(x.id));
-      const oldIndex = ids.indexOf(String(active.id));
-      const newIndex = ids.indexOf(String(over.id));
+      const arr: any[] = Array.isArray(d.sections) ? d.sections : [];
+      const byId = new Map(arr.map((s: any) => [String(s.id), s]));
+
+      const moving = byId.get(String(active.id));
+      const target = byId.get(String(over.id));
+      if (!moving || !target) return d;
+
+      // ✅ V11: TOP jamais manipulé (même si l’id apparaît ailleurs)
+      if (String(moving.type) === "top" || String(target.type) === "top") return d;
+
+      // ✅ header = pinned/stable
+      if (String(moving.type) === "header" || String(target.type) === "header") return d;
+
+      if (moving.lock) return d;
+      if (target.lock) return d;
+
+      // Build movable list (everything except top + header)
+      const topParts = arr.filter((s: any) => String(s.type) === "top");
+      const headerParts = arr.filter((s: any) => String(s.type) === "header");
+
+      const movable = arr.filter((s: any) => {
+        const t = String(s.type);
+        return t !== "top" && t !== "header";
+      });
+
+      const movableIds = movable.map((s: any) => String(s.id));
+      const oldIndex = movableIds.indexOf(String(active.id));
+      const newIndex = movableIds.indexOf(String(over.id));
       if (oldIndex < 0 || newIndex < 0) return d;
 
-      const moving = (d.sections as any[])[oldIndex];
-      if (moving?.lock) return d;
+      const moved = arrayMove(movable, oldIndex, newIndex);
 
-      const target = (d.sections as any[])[newIndex];
-      if (target?.lock) return d;
-
-      d.sections = arrayMove(d.sections as any[], oldIndex, newIndex);
+      // ✅ Reconstruct sections with top first, header next, then the reordered rest
+      d.sections = [...topParts, ...headerParts, ...moved];
       return d;
     });
   };
@@ -512,17 +656,14 @@ export function StudioPanel({
               <button
                 type="button"
                 onClick={() => setStudioEnabled(!studioEnabled)}
-                className={cx(
-                  "relative h-9 w-16 rounded-full border transition",
-                  studioEnabled ? "bg-slate-900" : "bg-white"
-                )}
+                className={cx("relative h-7 w-12 rounded-full border transition", studioEnabled ? "bg-slate-900" : "bg-white")}
                 aria-pressed={studioEnabled}
                 title="Activer/Désactiver"
               >
                 <span
                   className={cx(
-                    "absolute top-1/2 h-7 w-7 -translate-y-1/2 rounded-full transition",
-                    studioEnabled ? "left-8 bg-white" : "left-1 bg-slate-900"
+                    "absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition",
+                    studioEnabled ? "left-6 bg-white" : "left-1 bg-slate-900"
                   )}
                 />
               </button>
@@ -534,36 +675,48 @@ export function StudioPanel({
             <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">THÈME</div>
 
             <div className="mb-4">
-              <div className="mb-2 text-xs font-semibold text-slate-700">Accent (boutons/traits)</div>
+              <div className="mb-2 text-xs font-semibold text-slate-700">Accent</div>
               <div className="flex items-center gap-2">
-                <IconBtn title="Accent précédent" onClick={() => cycleAccent(-1)}>◀</IconBtn>
+                <IconBtn title="Accent précédent" onClick={() => cycleAccent(-1)}>
+                  ◀
+                </IconBtn>
                 <select
                   className="h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                   value={accent}
                   onChange={(e) => setThemeVariant(e.target.value, canvas)}
                 >
                   {ACCENTS.map((k) => (
-                    <option key={k} value={k}>{k}</option>
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
                   ))}
                 </select>
-                <IconBtn title="Accent suivant" onClick={() => cycleAccent(1)}>▶</IconBtn>
+                <IconBtn title="Accent suivant" onClick={() => cycleAccent(1)}>
+                  ▶
+                </IconBtn>
               </div>
             </div>
 
             <div>
-              <div className="mb-2 text-xs font-semibold text-slate-700">Fond (canvas page)</div>
+              <div className="mb-2 text-xs font-semibold text-slate-700">Fond (canvas)</div>
               <div className="flex items-center gap-2">
-                <IconBtn title="Fond précédent" onClick={() => cycleCanvas(-1)}>◀</IconBtn>
+                <IconBtn title="Fond précédent" onClick={() => cycleCanvas(-1)}>
+                  ◀
+                </IconBtn>
                 <select
                   className="h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                   value={canvas}
                   onChange={(e) => setThemeVariant(accent, e.target.value)}
                 >
                   {CANVAS.map((k) => (
-                    <option key={k} value={k}>{k}</option>
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
                   ))}
                 </select>
-                <IconBtn title="Fond suivant" onClick={() => cycleCanvas(1)}>▶</IconBtn>
+                <IconBtn title="Fond suivant" onClick={() => cycleCanvas(1)}>
+                  ▶
+                </IconBtn>
               </div>
             </div>
           </div>
@@ -579,7 +732,9 @@ export function StudioPanel({
               className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
             >
               {LOGO_MODES.map((m) => (
-                <option key={m} value={m}>{m}</option>
+                <option key={m} value={m}>
+                  {m}
+                </option>
               ))}
             </select>
 
@@ -632,6 +787,74 @@ export function StudioPanel({
             </div>
           </div>
 
+          {/* SOCIALS */}
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-xs font-semibold tracking-wide text-slate-600">SOCIALS</div>
+              <button
+                type="button"
+                onClick={enableAllSocials}
+                className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                title="Activer tous les socials"
+              >
+                Enable all
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {socialsOrder.map((k, idx) => {
+                const def = SOCIAL_DEFS[k];
+                const enabled = ((socialsCfg.enabled ?? {}) as any)[k] !== false;
+                const val = String(((socialsCfg.links ?? {}) as any)[k] ?? "");
+
+                return (
+                  <div key={k} className="rounded-3xl border border-slate-200 bg-white p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <def.Icon className="opacity-70" />
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-slate-900 truncate">{def.label}</div>
+                          <div className="text-xs text-slate-500 truncate">{k}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <IconBtn title="Monter" onClick={() => moveSocial(k, -1)} disabled={idx === 0}>
+                          ▲
+                        </IconBtn>
+                        <IconBtn title="Descendre" onClick={() => moveSocial(k, 1)} disabled={idx === socialsOrder.length - 1}>
+                          ▼
+                        </IconBtn>
+                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                          ON
+                          <input type="checkbox" checked={enabled} onChange={(e) => setSocialEnabled(k, e.target.checked)} />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <input
+                        value={val}
+                        onChange={(e) => setSocialLink(k, e.target.value)}
+                        className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+                        placeholder={k === "whatsapp" ? "ex: +3247... ou 3247..." : "ex: https://..."}
+                      />
+                      <div className="mt-1 text-[11px] text-slate-500">
+                        {k === "whatsapp"
+                          ? "WhatsApp: tu peux mettre juste les chiffres, on normalise au rendu."
+                          : "Astuce: URL complète recommandée."}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-2 text-xs text-slate-500">
+              Les flèches modifient l’ordre d’affichage (header + contact). ON = visibilité.
+            </div>
+          </div>
+
           {/* LAYOUT */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">LAYOUT</div>
@@ -645,7 +868,9 @@ export function StudioPanel({
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                 >
                   {CONTAINERS.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -658,7 +883,9 @@ export function StudioPanel({
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                 >
                   {DENSITIES.map((d) => (
-                    <option key={d} value={d}>{d}</option>
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -671,7 +898,9 @@ export function StudioPanel({
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                 >
                   {RADII.map((r) => (
-                    <option key={r} value={r}>{r}</option>
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -690,9 +919,7 @@ export function StudioPanel({
               onChange={(e) => setMaxDirect(parseInt(e.target.value || "0", 10))}
               className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
             />
-            <div className="mt-2 text-xs text-slate-500">
-              (Les variantes header utilisent sections/galleries pour générer le menu)
-            </div>
+            <div className="mt-2 text-xs text-slate-500">(Les headers utilisent sections/galleries pour générer le menu)</div>
           </div>
 
           {/* FX */}
@@ -709,11 +936,7 @@ export function StudioPanel({
               ].map(([k, label]) => (
                 <label key={k} className="flex items-center justify-between gap-3">
                   <span>{label}</span>
-                  <input
-                    type="checkbox"
-                    checked={!!(config as any)?.options?.fx?.[k]}
-                    onChange={(e) => setFx(k, e.target.checked)}
-                  />
+                  <input type="checkbox" checked={!!(config as any)?.options?.fx?.[k]} onChange={(e) => setFx(k, e.target.checked)} />
                 </label>
               ))}
             </div>
@@ -744,17 +967,15 @@ export function StudioPanel({
             <div className="mt-3 space-y-3">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                 <SortableContext items={sectionIds} strategy={verticalListSortingStrategy}>
-                  {((config as any).sections ?? []).map((s: any) => (
-                    <SectionCard
-                      key={s.id}
-                      s={s}
-                      onToggleEnabled={setSectionEnabled}
-                      onChangeVariant={setSectionVariant}
-                      onRemove={removeSection}
-                    />
+                  {sectionsView.map((s: any) => (
+                    <SectionCard key={s.id} s={s} onToggleEnabled={setSectionEnabled} onChangeVariant={setSectionVariant} onRemove={removeSection} />
                   ))}
                 </SortableContext>
               </DndContext>
+
+              <div className="text-[11px] text-slate-500">
+                TOP est caché (ancre technique). Header est pin/stable. Drag&drop réordonne seulement les sections “contenu”.
+              </div>
             </div>
           </div>
         </div>

@@ -7,27 +7,26 @@
 export type GalleryStyle = "gridCards" | "masonry" | "carousel" | "split";
 export type HeroVariant = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H";
 export type HeaderVariant =
-  | "A"
-  | "B"
-  | "C"
-  | "D"
-  | "E"
-  | "F"
-  | "G"
-  | "H"
-  | "I"
-  | "J"
-  | "K";
+  | "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K"
+  | "PRO";
+
 export type ContactVariant = "AUTO" | "A" | "B" | "C" | "D" | "E";
 export type ServicesVariant = "A" | "B" | "C" | "D" | "E";
 export type TeamVariant = "A" | "B" | "C";
-export type GalleryLayout = "stack" | "twoCol" | "threeCol";
+export type GalleryLayout =
+  | "stack"
+  | "twoCol"
+  | "threeCol"
+  | "proStack"
+  | "proTwoCol"
+  | "proThreeCol";
 export type SplitVariant = "A" | "B";
 
 /** ✅ PROOF */
 export type ProofVariant = "stats";
 
-export type ThemeVariant =
+/** ✅ Theme: SOURCE OF TRUTH = "accent|canvas" (mais accepte aussi "accent" legacy) */
+export type ThemeAccent =
   | "blueRed"
   | "purplePink"
   | "emeraldTeal"
@@ -38,6 +37,17 @@ export type ThemeVariant =
   | "cool"
   | "forest"
   | "sunset";
+
+export type ThemeCanvas =
+  | "classic"
+  | "warm"
+  | "cool"
+  | "forest"
+  | "sunset"
+  | "charcoal";
+
+/** ✅ "amberOrange|classic" etc. + compat "amberOrange" */
+export type ThemeVariant = `${ThemeAccent}|${ThemeCanvas}` | ThemeAccent;
 
 export type SocialKind = "website" | "facebook" | "whatsapp" | "instagram" | "linkedin";
 
@@ -389,9 +399,9 @@ export type EngineOptions = {
   enableLightbox?: boolean;
   layout?: LayoutTokens;
 
-fx: Options["fx"] & { shimmerCta?: boolean };
-studio: { enabled: boolean; allowRandomize: boolean };
-maxDirectLinksInMenu: number;
+  fx: Options["fx"] & { shimmerCta?: boolean };
+  studio: { enabled: boolean; allowRandomize: boolean };
+  maxDirectLinksInMenu: number;
 };
 
 export type TemplateConfig = {
@@ -420,7 +430,8 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
   content: DEFAULT_CONTENT,
 
   options: {
-    themeVariant: "amberOrange",
+    // ✅ FIX: format attendu par getTheme() + StudioPanel
+    themeVariant: "amberOrange|classic",
     maxDirectLinksInMenu: DEFAULT_OPTIONS.maxDirectLinksInMenu,
     enableLightbox: DEFAULT_OPTIONS.enableLightbox,
 
@@ -440,7 +451,6 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
   sections: [
     { id: "header", type: "header", title: "Header", variant: "D", enabled: true, lock: true },
 
-    // ✅ plus de "top" section qui met du padding
     { id: "hero", type: "hero", title: "Accueil", variant: "B", enabled: true, lock: true },
 
     { id: "split-1", type: "split", title: "Approche", variant: "A", enabled: true },
@@ -452,7 +462,6 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
     { id: "realisations", type: "gallery", title: "Réalisations", variant: "twoCol", enabled: true },
     { id: "contact", type: "contact", title: "Contact", variant: "AUTO", enabled: true, lock: true },
   ],
-
 };
 
 /* =======================
