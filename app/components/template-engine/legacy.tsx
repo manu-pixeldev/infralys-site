@@ -55,28 +55,47 @@ function Wrap({
   );
 }
 
+/* ============================================================
+   BLOC 1B — SURFACE (theme-aware, no more bg-white/5 hacks)
+   ============================================================ */
 function Surface({
   children,
   theme,
   layout,
   globalLayout,
   className,
+  style,
 }: {
   children: React.ReactNode;
   theme: ThemeLike;
   layout?: LayoutTokens;
   globalLayout?: LayoutTokens;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const l = resolveLayout(layout, globalLayout);
+
+  // ✅ If theme.surfaceBg is a class (tailwind) we keep it.
+  // ✅ If immersive canvas is on, the page already has --te-canvas; we can add a subtle glass feel safely.
+  const base =
+    theme.isDark
+      ? "text-white"
+      : "text-slate-900";
+
+  const glass =
+    theme.isDark
+      ? "bg-white/5"
+      : "bg-white";
+
   return (
     <div
-      style={radiusStyle(l.radius)}
+      style={{ ...radiusStyle(l.radius), ...style }}
       className={cx(
         "border",
-        theme.surfaceBg,
+        // keep theme tokens (classes)
+        theme.surfaceBg || glass,
         theme.surfaceBorder,
-        theme.isDark ? "text-white" : "text-slate-900",
+        base,
         className
       )}
     >
@@ -84,6 +103,7 @@ function Surface({
     </div>
   );
 }
+
 
 /** Social icons row (optional) */
 function SocialRow({
@@ -100,9 +120,13 @@ function SocialRow({
 
   const btnBase =
     "inline-flex items-center justify-center rounded-2xl border transition hover:-translate-y-[1px] active:translate-y-0";
-  const btnTheme = theme.isDark
+const btnTheme = cx(
+  theme.isDark
     ? "border-white/10 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white"
-    : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-950";
+    : "border-slate-200 bg-white/80 hover:bg-white text-slate-700 hover:text-slate-950",
+  "backdrop-blur"
+);
+
 
   return (
     <div className={cx("flex items-center gap-2", className)}>
@@ -187,10 +211,11 @@ function DesktopOverflowMenu({
           role="menu"
           className={cx(
             "absolute right-0 mt-3 w-56 overflow-hidden border shadow-lg",
-            theme.isDark
-              ? "border-white/10 bg-slate-950/95 text-white"
-              : "border-slate-200 bg-white text-slate-900",
-            "backdrop-blur rounded-2xl"
+theme.isDark
+  ? "border-white/10 bg-slate-950/95 text-white"
+  : "border-slate-200 bg-white/85 text-slate-900",
+"backdrop-blur rounded-2xl"
+
           )}
         >
           {items.map((it) => (
@@ -663,32 +688,52 @@ export function LegacyHero({ theme, content, layout, globalLayout, sectionId, va
   );
 
   if (v === "B") {
-    return (
-      <section id={sectionId ?? "hero"} className={cx(heroPadY(l.density))}>
-        <Wrap layout={layout} globalLayout={globalLayout}>
-          <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-10 md:p-14", theme.isDark && "bg-white/5")}>
-            <div className="max-w-3xl mx-auto text-center">
-              {hasText(kicker) ? <div className={cx("text-sm font-semibold", theme.isDark ? "text-white/70" : "text-slate-600")}>{kicker}</div> : null}
-              <h1 className={cx("mt-3 text-4xl md:text-5xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h1>
-              <p className={cx("mt-4 text-base md:text-lg leading-relaxed", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                {PrimaryBtn}
-                {SecondaryBtn}
+  return (
+    <section id={sectionId ?? "hero"} className={cx(heroPadY(l.density))}>
+      <Wrap layout={layout} globalLayout={globalLayout}>
+        <Surface
+          theme={theme}
+          layout={layout}
+          globalLayout={globalLayout}
+          className={cx("p-10 md:p-14")}
+        >
+          <div className="max-w-3xl mx-auto text-center">
+            {hasText(kicker) ? (
+              <div className={cx("text-sm font-semibold", theme.isDark ? "text-white/70" : "text-slate-600")}>
+                {kicker}
               </div>
-            </div>
+            ) : null}
 
-            <div className="mt-10">
-              <div style={radiusStyle(l.radius)} className={cx("relative overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}>
-                <div className="relative aspect-[16/7]">
-                  <NextImage src={imgSrc} alt={imgAlt} fill className="object-cover" priority />
-                </div>
+            <h1 className={cx("mt-3 text-4xl md:text-5xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>
+              {title}
+            </h1>
+
+            <p className={cx("mt-4 text-base md:text-lg leading-relaxed", theme.isDark ? "text-white/70" : "text-slate-600")}>
+              {text}
+            </p>
+
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              {PrimaryBtn}
+              {SecondaryBtn}
+            </div>
+          </div>
+
+          <div className="mt-10">
+            <div
+              style={radiusStyle(l.radius)}
+              className={cx("relative overflow-hidden border", theme.surfaceBorder)}
+            >
+              <div className="relative aspect-[16/7]">
+                <NextImage src={imgSrc} alt={imgAlt} fill className="object-cover" priority />
               </div>
             </div>
-          </Surface>
-        </Wrap>
-      </section>
-    );
-  }
+          </div>
+        </Surface>
+      </Wrap>
+    </section>
+  );
+}
+
 
   return (
     <section id={sectionId ?? "hero"} className={cx(heroPadY(l.density))}>

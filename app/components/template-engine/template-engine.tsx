@@ -151,19 +151,6 @@ React.useEffect(() => {
     });
   }, []);
 
-  // push to parent (controlled mode)
-  React.useEffect(() => {
-    if (!setConfig) return;
-    const serialized = JSON.stringify(liveConfig);
-
-    // don't send duplicates
-    if (serialized === lastSentRef.current) return;
-
-    lastSentRef.current = serialized;
-    setConfig(liveConfig);
-    // do NOT touch lastRecvRef here (that's parent source of truth)
-  }, [liveConfig, setConfig]);
-
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
@@ -612,14 +599,15 @@ React.useEffect(() => {
 
   return (
     <>
-      <main
-        style={(theme as any).canvasVar}
-        className={cx("min-h-screen", theme.bgPage, theme.text, fx.enabled && fx.ambient && "fx-ambient")}
-      >
-        <div id="top" style={{ height: 0 }} aria-hidden="true" />
-        <FxStyles enabled={!!fx.enabled} ambient={!!fx.ambient} />
-        {(((liveConfig as any).sections ?? []) as any[]).map(renderSection)}
-      </main>
+<div
+  style={(theme as any).canvasVar}
+  className={cx("min-h-screen", theme.bgPage, theme.text, fx.enabled && fx.ambient && "fx-ambient")}
+>
+  <div id="top" style={{ height: 0 }} aria-hidden="true" />
+  <FxStyles enabled={!!fx.enabled} ambient={!!fx.ambient} />
+  {(((liveConfig as any).sections ?? []) as any[]).map(renderSection)}
+</div>
+
 
       {mounted && studioEnabled && typeof document !== "undefined"
         ? ReactDOM.createPortal(<StudioPanel config={liveConfig as any} setConfig={setBoth as any} />, document.body)
