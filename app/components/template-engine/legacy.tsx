@@ -56,8 +56,9 @@ function Wrap({
 }
 
 /* ============================================================
-   BLOC 1B — SURFACE (theme-aware, no more bg-white/5 hacks)
+   BLOC 1B — SURFACE (autonome: glass + border + text)
    ============================================================ */
+
 function Surface({
   children,
   theme,
@@ -75,27 +76,17 @@ function Surface({
 }) {
   const l = resolveLayout(layout, globalLayout);
 
-  // ✅ If theme.surfaceBg is a class (tailwind) we keep it.
-  // ✅ If immersive canvas is on, the page already has --te-canvas; we can add a subtle glass feel safely.
-  const base =
-    theme.isDark
-      ? "text-white"
-      : "text-slate-900";
-
-  const glass =
-    theme.isDark
-      ? "bg-white/5"
-      : "bg-white";
+  // fallback si jamais un thème n'a pas de surfaceBg
+  const fallbackBg = theme.isDark ? "bg-white/5" : "bg-white/85";
 
   return (
     <div
       style={{ ...radiusStyle(l.radius), ...style }}
       className={cx(
-        "border",
-        // keep theme tokens (classes)
-        theme.surfaceBg || glass,
+        "border backdrop-blur",
         theme.surfaceBorder,
-        base,
+        theme.surfaceBg || fallbackBg,
+        theme.isDark ? "text-white" : "text-slate-900",
         className
       )}
     >
@@ -104,8 +95,10 @@ function Surface({
   );
 }
 
+/* ============================================================
+   BLOC 1C — SOCIAL ROW
+   ============================================================ */
 
-/** Social icons row (optional) */
 function SocialRow({
   theme,
   cfg,
@@ -120,13 +113,12 @@ function SocialRow({
 
   const btnBase =
     "inline-flex items-center justify-center rounded-2xl border transition hover:-translate-y-[1px] active:translate-y-0";
-const btnTheme = cx(
-  theme.isDark
-    ? "border-white/10 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white"
-    : "border-slate-200 bg-white/80 hover:bg-white text-slate-700 hover:text-slate-950",
-  "backdrop-blur"
-);
-
+  const btnTheme = cx(
+    theme.isDark
+      ? "border-white/10 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white"
+      : "border-slate-200 bg-white/80 hover:bg-white text-slate-700 hover:text-slate-950",
+    "backdrop-blur"
+  );
 
   return (
     <div className={cx("flex items-center gap-2", className)}>
@@ -147,7 +139,10 @@ const btnTheme = cx(
   );
 }
 
-/** Simple dropdown (desktop) */
+/* ============================================================
+   BLOC 1D — OVERFLOW MENU (desktop)
+   ============================================================ */
+
 function DesktopOverflowMenu({
   theme,
   label = "Plus",
@@ -190,7 +185,9 @@ function DesktopOverflowMenu({
         type="button"
         className={cx(
           "group relative transition-colors px-2 py-1 rounded-lg",
-          theme.isDark ? "text-white/80 hover:text-white" : "text-slate-700 hover:text-slate-950"
+          theme.isDark
+            ? "text-white/80 hover:text-white"
+            : "text-slate-700 hover:text-slate-950"
         )}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
@@ -211,11 +208,10 @@ function DesktopOverflowMenu({
           role="menu"
           className={cx(
             "absolute right-0 mt-3 w-56 overflow-hidden border shadow-lg",
-theme.isDark
-  ? "border-white/10 bg-slate-950/95 text-white"
-  : "border-slate-200 bg-white/85 text-slate-900",
-"backdrop-blur rounded-2xl"
-
+            theme.isDark
+              ? "border-white/10 bg-slate-950/95 text-white"
+              : "border-slate-200 bg-white/85 text-slate-900",
+            "backdrop-blur rounded-2xl"
           )}
         >
           {items.map((it) => (
@@ -259,18 +255,28 @@ export function LegacyHeader(props: {
   layout?: LayoutTokens;
   globalLayout?: LayoutTokens;
   canvasStyle?: "classic" | "immersive";
+  canvasVar?: React.CSSProperties; // ✅ important
 }) {
-  const { theme, brand, headerVariant, headerRef, showTeam, maxDirectLinks, contact } = props;
+  const {
+    theme,
+    brand,
+    headerVariant,
+    headerRef,
+    showTeam,
+    maxDirectLinks,
+    contact,
+  } = props;
 
   const variant = (headerVariant ?? "A") as HeaderVariantX;
   const l = resolveLayout(props.layout, props.globalLayout);
 
   const activeHref = props.activeHref ?? "#top";
-  const t = Math.max(0, Math.min(1, Number(props.scrollT ?? (props.isScrolled ? 1 : 0))));
+  const t = Math.max(
+    0,
+    Math.min(1, Number(props.scrollT ?? (props.isScrolled ? 1 : 0)))
+  );
   const isScrolled = t > 0.15;
 
-  const canvasStyle = (props as any)?.canvasStyle ?? "classic";
-  const immersive = canvasStyle === "immersive";
   const lerp = (a: number, b: number) => a + (b - a) * t;
 
   const padY = lerp(16, 10);
@@ -284,7 +290,9 @@ export function LegacyHeader(props: {
   const navBase = "text-[12px] font-semibold uppercase tracking-[0.14em]";
 
   const logoEnabled = (brand as any)?.logo?.enabled !== false;
-  const logoMode = (((brand as any)?.logo?.mode ?? "logoPlusText") as LogoMode) || "logoPlusText";
+  const logoMode =
+    (((brand as any)?.logo?.mode ?? "logoPlusText") as LogoMode) ||
+    "logoPlusText";
   const logoW = Math.max(32, Number((brand as any)?.logo?.width ?? 80));
   const logoH = Math.max(32, Number((brand as any)?.logo?.height ?? 80));
   const logoSrc = (brand as any)?.logo?.src;
@@ -293,37 +301,72 @@ export function LegacyHeader(props: {
   const showTextBlock = logoMode !== "logoOnly";
 
   const LogoNode =
-    logoMode === "textOnly"
-      ? null
-      : showLogo
-      ? (
-          <div style={{ height: logoH }} className="flex items-center">
-            <NextImage
-              src={logoSrc}
-              alt="Logo"
-              width={logoW}
-              height={logoH}
-              priority
-              className="object-contain"
-              style={{ height: logoH, width: "auto" }}
-            />
-          </div>
-        )
-      : (
-          <div
-            className={cx("rounded-2xl bg-gradient-to-br", theme.accentFrom, theme.accentTo)}
-            style={{ width: 56, height: 56 }}
-            aria-hidden="true"
-          />
-        );
+    logoMode === "textOnly" ? null : showLogo ? (
+      <div style={{ height: logoH }} className="flex items-center">
+        <NextImage
+          src={logoSrc}
+          alt="Logo"
+          width={logoW}
+          height={logoH}
+          priority
+          className="object-contain"
+          style={{ height: logoH, width: "auto" }}
+        />
+      </div>
+    ) : (
+      <div
+        className={cx(
+          "rounded-2xl bg-gradient-to-br",
+          theme.accentFrom,
+          theme.accentTo
+        )}
+        style={{ width: 56, height: 56 }}
+        aria-hidden="true"
+      />
+    );
 
-  // ✅ Anti-tremblement subtitle : wrapper toujours rendu + hauteur réservée
+  /* ============================================================
+     BLOC H — HEADER HEIGHT SYNC (sets --header-h / --header-offset)
+     ============================================================ */
+  React.useLayoutEffect(() => {
+    const el = headerRef?.current as HTMLElement | null;
+    if (!el) return;
+
+    const root = document.documentElement;
+
+    const apply = () => {
+      const h = Math.ceil(el.getBoundingClientRect().height);
+      const offset = Math.max(0, h + 16);
+
+      root.style.setProperty("--header-h", `${h}px`);
+      root.style.setProperty("--header-offset", `${offset}px`);
+      root.style.scrollPaddingTop = `${offset}px`;
+    };
+
+    apply();
+
+    const ro = new ResizeObserver(() => apply());
+    ro.observe(el);
+
+    window.addEventListener("resize", apply);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", apply);
+    };
+  }, [headerRef]);
+
+  // ✅ Anti-tremblement subtitle
   const subtitleRaw = (brand as any)?.text?.subtitle;
   const subtitleText = hasText(subtitleRaw) ? String(subtitleRaw) : "\u00A0";
 
   const BrandText = showTextBlock ? (
     <div className="min-w-0 leading-tight">
-      <div className={cx("truncate font-semibold", theme.isDark ? "text-white" : "text-slate-900")}>
+      <div
+        className={cx(
+          "truncate font-semibold",
+          theme.isDark ? "text-white" : "text-slate-900"
+        )}
+      >
         {(brand as any)?.text?.name ?? "Nom de la société"}
       </div>
 
@@ -354,18 +397,26 @@ export function LegacyHeader(props: {
     </a>
   ) : null;
 
-  const socialsCfg = (props.content?.socials ?? undefined) as SocialConfig | undefined;
+  const socialsCfg = (props.content?.socials ?? undefined) as
+    | SocialConfig
+    | undefined;
 
-  const secs = Array.isArray((props as any).sections) ? (props as any).sections : [];
+  const secs = Array.isArray((props as any).sections)
+    ? (props as any).sections
+    : [];
   const orderedLinks = secs
     .filter((sec: any) => sec?.enabled !== false)
     .map((sec: any) => {
-      if (!sec?.type || sec.type === "header" || sec.type === "top") return null;
+      if (!sec?.type || sec.type === "header" || sec.type === "top")
+        return null;
       return { href: `#${sec.id}`, label: sec.title ?? sec.id };
     })
     .filter(Boolean) as { href: string; label: string }[];
 
-  const direct = (props.galleryLinks ?? []).slice(0, Math.max(0, maxDirectLinks || 0));
+  const direct = (props.galleryLinks ?? []).slice(
+    0,
+    Math.max(0, maxDirectLinks || 0)
+  );
   const fallbackLinks = [
     { href: "#top", label: "Accueil" },
     { href: "#services", label: "Services" },
@@ -375,11 +426,13 @@ export function LegacyHeader(props: {
   ];
 
   const seen = new Set<string>();
-  const linksAll = (orderedLinks.length ? orderedLinks : fallbackLinks).filter((x) => {
-    if (seen.has(x.href)) return false;
-    seen.add(x.href);
-    return true;
-  });
+  const linksAll = (orderedLinks.length ? orderedLinks : fallbackLinks).filter(
+    (x) => {
+      if (seen.has(x.href)) return false;
+      seen.add(x.href);
+      return true;
+    }
+  );
 
   const MAX_INLINE = Math.max(0, Math.min(12, Number(maxDirectLinks ?? 6)));
   const inlineLinks = linksAll.slice(0, MAX_INLINE);
@@ -387,30 +440,66 @@ export function LegacyHeader(props: {
 
   const headerPos = "fixed left-0 right-0 top-0";
   const headerZ = "z-50";
-  const Spacer = <div aria-hidden="true" style={{ height: "var(--header-h, 0px)" }} />;
+  const Spacer = (
+    <div aria-hidden="true" style={{ height: "var(--header-h, 0px)" }} />
+  );
+
+  /* ============================================================
+     BLOC 2A — CANVAS VAR + HEADER STYLE UNIQUE (SOURCE DE VÉRITÉ)
+     - props.canvasVar > theme.canvasVar > {}
+     - translucide pro (jamais transparent)
+     ============================================================ */
+
+  const canvasVar = ((props as any)?.canvasVar ??
+    (theme as any)?.canvasVar ??
+    {}) as React.CSSProperties;
+
+  const hasCanvas = !!(canvasVar as any)?.["--te-canvas"];
+
+  const headerStyle: React.CSSProperties | undefined = hasCanvas
+    ? {
+        ...canvasVar,
+
+        // ✅ translucide réel (alpha < 1)
+        backgroundColor: isScrolled
+          ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 90%, transparent)"
+          : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 78%, transparent)",
+
+        backgroundImage: isScrolled
+          ? "linear-gradient(rgba(0,0,0,0.12), rgba(0,0,0,0.12))"
+          : "linear-gradient(rgba(0,0,0,0.16), rgba(0,0,0,0.16))",
+
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        boxShadow: "0 6px 22px rgba(0,0,0,0.35)",
+      }
+    : undefined;
+
+  const headerClassBase = cx(
+    headerPos,
+    headerZ,
+    "border-b transition-[background-color,backdrop-filter] duration-200",
+    theme.isDark
+      ? "border-white/10 text-white"
+      : "border-slate-200 text-slate-900",
+    !hasCanvas && (theme.isDark ? "bg-slate-950" : "bg-white"),
+    !hasCanvas &&
+      isScrolled &&
+      (theme.isDark
+        ? "bg-slate-950/88 backdrop-blur"
+        : "bg-white/88 backdrop-blur")
+  );
+
+  /* ============================================================
+     BLOC 2B — HEADER SHELL
+     ============================================================ */
 
   const HeaderShell = (children: React.ReactNode) => (
     <>
       <header
         ref={headerRef as any}
-        style={
-          immersive
-            ? {
-                backgroundColor: isScrolled
-                  ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 88%, transparent)"
-                  : "var(--te-canvas, #0b0b0c)",
-              }
-            : undefined
-        }
-        className={cx(
-          headerPos,
-          headerZ,
-          "border-b shadow-[0_2px_18px_rgba(0,0,0,0.06)] transition-[background-color,backdrop-filter] duration-200",
-          theme.isDark ? "border-white/10 text-white" : "border-slate-200 text-slate-900",
-          !immersive && (theme.isDark ? "bg-slate-950" : "bg-white"),
-          !immersive && isScrolled && (theme.isDark ? "bg-slate-950/88 backdrop-blur" : "bg-white/88 backdrop-blur"),
-          immersive && isScrolled && "backdrop-blur"
-        )}
+        style={headerStyle}
+        className={headerClassBase}
       >
         {children}
       </header>
@@ -418,8 +507,18 @@ export function LegacyHeader(props: {
     </>
   );
 
+  /* ============================================================
+     BLOC 2C — NAV Variants
+     ============================================================ */
+
   const NavA = () => (
-    <nav className={cx("hidden md:flex items-center gap-7", navBase, theme.isDark ? "text-white/80" : "text-slate-700")}>
+    <nav
+      className={cx(
+        "hidden md:flex items-center gap-7",
+        navBase,
+        theme.isDark ? "text-white/80" : "text-slate-700"
+      )}
+    >
       {inlineLinks.map((lnk) => {
         const active = lnk.href === activeHref;
         return (
@@ -449,10 +548,19 @@ export function LegacyHeader(props: {
   );
 
   const NavB = () => (
-    <nav className={cx("hidden md:flex items-center gap-2 rounded-2xl border p-1.5", theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50")}>
+    <nav
+      className={cx(
+        "hidden md:flex items-center gap-2 rounded-2xl border p-1.5 backdrop-blur",
+        theme.isDark
+          ? "border-white/10 bg-white/5"
+          : "border-slate-200 bg-slate-50"
+      )}
+    >
       {inlineLinks.map((lnk) => {
         const active = lnk.href === activeHref;
-        const activePill = theme.isDark ? "text-white bg-white/10 shadow-sm" : "text-slate-950 bg-white shadow-sm";
+        const activePill = theme.isDark
+          ? "text-white bg-white/10 shadow-sm"
+          : "text-slate-950 bg-white shadow-sm";
         const idlePill = theme.isDark
           ? "text-white/80 hover:text-white hover:bg-white/10"
           : "text-slate-700 hover:text-slate-950 hover:bg-white hover:shadow-sm";
@@ -461,7 +569,11 @@ export function LegacyHeader(props: {
           <a
             key={lnk.href}
             href={lnk.href}
-            className={cx("rounded-2xl px-5 py-2 transition text-center hover:-translate-y-[1px] active:translate-y-0", navBase, active ? activePill : idlePill)}
+            className={cx(
+              "rounded-2xl px-5 py-2 transition text-center hover:-translate-y-[1px] active:translate-y-0",
+              navBase,
+              active ? activePill : idlePill
+            )}
           >
             {lnk.label}
           </a>
@@ -475,7 +587,13 @@ export function LegacyHeader(props: {
   );
 
   const NavC = () => (
-    <nav className={cx("hidden md:flex items-center justify-center gap-8", navBase, theme.isDark ? "text-white/80" : "text-slate-700")}>
+    <nav
+      className={cx(
+        "hidden md:flex items-center justify-center gap-8",
+        navBase,
+        theme.isDark ? "text-white/80" : "text-slate-700"
+      )}
+    >
       {inlineLinks.map((lnk) => {
         const active = lnk.href === activeHref;
         return (
@@ -504,11 +622,20 @@ export function LegacyHeader(props: {
     </nav>
   );
 
+  /* ============================================================
+     BLOC 2D — RENDER D
+     ============================================================ */
+
   const RenderD = () => {
     const phone = contact?.phone ?? "";
     const email = contact?.email ?? "";
 
-    const pillBase = cx("rounded-2xl border px-4 transition-all duration-200", theme.isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50");
+    const pillBase = cx(
+      "rounded-2xl border px-4 transition-all duration-200 backdrop-blur",
+      theme.isDark
+        ? "border-white/10 bg-white/5"
+        : "border-slate-200 bg-white/70"
+    );
     const pillLabel = theme.isDark ? "text-white/60" : "text-slate-500";
     const pillValue = theme.isDark ? "text-white" : "text-slate-900";
 
@@ -516,43 +643,72 @@ export function LegacyHeader(props: {
       <>
         <header
           ref={headerRef as any}
-          style={
-            immersive
-              ? {
-                  backgroundColor: isScrolled
-                    ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 88%, transparent)"
-                    : "var(--te-canvas, #0b0b0c)",
-                }
-              : undefined
-          }
-          className={cx(
-            headerPos,
-            headerZ,
-            "border-b shadow-[0_2px_18px_rgba(0,0,0,0.06)] transition-[background-color,backdrop-filter] duration-200",
-            theme.isDark ? "border-white/10 text-white" : "border-slate-200 text-slate-900",
-            !immersive && (theme.isDark ? "bg-slate-950" : "bg-white"),
-            !immersive && isScrolled && (theme.isDark ? "bg-slate-950/88 backdrop-blur" : "bg-white/88 backdrop-blur"),
-            immersive && isScrolled && "backdrop-blur"
-          )}
+          style={headerStyle}
+          className={headerClassBase}
         >
-          <Wrap layout={props.layout} globalLayout={props.globalLayout} className={cx("grid grid-cols-[auto_1fr_auto] items-center gap-4")} style={{ paddingTop: padY2, paddingBottom: padY2 }}>
+          <Wrap
+            layout={props.layout}
+            globalLayout={props.globalLayout}
+            className={cx("grid grid-cols-[auto_1fr_auto] items-center gap-4")}
+            style={{ paddingTop: padY2, paddingBottom: padY2 }}
+          >
             <a href="#top" className="flex items-center gap-3 min-w-0">
-              <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>{LogoNode}</div>
+              <div
+                style={{
+                  transform: `scale(${logoScale})`,
+                  transformOrigin: "left center",
+                }}
+              >
+                {LogoNode}
+              </div>
               {BrandText}
             </a>
 
-            <div className={cx("hidden lg:flex items-center justify-center gap-3 transition-opacity duration-200", isScrolled && "opacity-95")}>
+            <div
+              className={cx(
+                "hidden lg:flex items-center justify-center gap-3 transition-opacity duration-200",
+                isScrolled && "opacity-95"
+              )}
+            >
               {phone ? (
-                <div className={cx("max-w-[220px]", pillBase)} style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}>
-                  <div className={cx("text-[10px] font-semibold uppercase tracking-wider", pillLabel)}>Téléphone</div>
-                  <div className={cx("truncate text-sm font-semibold", pillValue)}>{phone}</div>
+                <div
+                  className={cx("max-w-[220px]", pillBase)}
+                  style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
+                >
+                  <div
+                    className={cx(
+                      "text-[10px] font-semibold uppercase tracking-wider",
+                      pillLabel
+                    )}
+                  >
+                    Téléphone
+                  </div>
+                  <div
+                    className={cx("truncate text-sm font-semibold", pillValue)}
+                  >
+                    {phone}
+                  </div>
                 </div>
               ) : null}
 
               {email ? (
-                <div className={cx("max-w-[260px]", pillBase)} style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}>
-                  <div className={cx("text-[10px] font-semibold uppercase tracking-wider", pillLabel)}>E-mail</div>
-                  <div className={cx("truncate text-sm font-semibold", pillValue)}>{email}</div>
+                <div
+                  className={cx("max-w-[260px]", pillBase)}
+                  style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
+                >
+                  <div
+                    className={cx(
+                      "text-[10px] font-semibold uppercase tracking-wider",
+                      pillLabel
+                    )}
+                  >
+                    E-mail
+                  </div>
+                  <div
+                    className={cx("truncate text-sm font-semibold", pillValue)}
+                  >
+                    {email}
+                  </div>
                 </div>
               ) : null}
 
@@ -565,32 +721,65 @@ export function LegacyHeader(props: {
             </div>
           </Wrap>
 
+          {/* barre nav D : même style que header */}
           <div
-            style={immersive ? { backgroundColor: "var(--te-canvas, #0b0b0c)" } : undefined}
-            className={cx("border-t transition-[background-color] duration-200", theme.isDark ? "border-white/10" : "border-slate-200", !immersive && (theme.isDark ? "bg-slate-950" : "bg-white"))}
+            style={headerStyle}
+            className={cx(
+              "border-t transition-[background-color,backdrop-filter] duration-200",
+              theme.isDark ? "border-white/10" : "border-slate-200"
+            )}
           >
-            <Wrap layout={props.layout} globalLayout={props.globalLayout} className="flex justify-center" style={{ paddingTop: navPadY, paddingBottom: navPadY }}>
+            <Wrap
+              layout={props.layout}
+              globalLayout={props.globalLayout}
+              className="flex justify-center"
+              style={{ paddingTop: navPadY, paddingBottom: navPadY }}
+            >
               {NavB()}
             </Wrap>
           </div>
         </header>
+
         {Spacer}
       </>
     );
   };
 
+  /* ============================================================
+     BLOC 2E — RENDER A/B/C
+     ============================================================ */
+
   const RenderA = () =>
     HeaderShell(
-      <Wrap layout={props.layout} globalLayout={props.globalLayout} className="flex items-center gap-4" style={{ paddingTop: padY, paddingBottom: padY }}>
-        <a href="#top" className="flex items-center gap-3 min-w-0 flex-[0_0_auto]">
-          <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>{LogoNode}</div>
+      <Wrap
+        layout={props.layout}
+        globalLayout={props.globalLayout}
+        className="flex items-center gap-4"
+        style={{ paddingTop: padY, paddingBottom: padY }}
+      >
+        <a
+          href="#top"
+          className="flex items-center gap-3 min-w-0 flex-[0_0_auto]"
+        >
+          <div
+            style={{
+              transform: `scale(${logoScale})`,
+              transformOrigin: "left center",
+            }}
+          >
+            {LogoNode}
+          </div>
           <div className="min-w-[180px] max-w-[320px]">{BrandText}</div>
         </a>
 
         <div className="flex-1 flex items-center justify-center">{NavA()}</div>
 
         <div className="flex-[0_0_auto] flex items-center gap-3">
-          <SocialRow theme={theme} cfg={socialsCfg} className="hidden lg:flex" />
+          <SocialRow
+            theme={theme}
+            cfg={socialsCfg}
+            className="hidden lg:flex"
+          />
           {Cta}
         </div>
       </Wrap>
@@ -598,16 +787,35 @@ export function LegacyHeader(props: {
 
   const RenderB = () =>
     HeaderShell(
-      <Wrap layout={props.layout} globalLayout={props.globalLayout} className="flex items-center gap-4" style={{ paddingTop: padY, paddingBottom: padY }}>
-        <a href="#top" className="flex items-center gap-3 min-w-0 flex-[0_0_auto]">
-          <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>{LogoNode}</div>
+      <Wrap
+        layout={props.layout}
+        globalLayout={props.globalLayout}
+        className="flex items-center gap-4"
+        style={{ paddingTop: padY, paddingBottom: padY }}
+      >
+        <a
+          href="#top"
+          className="flex items-center gap-3 min-w-0 flex-[0_0_auto]"
+        >
+          <div
+            style={{
+              transform: `scale(${logoScale})`,
+              transformOrigin: "left center",
+            }}
+          >
+            {LogoNode}
+          </div>
           <div className="min-w-[180px] max-w-[320px]">{BrandText}</div>
         </a>
 
         <div className="flex-1 flex items-center justify-center">{NavB()}</div>
 
         <div className="flex-[0_0_auto] flex items-center gap-3">
-          <SocialRow theme={theme} cfg={socialsCfg} className="hidden lg:flex" />
+          <SocialRow
+            theme={theme}
+            cfg={socialsCfg}
+            className="hidden lg:flex"
+          />
           {Cta}
         </div>
       </Wrap>
@@ -615,10 +823,22 @@ export function LegacyHeader(props: {
 
   const RenderC = () =>
     HeaderShell(
-      <Wrap layout={props.layout} globalLayout={props.globalLayout} className={cx("grid items-center gap-4", "grid-cols-[1fr_auto_1fr]")} style={{ paddingTop: padY, paddingBottom: padY }}>
+      <Wrap
+        layout={props.layout}
+        globalLayout={props.globalLayout}
+        className={cx("grid items-center gap-4", "grid-cols-[1fr_auto_1fr]")}
+        style={{ paddingTop: padY, paddingBottom: padY }}
+      >
         <div className="justify-self-start">
           <a href="#top" className="flex items-center gap-3 min-w-0">
-            <div style={{ transform: `scale(${logoScale})`, transformOrigin: "left center" }}>{LogoNode}</div>
+            <div
+              style={{
+                transform: `scale(${logoScale})`,
+                transformOrigin: "left center",
+              }}
+            >
+              {LogoNode}
+            </div>
             <div className="min-w-[180px] max-w-[320px]">{BrandText}</div>
           </a>
         </div>
@@ -626,7 +846,7 @@ export function LegacyHeader(props: {
         <div className="justify-self-center">{NavC()}</div>
 
         <div className="justify-self-end flex items-center gap-3">
-          <SocialRow theme={theme} cfg={socialsCfg} className="hidden lg:flex" />
+          <SocialRow theme={theme} cfg={socialsCfg} className="flex" />
           {Cta}
         </div>
       </Wrap>
@@ -642,7 +862,14 @@ export function LegacyHeader(props: {
    BLOC 3 — HERO (A/B)
    ============================================================ */
 
-export function LegacyHero({ theme, content, layout, globalLayout, sectionId, variant }: any) {
+export function LegacyHero({
+  theme,
+  content,
+  layout,
+  globalLayout,
+  sectionId,
+  variant,
+}: any) {
   const l = resolveLayout(layout, globalLayout);
 
   const kicker = content?.heroKicker ?? "Sous-titre et/ou slogan";
@@ -651,7 +878,6 @@ export function LegacyHero({ theme, content, layout, globalLayout, sectionId, va
     content?.heroText ??
     "Une approche professionnelle orientée qualité, transparence et solutions durables, adaptée aux particuliers comme aux entreprises.";
 
-  // ✅ paths minuscule (ton dossier = p4.jpg)
   const imgSrc = content?.heroImage ?? "/images/template-base/p4.jpg";
   const imgAlt = content?.heroImageAlt ?? "Illustration";
 
@@ -680,7 +906,9 @@ export function LegacyHero({ theme, content, layout, globalLayout, sectionId, va
       className={cx(
         radiusClass(l.radius),
         "px-6 py-3 text-sm font-semibold border transition hover:-translate-y-[1px] active:translate-y-0",
-        theme.isDark ? "border-white/15 text-white hover:bg-white/5" : "border-slate-200 text-slate-900 hover:bg-slate-50"
+        theme.isDark
+          ? "border-white/15 text-white hover:bg-white/5"
+          : "border-slate-200 text-slate-900 hover:bg-slate-50"
       )}
     >
       {cta2}
@@ -688,6 +916,76 @@ export function LegacyHero({ theme, content, layout, globalLayout, sectionId, va
   );
 
   if (v === "B") {
+    return (
+      <section id={sectionId ?? "hero"} className={cx(heroPadY(l.density))}>
+        <Wrap layout={layout} globalLayout={globalLayout}>
+          <Surface
+            theme={theme}
+            layout={layout}
+            globalLayout={globalLayout}
+            className={cx("p-10 md:p-14")}
+          >
+            <div className="max-w-3xl mx-auto text-center">
+              {hasText(kicker) ? (
+                <div
+                  className={cx(
+                    "text-sm font-semibold",
+                    theme.isDark ? "text-white/70" : "text-slate-600"
+                  )}
+                >
+                  {kicker}
+                </div>
+              ) : null}
+
+              <h1
+                className={cx(
+                  "mt-3 text-4xl md:text-5xl font-semibold tracking-tight",
+                  theme.isDark ? "text-white" : "text-slate-950"
+                )}
+              >
+                {title}
+              </h1>
+
+              <p
+                className={cx(
+                  "mt-4 text-base md:text-lg leading-relaxed",
+                  theme.isDark ? "text-white/70" : "text-slate-600"
+                )}
+              >
+                {text}
+              </p>
+
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                {PrimaryBtn}
+                {SecondaryBtn}
+              </div>
+            </div>
+
+            <div className="mt-10">
+              <div
+                style={radiusStyle(l.radius)}
+                className={cx(
+                  "relative overflow-hidden border",
+                  theme.surfaceBorder
+                )}
+              >
+                <div className="relative aspect-[16/7]">
+                  <NextImage
+                    src={imgSrc}
+                    alt={imgAlt}
+                    fill
+                    className="object-cover"
+                    priority
+                  />
+                </div>
+              </div>
+            </div>
+          </Surface>
+        </Wrap>
+      </section>
+    );
+  }
+
   return (
     <section id={sectionId ?? "hero"} className={cx(heroPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
@@ -695,55 +993,36 @@ export function LegacyHero({ theme, content, layout, globalLayout, sectionId, va
           theme={theme}
           layout={layout}
           globalLayout={globalLayout}
-          className={cx("p-10 md:p-14")}
+          className={cx("p-10 md:p-14", theme.isDark && "bg-white/5")}
         >
-          <div className="max-w-3xl mx-auto text-center">
-            {hasText(kicker) ? (
-              <div className={cx("text-sm font-semibold", theme.isDark ? "text-white/70" : "text-slate-600")}>
-                {kicker}
-              </div>
-            ) : null}
-
-            <h1 className={cx("mt-3 text-4xl md:text-5xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>
-              {title}
-            </h1>
-
-            <p className={cx("mt-4 text-base md:text-lg leading-relaxed", theme.isDark ? "text-white/70" : "text-slate-600")}>
-              {text}
-            </p>
-
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              {PrimaryBtn}
-              {SecondaryBtn}
-            </div>
-          </div>
-
-          <div className="mt-10">
-            <div
-              style={radiusStyle(l.radius)}
-              className={cx("relative overflow-hidden border", theme.surfaceBorder)}
-            >
-              <div className="relative aspect-[16/7]">
-                <NextImage src={imgSrc} alt={imgAlt} fill className="object-cover" priority />
-              </div>
-            </div>
-          </div>
-        </Surface>
-      </Wrap>
-    </section>
-  );
-}
-
-
-  return (
-    <section id={sectionId ?? "hero"} className={cx(heroPadY(l.density))}>
-      <Wrap layout={layout} globalLayout={globalLayout}>
-        <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-10 md:p-14", theme.isDark && "bg-white/5")}>
           <div className="grid items-center gap-10 md:grid-cols-2">
             <div>
-              {hasText(kicker) ? <div className={cx("text-sm font-semibold", theme.isDark ? "text-white/70" : "text-slate-600")}>{kicker}</div> : null}
-              <h1 className={cx("mt-3 text-4xl md:text-5xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h1>
-              <p className={cx("mt-4 max-w-xl text-base md:text-lg leading-relaxed", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
+              {hasText(kicker) ? (
+                <div
+                  className={cx(
+                    "text-sm font-semibold",
+                    theme.isDark ? "text-white/70" : "text-slate-600"
+                  )}
+                >
+                  {kicker}
+                </div>
+              ) : null}
+              <h1
+                className={cx(
+                  "mt-3 text-4xl md:text-5xl font-semibold tracking-tight",
+                  theme.isDark ? "text-white" : "text-slate-950"
+                )}
+              >
+                {title}
+              </h1>
+              <p
+                className={cx(
+                  "mt-4 max-w-xl text-base md:text-lg leading-relaxed",
+                  theme.isDark ? "text-white/70" : "text-slate-600"
+                )}
+              >
+                {text}
+              </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 {PrimaryBtn}
                 {SecondaryBtn}
@@ -751,9 +1030,21 @@ export function LegacyHero({ theme, content, layout, globalLayout, sectionId, va
             </div>
 
             <div className="relative">
-              <div style={radiusStyle(l.radius)} className={cx("relative overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}>
+              <div
+                style={radiusStyle(l.radius)}
+                className={cx(
+                  "relative overflow-hidden border",
+                  theme.isDark ? "border-white/10" : "border-slate-200"
+                )}
+              >
                 <div className="relative aspect-[16/10]">
-                  <NextImage src={imgSrc} alt={imgAlt} fill className="object-cover" priority />
+                  <NextImage
+                    src={imgSrc}
+                    alt={imgAlt}
+                    fill
+                    className="object-cover"
+                    priority
+                  />
                 </div>
               </div>
             </div>
@@ -773,23 +1064,59 @@ export function LegacySplit(props: any) {
   const l = resolveLayout(layout, globalLayout);
   const v = String(variant ?? "A");
 
-  const title = content?.split?.title ?? content?.splitTitle ?? "Une approche simple, pro, efficace.";
-  const text = content?.split?.text ?? content?.splitText ?? "Diagnostic clair, intervention propre, résultat durable.";
-  const imgSrc = content?.split?.image ?? content?.splitImage ?? "/images/template-base/p2.jpg";
-  const imgAlt = content?.split?.imageAlt ?? content?.splitImageAlt ?? "Illustration";
-  const ctaLabel = content?.split?.ctaLabel ?? content?.splitCtaLabel ?? "Me contacter";
-  const ctaHref = content?.split?.ctaHref ?? content?.splitCtaHref ?? "#contact";
+  const title =
+    content?.split?.title ??
+    content?.splitTitle ??
+    "Une approche simple, pro, efficace.";
+  const text =
+    content?.split?.text ??
+    content?.splitText ??
+    "Diagnostic clair, intervention propre, résultat durable.";
+  const imgSrc =
+    content?.split?.image ??
+    content?.splitImage ??
+    "/images/template-base/p2.jpg";
+  const imgAlt =
+    content?.split?.imageAlt ?? content?.splitImageAlt ?? "Illustration";
+  const ctaLabel =
+    content?.split?.ctaLabel ?? content?.splitCtaLabel ?? "Me contacter";
+  const ctaHref =
+    content?.split?.ctaHref ?? content?.splitCtaHref ?? "#contact";
 
   const reverse = v === "B" ? true : !!content?.split?.reverse;
 
   return (
     <section id={sectionId ?? "split"} className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
-        <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-8 md:p-10", theme.isDark && "bg-white/5")}>
-          <div className={cx("grid items-center gap-10 md:grid-cols-2", reverse && "md:[&>*:first-child]:order-2")}>
+        <Surface
+          theme={theme}
+          layout={layout}
+          globalLayout={globalLayout}
+          className={cx("p-8 md:p-10", theme.isDark && "bg-white/5")}
+        >
+          <div
+            className={cx(
+              "grid items-center gap-10 md:grid-cols-2",
+              reverse && "md:[&>*:first-child]:order-2"
+            )}
+          >
             <div>
-              <h2 className={cx("text-2xl md:text-3xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h2>
-              <p className={cx("mt-3 max-w-xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
+              <h2
+                className={cx(
+                  "text-2xl md:text-3xl font-semibold tracking-tight",
+                  theme.isDark ? "text-white" : "text-slate-950"
+                )}
+              >
+                {title}
+              </h2>
+              <p
+                className={cx(
+                  "mt-3 max-w-xl",
+                  theme.isDark ? "text-white/70" : "text-slate-600"
+                )}
+              >
+                {text}
+              </p>
 
               <div className="mt-6">
                 <a
@@ -806,9 +1133,20 @@ export function LegacySplit(props: any) {
               </div>
             </div>
 
-            <div style={radiusStyle(l.radius)} className={cx("relative overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}>
+            <div
+              style={radiusStyle(l.radius)}
+              className={cx(
+                "relative overflow-hidden border",
+                theme.isDark ? "border-white/10" : "border-slate-200"
+              )}
+            >
               <div className="relative aspect-[16/10]">
-                <NextImage src={imgSrc} alt={imgAlt} fill className="object-cover" />
+                <NextImage
+                  src={imgSrc}
+                  alt={imgAlt}
+                  fill
+                  className="object-cover"
+                />
               </div>
             </div>
           </div>
@@ -828,16 +1166,41 @@ export function LegacyServices(props: any) {
   const v = String(variant ?? "A");
 
   const title = content?.servicesTitle ?? "Nos services";
-  const text = content?.servicesText ?? "Des prestations claires et adaptées à vos besoins.";
+  const text =
+    content?.servicesText ??
+    "Des prestations claires et adaptées à vos besoins.";
   const items = Array.isArray(content?.services) ? content.services : [];
 
   const Card = ({ t, list }: { t: string; list: string[] }) => (
-    <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-6", theme.isDark && "bg-white/5")}>
-      <div className={cx("text-lg font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>{t}</div>
-      <ul className={cx("mt-3 space-y-2 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>
+    <Surface
+      theme={theme}
+      layout={layout}
+      globalLayout={globalLayout}
+      className={cx("p-6", theme.isDark && "bg-white/5")}
+    >
+      <div
+        className={cx(
+          "text-lg font-semibold",
+          theme.isDark ? "text-white" : "text-slate-950"
+        )}
+      >
+        {t}
+      </div>
+      <ul
+        className={cx(
+          "mt-3 space-y-2 text-sm",
+          theme.isDark ? "text-white/70" : "text-slate-600"
+        )}
+      >
         {list.map((x, i) => (
           <li key={i} className="flex gap-2">
-            <span className={cx("mt-[6px] h-1.5 w-1.5 rounded-full bg-gradient-to-r", theme.accentFrom, theme.accentTo)} />
+            <span
+              className={cx(
+                "mt-[6px] h-1.5 w-1.5 rounded-full bg-gradient-to-r",
+                theme.accentFrom,
+                theme.accentTo
+              )}
+            />
             <span>{x}</span>
           </li>
         ))}
@@ -846,23 +1209,57 @@ export function LegacyServices(props: any) {
   );
 
   const gridCols =
-    v === "B" ? "md:grid-cols-2" :
-    v === "C" ? "md:grid-cols-3" :
-    v === "D" ? "md:grid-cols-3" :
-    v === "E" ? "md:grid-cols-2" :
-    "md:grid-cols-3";
+    v === "B"
+      ? "md:grid-cols-2"
+      : v === "C"
+      ? "md:grid-cols-3"
+      : v === "D"
+      ? "md:grid-cols-3"
+      : v === "E"
+      ? "md:grid-cols-2"
+      : "md:grid-cols-3";
 
   return (
-    <section id={sectionId ?? "services"} className={cx(sectionPadY(l.density))}>
+    <section
+      id={sectionId ?? "services"}
+      className={cx(sectionPadY(l.density))}
+    >
       <Wrap layout={layout} globalLayout={globalLayout}>
         <div className="mb-8">
-          <div className={cx("text-xs font-semibold uppercase tracking-[0.18em]", theme.isDark ? "text-white/60" : "text-slate-500")}>Services</div>
-          <h2 className={cx("mt-2 text-3xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h2>
-          <p className={cx("mt-3 max-w-3xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
+          <div
+            className={cx(
+              "text-xs font-semibold uppercase tracking-[0.18em]",
+              theme.isDark ? "text-white/60" : "text-slate-500"
+            )}
+          >
+            Services
+          </div>
+          <h2
+            className={cx(
+              "mt-2 text-3xl font-semibold tracking-tight",
+              theme.isDark ? "text-white" : "text-slate-950"
+            )}
+          >
+            {title}
+          </h2>
+          <p
+            className={cx(
+              "mt-3 max-w-3xl",
+              theme.isDark ? "text-white/70" : "text-slate-600"
+            )}
+          >
+            {text}
+          </p>
         </div>
 
         <div className={cx("grid gap-6", gridCols)}>
-          {items.map((s: any, i: number) => <Card key={i} t={s.title ?? `Service ${i + 1}`} list={Array.isArray(s.items) ? s.items : []} />)}
+          {items.map((s: any, i: number) => (
+            <Card
+              key={i}
+              t={s.title ?? `Service ${i + 1}`}
+              list={Array.isArray(s.items) ? s.items : []}
+            />
+          ))}
         </div>
       </Wrap>
     </section>
@@ -882,22 +1279,68 @@ export function LegacyTeam(props: any) {
   const text = content?.teamText ?? "Une équipe terrain orientée qualité.";
   const cards = Array.isArray(content?.teamCards) ? content.teamCards : [];
 
-  const cols = v === "B" ? "md:grid-cols-2" : v === "C" ? "md:grid-cols-3" : "md:grid-cols-3";
+  const cols =
+    v === "B"
+      ? "md:grid-cols-2"
+      : v === "C"
+      ? "md:grid-cols-3"
+      : "md:grid-cols-3";
 
   return (
     <section id={sectionId ?? "team"} className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
         <div className="mb-8">
-          <div className={cx("text-xs font-semibold uppercase tracking-[0.18em]", theme.isDark ? "text-white/60" : "text-slate-500")}>Équipe</div>
-          <h2 className={cx("mt-2 text-3xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h2>
-          <p className={cx("mt-3 max-w-3xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
+          <div
+            className={cx(
+              "text-xs font-semibold uppercase tracking-[0.18em]",
+              theme.isDark ? "text-white/60" : "text-slate-500"
+            )}
+          >
+            Équipe
+          </div>
+          <h2
+            className={cx(
+              "mt-2 text-3xl font-semibold tracking-tight",
+              theme.isDark ? "text-white" : "text-slate-950"
+            )}
+          >
+            {title}
+          </h2>
+          <p
+            className={cx(
+              "mt-3 max-w-3xl",
+              theme.isDark ? "text-white/70" : "text-slate-600"
+            )}
+          >
+            {text}
+          </p>
         </div>
 
         <div className={cx("grid gap-6", cols)}>
           {cards.map((c: any, i: number) => (
-            <Surface key={i} theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-6", theme.isDark && "bg-white/5")}>
-              <div className={cx("text-lg font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>{c.title ?? `Bloc ${i + 1}`}</div>
-              <p className={cx("mt-2 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>{c.text ?? ""}</p>
+            <Surface
+              key={i}
+              theme={theme}
+              layout={layout}
+              globalLayout={globalLayout}
+              className={cx("p-6", theme.isDark && "bg-white/5")}
+            >
+              <div
+                className={cx(
+                  "text-lg font-semibold",
+                  theme.isDark ? "text-white" : "text-slate-950"
+                )}
+              >
+                {c.title ?? `Bloc ${i + 1}`}
+              </div>
+              <p
+                className={cx(
+                  "mt-2 text-sm",
+                  theme.isDark ? "text-white/70" : "text-slate-600"
+                )}
+              >
+                {c.text ?? ""}
+              </p>
             </Surface>
           ))}
         </div>
@@ -911,11 +1354,25 @@ export function LegacyTeam(props: any) {
    ============================================================ */
 
 export function LegacyGalleries(props: any) {
-  const { theme, content, layout, globalLayout, sectionId, onOpen, enableLightbox, variant } = props;
+  const {
+    theme,
+    content,
+    layout,
+    globalLayout,
+    sectionId,
+    onOpen,
+    enableLightbox,
+    variant,
+  } = props;
   const l = resolveLayout(layout, globalLayout);
 
   const v = String(variant ?? "twoCol");
-  const cols = v === "threeCol" ? "md:grid-cols-3" : v === "stack" ? "md:grid-cols-1" : "md:grid-cols-2";
+  const cols =
+    v === "threeCol"
+      ? "md:grid-cols-3"
+      : v === "stack"
+      ? "md:grid-cols-1"
+      : "md:grid-cols-2";
 
   const galleries = Array.isArray(content?.galleries) ? content.galleries : [];
   const g = galleries.find((x: any) => x?.id === sectionId) ?? galleries[0];
@@ -924,12 +1381,38 @@ export function LegacyGalleries(props: any) {
   const images = Array.isArray(g?.images) ? g.images : [];
 
   return (
-    <section id={sectionId ?? "realisations"} className={cx(sectionPadY(l.density))}>
+    <section
+      id={sectionId ?? "realisations"}
+      className={cx(sectionPadY(l.density))}
+    >
       <Wrap layout={layout} globalLayout={globalLayout}>
         <div className="mb-8">
-          <div className={cx("text-xs font-semibold uppercase tracking-[0.18em]", theme.isDark ? "text-white/60" : "text-slate-500")}>Galerie</div>
-          <h2 className={cx("mt-2 text-3xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h2>
-          {hasText(desc) ? <p className={cx("mt-3 max-w-3xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{desc}</p> : null}
+          <div
+            className={cx(
+              "text-xs font-semibold uppercase tracking-[0.18em]",
+              theme.isDark ? "text-white/60" : "text-slate-500"
+            )}
+          >
+            Galerie
+          </div>
+          <h2
+            className={cx(
+              "mt-2 text-3xl font-semibold tracking-tight",
+              theme.isDark ? "text-white" : "text-slate-950"
+            )}
+          >
+            {title}
+          </h2>
+          {hasText(desc) ? (
+            <p
+              className={cx(
+                "mt-3 max-w-3xl",
+                theme.isDark ? "text-white/70" : "text-slate-600"
+              )}
+            >
+              {desc}
+            </p>
+          ) : null}
         </div>
 
         <div className={cx("grid gap-6", cols)}>
@@ -937,16 +1420,37 @@ export function LegacyGalleries(props: any) {
             <button
               key={i}
               type="button"
-              className={cx("text-left", enableLightbox ? "cursor-zoom-in" : "cursor-default")}
+              className={cx(
+                "text-left",
+                enableLightbox ? "cursor-zoom-in" : "cursor-default"
+              )}
               onClick={() => enableLightbox && onOpen?.(img)}
             >
-              <div style={radiusStyle(l.radius)} className={cx("relative overflow-hidden border", theme.isDark ? "border-white/10" : "border-slate-200")}>
+              <div
+                style={radiusStyle(l.radius)}
+                className={cx(
+                  "relative overflow-hidden border",
+                  theme.isDark ? "border-white/10" : "border-slate-200"
+                )}
+              >
                 <div className="relative aspect-[16/11]">
-                  <NextImage src={img.src} alt={img.alt ?? "Visuel"} fill className="object-cover" />
+                  <NextImage
+                    src={img.src}
+                    alt={img.alt ?? "Visuel"}
+                    fill
+                    className="object-cover"
+                  />
                 </div>
               </div>
               {hasText(img.caption) ? (
-                <div className={cx("mt-2 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>{img.caption}</div>
+                <div
+                  className={cx(
+                    "mt-2 text-sm",
+                    theme.isDark ? "text-white/70" : "text-slate-600"
+                  )}
+                >
+                  {img.caption}
+                </div>
               ) : null}
             </button>
           ))}
@@ -968,14 +1472,21 @@ export function LegacyContact(props: any) {
 
   const kicker = content?.contactKicker ?? "Contact";
   const title = content?.contactTitle ?? "Contact";
-  const text = content?.contactText ?? "Expliquez votre besoin en 2 lignes, nous vous répondrons rapidement.";
+  const text =
+    content?.contactText ??
+    "Expliquez votre besoin en 2 lignes, nous vous répondrons rapidement.";
 
   const address = content?.contact?.address ?? "";
   const phone = content?.contact?.phone ?? "";
   const email = content?.contact?.email ?? "";
 
-  const socialsCfg = (content?.socials ?? undefined) as SocialConfig | undefined;
-  const socials = React.useMemo(() => resolveSocialLinks(socialsCfg), [socialsCfg]);
+  const socialsCfg = (content?.socials ?? undefined) as
+    | SocialConfig
+    | undefined;
+  const socials = React.useMemo(
+    () => resolveSocialLinks(socialsCfg),
+    [socialsCfg]
+  );
 
   const SocialBar = socials.length ? (
     <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -1006,33 +1517,86 @@ export function LegacyContact(props: any) {
         <div className="grid gap-8 md:grid-cols-2">
           <div>
             {hasText(kicker) ? (
-              <div className={cx("text-xs font-semibold uppercase tracking-[0.18em]", theme.isDark ? "text-white/60" : "text-slate-500")}>
+              <div
+                className={cx(
+                  "text-xs font-semibold uppercase tracking-[0.18em]",
+                  theme.isDark ? "text-white/60" : "text-slate-500"
+                )}
+              >
                 {kicker}
               </div>
             ) : null}
 
-            <h2 className={cx("mt-2 text-3xl md:text-4xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>
+            <h2
+              className={cx(
+                "mt-2 text-3xl md:text-4xl font-semibold tracking-tight",
+                theme.isDark ? "text-white" : "text-slate-950"
+              )}
+            >
               {title}
             </h2>
 
             {hasText(text) ? (
-              <p className={cx("mt-3 max-w-xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p>
+              <p
+                className={cx(
+                  "mt-3 max-w-xl",
+                  theme.isDark ? "text-white/70" : "text-slate-600"
+                )}
+              >
+                {text}
+              </p>
             ) : null}
 
             <div className="mt-8 space-y-3 text-sm">
               {hasText(address) ? (
-                <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}>
-                  <span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Adresse:</span> {address}
+                <div
+                  className={cx(
+                    theme.isDark ? "text-white/80" : "text-slate-800"
+                  )}
+                >
+                  <span
+                    className={cx(
+                      "font-semibold",
+                      theme.isDark ? "text-white" : "text-slate-950"
+                    )}
+                  >
+                    Adresse:
+                  </span>{" "}
+                  {address}
                 </div>
               ) : null}
               {hasText(phone) ? (
-                <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}>
-                  <span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Téléphone:</span> {phone}
+                <div
+                  className={cx(
+                    theme.isDark ? "text-white/80" : "text-slate-800"
+                  )}
+                >
+                  <span
+                    className={cx(
+                      "font-semibold",
+                      theme.isDark ? "text-white" : "text-slate-950"
+                    )}
+                  >
+                    Téléphone:
+                  </span>{" "}
+                  {phone}
                 </div>
               ) : null}
               {hasText(email) ? (
-                <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}>
-                  <span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>E-mail:</span> {email}
+                <div
+                  className={cx(
+                    theme.isDark ? "text-white/80" : "text-slate-800"
+                  )}
+                >
+                  <span
+                    className={cx(
+                      "font-semibold",
+                      theme.isDark ? "text-white" : "text-slate-950"
+                    )}
+                  >
+                    E-mail:
+                  </span>{" "}
+                  {email}
                 </div>
               ) : null}
             </div>
@@ -1040,15 +1604,70 @@ export function LegacyContact(props: any) {
             {SocialBar}
           </div>
 
-          <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-6 md:p-8", theme.isDark && "bg-white/5")}>
-            <div className={cx("text-lg font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Demande rapide</div>
-            <div className={cx("mt-1 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>(Démo) Brancher ici ton vrai formulaire plus tard.</div>
+          <Surface
+            theme={theme}
+            layout={layout}
+            globalLayout={globalLayout}
+            className={cx("p-6 md:p-8", theme.isDark && "bg-white/5")}
+          >
+            <div
+              className={cx(
+                "text-lg font-semibold",
+                theme.isDark ? "text-white" : "text-slate-950"
+              )}
+            >
+              Demande rapide
+            </div>
+            <div
+              className={cx(
+                "mt-1 text-sm",
+                theme.isDark ? "text-white/70" : "text-slate-600"
+              )}
+            >
+              (Démo) Brancher ici ton vrai formulaire plus tard.
+            </div>
 
             <div className="mt-6 space-y-3">
-              <input className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="Nom" />
-              <input className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="E-mail" />
-              <textarea rows={4} className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="Message" />
-              <button type="button" className={cx(radiusClass(l.radius), "mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0", theme.accentFrom, theme.accentTo)}>
+              <input
+                className={cx(
+                  radiusClass(l.radius),
+                  "w-full border px-4 py-3 text-sm outline-none",
+                  theme.isDark
+                    ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
+                    : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
+                )}
+                placeholder="Nom"
+              />
+              <input
+                className={cx(
+                  radiusClass(l.radius),
+                  "w-full border px-4 py-3 text-sm outline-none",
+                  theme.isDark
+                    ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
+                    : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
+                )}
+                placeholder="E-mail"
+              />
+              <textarea
+                rows={4}
+                className={cx(
+                  radiusClass(l.radius),
+                  "w-full border px-4 py-3 text-sm outline-none",
+                  theme.isDark
+                    ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
+                    : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
+                )}
+                placeholder="Message"
+              />
+              <button
+                type="button"
+                className={cx(
+                  radiusClass(l.radius),
+                  "mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+                  theme.accentFrom,
+                  theme.accentTo
+                )}
+              >
                 Envoyer
               </button>
             </div>
@@ -1061,31 +1680,159 @@ export function LegacyContact(props: any) {
   const RenderB = () => (
     <section id={sectionId ?? "contact"} className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
-        <Surface theme={theme} layout={layout} globalLayout={globalLayout} className={cx("p-8 md:p-10", theme.isDark && "bg-white/5")}>
+        <Surface
+          theme={theme}
+          layout={layout}
+          globalLayout={globalLayout}
+          className={cx("p-8 md:p-10", theme.isDark && "bg-white/5")}
+        >
           <div className="grid gap-8 md:grid-cols-2">
             <div>
-              {hasText(kicker) ? <div className={cx("text-xs font-semibold uppercase tracking-[0.18em]", theme.isDark ? "text-white/60" : "text-slate-500")}>{kicker}</div> : null}
-              <h2 className={cx("mt-2 text-3xl md:text-4xl font-semibold tracking-tight", theme.isDark ? "text-white" : "text-slate-950")}>{title}</h2>
-              {hasText(text) ? <p className={cx("mt-3 max-w-xl", theme.isDark ? "text-white/70" : "text-slate-600")}>{text}</p> : null}
+              {hasText(kicker) ? (
+                <div
+                  className={cx(
+                    "text-xs font-semibold uppercase tracking-[0.18em]",
+                    theme.isDark ? "text-white/60" : "text-slate-500"
+                  )}
+                >
+                  {kicker}
+                </div>
+              ) : null}
+              <h2
+                className={cx(
+                  "mt-2 text-3xl md:text-4xl font-semibold tracking-tight",
+                  theme.isDark ? "text-white" : "text-slate-950"
+                )}
+              >
+                {title}
+              </h2>
+              {hasText(text) ? (
+                <p
+                  className={cx(
+                    "mt-3 max-w-xl",
+                    theme.isDark ? "text-white/70" : "text-slate-600"
+                  )}
+                >
+                  {text}
+                </p>
+              ) : null}
 
               <div className="mt-8 space-y-3 text-sm">
-                {hasText(address) ? <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}><span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Adresse:</span> {address}</div> : null}
-                {hasText(phone) ? <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}><span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Téléphone:</span> {phone}</div> : null}
-                {hasText(email) ? <div className={cx(theme.isDark ? "text-white/80" : "text-slate-800")}><span className={cx("font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>E-mail:</span> {email}</div> : null}
+                {hasText(address) ? (
+                  <div
+                    className={cx(
+                      theme.isDark ? "text-white/80" : "text-slate-800"
+                    )}
+                  >
+                    <span
+                      className={cx(
+                        "font-semibold",
+                        theme.isDark ? "text-white" : "text-slate-950"
+                      )}
+                    >
+                      Adresse:
+                    </span>{" "}
+                    {address}
+                  </div>
+                ) : null}
+                {hasText(phone) ? (
+                  <div
+                    className={cx(
+                      theme.isDark ? "text-white/80" : "text-slate-800"
+                    )}
+                  >
+                    <span
+                      className={cx(
+                        "font-semibold",
+                        theme.isDark ? "text-white" : "text-slate-950"
+                      )}
+                    >
+                      Téléphone:
+                    </span>{" "}
+                    {phone}
+                  </div>
+                ) : null}
+                {hasText(email) ? (
+                  <div
+                    className={cx(
+                      theme.isDark ? "text-white/80" : "text-slate-800"
+                    )}
+                  >
+                    <span
+                      className={cx(
+                        "font-semibold",
+                        theme.isDark ? "text-white" : "text-slate-950"
+                      )}
+                    >
+                      E-mail:
+                    </span>{" "}
+                    {email}
+                  </div>
+                ) : null}
               </div>
 
               {SocialBar}
             </div>
 
             <div>
-              <div className={cx("text-lg font-semibold", theme.isDark ? "text-white" : "text-slate-950")}>Demande rapide</div>
-              <div className={cx("mt-1 text-sm", theme.isDark ? "text-white/70" : "text-slate-600")}>(Démo) Brancher ici ton vrai formulaire plus tard.</div>
+              <div
+                className={cx(
+                  "text-lg font-semibold",
+                  theme.isDark ? "text-white" : "text-slate-950"
+                )}
+              >
+                Demande rapide
+              </div>
+              <div
+                className={cx(
+                  "mt-1 text-sm",
+                  theme.isDark ? "text-white/70" : "text-slate-600"
+                )}
+              >
+                (Démo) Brancher ici ton vrai formulaire plus tard.
+              </div>
 
               <div className="mt-6 space-y-3">
-                <input className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="Nom" />
-                <input className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="E-mail" />
-                <textarea rows={4} className={cx(radiusClass(l.radius), "w-full border px-4 py-3 text-sm outline-none", theme.isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300")} placeholder="Message" />
-                <button type="button" className={cx(radiusClass(l.radius), "mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0", theme.accentFrom, theme.accentTo)}>
+                <input
+                  className={cx(
+                    radiusClass(l.radius),
+                    "w-full border px-4 py-3 text-sm outline-none",
+                    theme.isDark
+                      ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
+                      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
+                  )}
+                  placeholder="Nom"
+                />
+                <input
+                  className={cx(
+                    radiusClass(l.radius),
+                    "w-full border px-4 py-3 text-sm outline-none",
+                    theme.isDark
+                      ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
+                      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
+                  )}
+                  placeholder="E-mail"
+                />
+                <textarea
+                  rows={4}
+                  className={cx(
+                    radiusClass(l.radius),
+                    "w-full border px-4 py-3 text-sm outline-none",
+                    theme.isDark
+                      ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
+                      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
+                  )}
+                  placeholder="Message"
+                />
+                <button
+                  type="button"
+                  className={cx(
+                    radiusClass(l.radius),
+                    "mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+                    theme.accentFrom,
+                    theme.accentTo
+                  )}
+                >
                   Envoyer
                 </button>
               </div>
