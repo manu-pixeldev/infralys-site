@@ -121,7 +121,7 @@ function SocialRow({
   );
 
   return (
-    <div className={cx("flex items-center gap-2", className)}>
+    <div className={cx("flex items-center gap-2", className)} role="list">
       {items.map(({ kind, href, def }) => (
         <a
           key={kind}
@@ -131,6 +131,7 @@ function SocialRow({
           title={def.label}
           aria-label={def.label}
           className={cx(btnBase, btnTheme, "h-10 w-10")}
+          role="listitem"
         >
           <def.Icon className="opacity-90" />
         </a>
@@ -141,9 +142,6 @@ function SocialRow({
 
 /* ============================================================
    BLOC 1D — OVERFLOW MENU (desktop) — V2030 UX (compile-safe)
-   - ✅ trigger "Plus" devient ACTIF quand un sous-item est actif
-   - ✅ peut recevoir un buttonClassName (pour NavB pill)
-   - ✅ strong z-index (backdrop-filter safe)
    ============================================================ */
 
 function DesktopOverflowMenu({
@@ -189,7 +187,6 @@ function DesktopOverflowMenu({
 
   if (!items?.length) return null;
 
-  // fallback si "canvas actif" mais menuStyle absent
   const canvasFallbackStyle: React.CSSProperties = {
     backgroundColor:
       "color-mix(in srgb, var(--te-canvas, #0b0b0c) 85%, transparent)",
@@ -197,7 +194,6 @@ function DesktopOverflowMenu({
     WebkitBackdropFilter: "blur(14px)",
   };
 
-  // future-proof: si menuStyle existe, on le traite comme "canvas-like"
   const useCanvasLike = Boolean(menuStyle) || Boolean(hasCanvas);
 
   return (
@@ -207,7 +203,6 @@ function DesktopOverflowMenu({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={cx(
-          // default trigger (NavA/C): inherit color, just play opacity
           "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition text-inherit",
           buttonClassName
             ? buttonClassName
@@ -228,7 +223,6 @@ function DesktopOverflowMenu({
           role="menu"
           style={useCanvasLike ? menuStyle ?? canvasFallbackStyle : undefined}
           className={cx(
-            // ✅ strong z-index + keep dropdown above header shadows/backdrop contexts
             "absolute right-0 z-[999] mt-3 w-56 overflow-hidden rounded-2xl border shadow-lg backdrop-blur",
             useCanvasLike
               ? "border-black/10 text-inherit"
@@ -245,7 +239,6 @@ function DesktopOverflowMenu({
               onClick={() => setOpen(false)}
               className={cx(
                 "block px-4 py-3 text-sm font-semibold transition",
-                // active row highlight
                 it.href ===
                   (typeof window !== "undefined" ? window.location.hash : "")
                   ? useCanvasLike
@@ -286,9 +279,7 @@ export function LegacyHeader(props: {
   headerRef: React.RefObject<HTMLElement>;
   showTeam: boolean;
 
-  // old prop name
   maxDirectLinks?: number;
-  // ✅ new prop name from TemplateEngine
   maxDirectLinksInMenu?: number;
 
   contact?: { phone?: string; email?: string };
@@ -300,13 +291,11 @@ export function LegacyHeader(props: {
   layout?: LayoutTokens;
   globalLayout?: LayoutTokens;
 
-  // canvas plumbing
   canvasStyle?: "classic" | "immersive";
   canvasVar?: React.CSSProperties;
 }) {
   const { theme, brand, headerVariant, headerRef, showTeam, contact } = props;
 
-  // ✅ unify (old + new prop name)
   const maxDirectLinks = Number(
     (props as any).maxDirectLinksInMenu ?? (props as any).maxDirectLinks ?? 4
   );
@@ -320,6 +309,10 @@ export function LegacyHeader(props: {
     Math.min(1, Number(props.scrollT ?? (props.isScrolled ? 1 : 0)))
   );
   const isScrolled = t > 0.15;
+
+  // ✅ V16 FIX: HOME semantics (Accueil = #top OR #hero)
+  const isHomeHref = (href?: string) => href === "#top" || href === "#hero";
+  const isHomeActive = isHomeHref(activeHref);
 
   const lerp = (a: number, b: number) => a + (b - a) * t;
 
@@ -402,7 +395,6 @@ export function LegacyHeader(props: {
     };
   }, [headerRef]);
 
-  // ✅ Anti-tremblement subtitle
   const subtitleRaw = (brand as any)?.text?.subtitle;
   const subtitleText = hasText(subtitleRaw) ? String(subtitleRaw) : "\u00A0";
 
@@ -488,10 +480,11 @@ export function LegacyHeader(props: {
   const overflowLinks = linksAll.slice(MAX_INLINE);
 
   // ✅ overflow active if current section belongs to overflow
-  const overflowActive =
-    overflowLinks.some((x) => x.href === activeHref) ||
-    // edge: if hash is unknown, keep Plus inactive; we don't guess
-    false;
+  const overflowActive = overflowLinks.some((x) => {
+    // ✅ V16 FIX: treat #hero/#top equivalence
+    if (isHomeHref(x.href) && isHomeActive) return true;
+    return x.href === activeHref;
+  });
 
   const headerPos = "fixed left-0 right-0 top-0";
   const headerZ = "z-50";
@@ -503,15 +496,16 @@ export function LegacyHeader(props: {
      CANVAS STYLE (header + menus)
      ============================================================ */
 
-  // ✅ SINGLE source-of-truth canvas vars
   const canvasVar = ((props as any)?.canvasVar ??
     (theme as any)?.canvasVar ??
     {}) as React.CSSProperties;
 
-  const hasCanvas = !!(canvasVar as any)?.["--te-canvas"];
+  // ✅ V16 FIX: less fragile hasCanvas
+  const teCanvas = (canvasVar as any)?.["--te-canvas"];
+  const hasCanvas = typeof teCanvas === "string" && teCanvas.trim().length > 0;
 
-  // Header style (ton look actuel)
-  const headerStyle: React.CSSProperties | undefined = hasCanvas
+  // ✅ V16 FIX: always provide a good fallback header/menu style
+  const headerStyle: React.CSSProperties = hasCanvas
     ? {
         ...canvasVar,
         backgroundColor: isScrolled
@@ -524,10 +518,16 @@ export function LegacyHeader(props: {
         WebkitBackdropFilter: "blur(14px)",
         boxShadow: "0 6px 22px rgba(0,0,0,0.35)",
       }
-    : undefined;
+    : {
+        backgroundColor: theme.isDark
+          ? "rgba(2,6,23,0.88)"
+          : "rgba(255,255,255,0.88)",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        boxShadow: "0 6px 22px rgba(0,0,0,0.25)",
+      };
 
-  // ✅ MENU style (utilisé par DesktopOverflowMenu)
-  const menuStyle: React.CSSProperties | undefined = hasCanvas
+  const menuStyle: React.CSSProperties = hasCanvas
     ? {
         ...canvasVar,
         backgroundColor: isScrolled
@@ -540,7 +540,14 @@ export function LegacyHeader(props: {
         WebkitBackdropFilter: "blur(14px)",
         boxShadow: "0 10px 30px rgba(0,0,0,0.28)",
       }
-    : undefined;
+    : {
+        backgroundColor: theme.isDark
+          ? "rgba(2,6,23,0.95)"
+          : "rgba(255,255,255,0.92)",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.22)",
+      };
 
   const headerClassBase = cx(
     headerPos,
@@ -548,13 +555,7 @@ export function LegacyHeader(props: {
     "border-b transition-[background-color,backdrop-filter] duration-200",
     theme.isDark
       ? "border-white/10 text-white"
-      : "border-slate-200 text-slate-900",
-    !hasCanvas && (theme.isDark ? "bg-slate-950" : "bg-white"),
-    !hasCanvas &&
-      isScrolled &&
-      (theme.isDark
-        ? "bg-slate-950/88 backdrop-blur"
-        : "bg-white/88 backdrop-blur")
+      : "border-slate-200 text-slate-900"
   );
 
   const HeaderShell = (children: React.ReactNode) => (
@@ -621,7 +622,11 @@ export function LegacyHeader(props: {
       className={cx("hidden md:flex items-center gap-7", navBase, navTextClass)}
     >
       {inlineLinks.map((lnk) => {
-        const active = lnk.href === activeHref;
+        // ✅ V16 FIX: Accueil underline works even if link is #hero
+        const active = isHomeHref(lnk.href)
+          ? isHomeActive
+          : lnk.href === activeHref;
+
         return (
           <a
             key={lnk.href}
@@ -650,7 +655,6 @@ export function LegacyHeader(props: {
 
       {overflowLinks.length ? (
         <div className="relative">
-          {/* underline for Plus (when overflow active) */}
           <div className="group relative">
             <DesktopOverflowMenu
               theme={theme}
@@ -658,7 +662,6 @@ export function LegacyHeader(props: {
               menuStyle={menuStyle}
               hasCanvas={hasCanvas}
               active={overflowActive}
-              // default button is fine for NavA; we just want active opacity
             />
             <span
               className={cx(
@@ -680,7 +683,10 @@ export function LegacyHeader(props: {
     return (
       <nav className={navShellClass}>
         {inlineLinks.map((lnk) => {
-          const active = lnk.href === activeHref;
+          const active = isHomeHref(lnk.href)
+            ? isHomeActive
+            : lnk.href === activeHref;
+
           return (
             <a
               key={lnk.href}
@@ -700,7 +706,6 @@ export function LegacyHeader(props: {
               menuStyle={menuStyle}
               hasCanvas={hasCanvas}
               active={overflowActive}
-              // ✅ make "Plus" a pill like others
               buttonClassName={cx(
                 pillBase,
                 overflowActive ? pillActive : pillIdle
@@ -721,7 +726,10 @@ export function LegacyHeader(props: {
       )}
     >
       {inlineLinks.map((lnk) => {
-        const active = lnk.href === activeHref;
+        const active = isHomeHref(lnk.href)
+          ? isHomeActive
+          : lnk.href === activeHref;
+
         return (
           <a
             key={lnk.href}
@@ -1528,6 +1536,45 @@ export function LegacyGalleries(props: any) {
   const title = g?.title ?? "Galeries";
   const desc = g?.description ?? "";
   const images = Array.isArray(g?.images) ? g.images : [];
+
+  // ✅ (optionnel mais safe) fallback si vide
+  if (!images.length) {
+    return (
+      <section
+        id={sectionId ?? "realisations"}
+        className={cx(sectionPadY(l.density))}
+      >
+        <Wrap layout={layout} globalLayout={globalLayout}>
+          <div className="mb-8">
+            <div
+              className={cx(
+                "text-xs font-semibold uppercase tracking-[0.18em]",
+                theme.isDark ? "text-white/60" : "text-slate-500"
+              )}
+            >
+              Galerie
+            </div>
+            <h2
+              className={cx(
+                "mt-2 text-3xl font-semibold tracking-tight",
+                theme.isDark ? "text-white" : "text-slate-950"
+              )}
+            >
+              {title}
+            </h2>
+            <p
+              className={cx(
+                "mt-3",
+                theme.isDark ? "text-white/70" : "text-slate-600"
+              )}
+            >
+              Aucune image configurée pour cette galerie.
+            </p>
+          </div>
+        </Wrap>
+      </section>
+    );
+  }
 
   return (
     <section
