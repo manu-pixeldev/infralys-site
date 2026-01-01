@@ -59,5 +59,10 @@ export default function TemplateBasePage() {
     return <div suppressHydrationWarning />;
   }
 
-  return <TemplateEngine config={config} setConfig={setConfig} />;
+  return (
+    <>
+      <div id="top" />
+      <TemplateEngine config={config} setConfig={setConfig} />
+    </>
+  );
 }

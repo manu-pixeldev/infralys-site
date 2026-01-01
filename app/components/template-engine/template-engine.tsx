@@ -279,7 +279,7 @@ export default function TemplateEngine({
 
   /* ============================================================
      ACTIVE SECTION HIGHLIGHT (V2030 - stable + deep link safe)
-     - ✅ Accueil revient quand on remonte (near-top uses header offset)
+     - ✅ Accueil = #top (even if real first section is #hero)
      - ✅ hash direct /template-base#preuves => alias => scroll offset correct
      - ✅ no TS errors add/removeEventListener
      ============================================================ */
@@ -316,6 +316,11 @@ export default function TemplateEngine({
   const firstRealId = React.useMemo(() => {
     return observableIds[0] ?? "";
   }, [observableIds]);
+
+  // ✅ HOME ID: treat #hero as "Accueil" when present, else fallback to first real section
+  const homeId = React.useMemo(() => {
+    return observableIds.includes("hero") ? "hero" : firstRealId;
+  }, [observableIds, firstRealId]);
 
   // aliases: allow #preuves (title) to resolve to the real id
   const aliasToId = React.useMemo(() => {
@@ -393,16 +398,14 @@ export default function TemplateEngine({
 
       const id = resolved.slice(1);
 
-      // optional: treat first real section as Accueil
-      if (firstRealId && id === firstRealId) {
-        setActiveHref("#top");
-      } else {
-        setActiveHref(resolved);
-      }
+      // ✅ treat home section (hero/first) as Accueil
+      if (homeId && id === homeId) setActiveHref("#top");
+      else setActiveHref(resolved);
 
-      // fix the “lands under header / looks like on top” issue
-      // if the browser already scrolled, we still re-apply offset.
-      scrollToId(id, "auto");
+      // fix the “lands under header / looks like on top” issue:
+      // re-apply after layout settle
+      requestAnimationFrame(() => scrollToId(id, "auto"));
+      window.setTimeout(() => scrollToId(id, "auto"), 200);
     };
 
     applyHash();
@@ -429,7 +432,7 @@ export default function TemplateEngine({
 
       // direct id exists
       if (document.getElementById(wanted)) {
-        if (firstRealId && wanted === firstRealId) setActiveHref("#top");
+        if (homeId && wanted === homeId) setActiveHref("#top");
         else setActiveHref(`#${wanted}`);
         return;
       }
@@ -439,7 +442,7 @@ export default function TemplateEngine({
       if (ali && document.getElementById(ali)) {
         // keep URL clean by rewriting to real id
         window.location.hash = ali;
-        if (firstRealId && ali === firstRealId) setActiveHref("#top");
+        if (homeId && ali === homeId) setActiveHref("#top");
         else setActiveHref(`#${ali}`);
       }
     };
@@ -473,7 +476,8 @@ export default function TemplateEngine({
           const id = (best.target as HTMLElement).id;
           if (!id) return;
 
-          if (firstRealId && id === firstRealId) {
+          // ✅ treat home section (hero/first) as Accueil
+          if (homeId && id === homeId) {
             setActiveHref("#top");
             return;
           }
@@ -501,7 +505,7 @@ export default function TemplateEngine({
   }, [
     mounted,
     observableIds,
-    firstRealId,
+    homeId,
     aliasToId,
     slugify,
     headerOffsetPx,
