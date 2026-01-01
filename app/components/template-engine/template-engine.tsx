@@ -1,3 +1,4 @@
+// app/components/template-engine/template-engine.tsx
 "use client";
 
 import React from "react";
@@ -239,45 +240,25 @@ export default function TemplateEngine({
     ? ((liveConfig as any).sections as any)
     : [];
 
-  // active section highlight
-  const [activeHref, setActiveHref] = React.useState<string>("#top");
-  React.useEffect(() => {
-    if (!mounted) return;
-
-    const ids = sections
-      .filter((s) => s && s.enabled !== false)
-      .map((s) => String(s.id || "").trim())
-      .filter(Boolean);
-
-    if (!ids.length) return;
-
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort(
-            (a, b) => (b.intersectionRatio || 0) - (a.intersectionRatio || 0)
-          )[0];
-        if (!visible) return;
-        const id = (visible.target as HTMLElement).id;
-        if (id) setActiveHref(`#${id}`);
-      },
-      { rootMargin: "-30% 0px -60% 0px", threshold: [0.1, 0.2, 0.35] }
-    );
-
-    for (const id of ids) {
-      const el = document.getElementById(id);
-      if (el) obs.observe(el);
-    }
-    return () => obs.disconnect();
-  }, [mounted, sections]);
-
-  // reveal observer
+  /* ============================================================
+     REVEAL OBSERVER (compile-safe)
+     ============================================================ */
   const revealRef = React.useRef<IntersectionObserver | null>(null);
+
+  React.useEffect(() => {
+    // cleanup on unmount
+    return () => {
+      revealRef.current?.disconnect();
+      revealRef.current = null;
+    };
+  }, []);
+
   const registerReveal = React.useCallback((id: string) => {
     return (node: HTMLElement | null) => {
       if (!node) return;
+
       node.dataset.reveal = "pending";
+
       if (!revealRef.current) {
         revealRef.current = new IntersectionObserver(
           (entries) => {
@@ -291,9 +272,241 @@ export default function TemplateEngine({
           { rootMargin: "0px 0px -10% 0px", threshold: 0.12 }
         );
       }
+
       revealRef.current.observe(node);
     };
   }, []);
+
+  /* ============================================================
+     ACTIVE SECTION HIGHLIGHT (V2030 - stable + deep link safe)
+     - ✅ Accueil revient quand on remonte (near-top uses header offset)
+     - ✅ hash direct /template-base#preuves => alias => scroll offset correct
+     - ✅ no TS errors add/removeEventListener
+     ============================================================ */
+
+  const [activeHref, setActiveHref] = React.useState<string>("#top");
+
+  const slugify = React.useCallback((s: string) => {
+    const raw = String(s || "").toLowerCase();
+    // normalize may not exist in some envs (safe)
+    const norm = (raw as any).normalize ? raw.normalize("NFD") : raw;
+    return norm
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+  }, []);
+
+  const enabledSections = React.useMemo(() => {
+    return sections.filter((s) => s && s.enabled !== false);
+  }, [sections]);
+
+  const realSections = React.useMemo(() => {
+    return enabledSections.filter((s) => {
+      const t = String((s as any).type || "");
+      return t !== "header" && t !== "top";
+    });
+  }, [enabledSections]);
+
+  const observableIds = React.useMemo(() => {
+    return realSections
+      .map((s) => String((s as any).id || "").trim())
+      .filter(Boolean);
+  }, [realSections]);
+
+  const firstRealId = React.useMemo(() => {
+    return observableIds[0] ?? "";
+  }, [observableIds]);
+
+  // aliases: allow #preuves (title) to resolve to the real id
+  const aliasToId = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of realSections) {
+      const id = String((s as any).id || "").trim();
+      if (!id) continue;
+
+      const title = String((s as any).title || "").trim();
+      if (title) map.set(slugify(title), id);
+
+      // also accept raw id as alias
+      map.set(slugify(id), id);
+    }
+    return map;
+  }, [realSections, slugify]);
+
+  const headerOffsetPx = React.useCallback(() => {
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue("--header-offset")
+      .trim();
+    const n = Number(String(v).replace("px", "").trim());
+    return Number.isFinite(n) && n > 0 ? n : 84;
+  }, []);
+
+  const isNearTop = React.useCallback(() => {
+    const off = headerOffsetPx();
+    const y = window.scrollY || 0;
+    // generous threshold so "Accueil" comes back reliably
+    return y <= Math.max(24, Math.round(off * 0.75));
+  }, [headerOffsetPx]);
+
+  React.useEffect(() => {
+    if (!mounted) return;
+
+    const resolveHashToHref = (rawHash: string): string | null => {
+      const raw = String(rawHash || "").trim();
+      if (!raw || raw === "#") return null;
+
+      if (raw === "#top") return "#top";
+
+      const wanted = raw.startsWith("#") ? raw.slice(1) : raw;
+      if (!wanted) return null;
+
+      // direct id exists
+      if (document.getElementById(wanted)) return `#${wanted}`;
+
+      // try alias (e.g. #preuves)
+      const ali = aliasToId.get(slugify(wanted));
+      if (ali && document.getElementById(ali)) return `#${ali}`;
+
+      return null;
+    };
+
+    const scrollToId = (id: string, behavior: ScrollBehavior = "auto") => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      // offset-aware anchor
+      const y =
+        el.getBoundingClientRect().top + window.scrollY - headerOffsetPx();
+      window.scrollTo({ top: Math.max(0, y), behavior });
+    };
+
+    // 1) hash sync (deep link / manual typing)
+    const applyHash = () => {
+      const resolved = resolveHashToHref(window.location.hash);
+      if (!resolved) return;
+
+      if (resolved === "#top") {
+        setActiveHref("#top");
+        window.scrollTo({ top: 0, behavior: "auto" });
+        return;
+      }
+
+      const id = resolved.slice(1);
+
+      // optional: treat first real section as Accueil
+      if (firstRealId && id === firstRealId) {
+        setActiveHref("#top");
+      } else {
+        setActiveHref(resolved);
+      }
+
+      // fix the “lands under header / looks like on top” issue
+      // if the browser already scrolled, we still re-apply offset.
+      scrollToId(id, "auto");
+    };
+
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+
+    // 2) clicking anchors => immediate highlight + alias support
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      const a = target.closest("a[href^='#']") as HTMLAnchorElement | null;
+      if (!a) return;
+
+      const hrefRaw = (a.getAttribute("href") || "").trim();
+      if (!hrefRaw.startsWith("#")) return;
+
+      if (hrefRaw === "#top") {
+        setActiveHref("#top");
+        return;
+      }
+
+      const wanted = hrefRaw.slice(1);
+      if (!wanted) return;
+
+      // direct id exists
+      if (document.getElementById(wanted)) {
+        if (firstRealId && wanted === firstRealId) setActiveHref("#top");
+        else setActiveHref(`#${wanted}`);
+        return;
+      }
+
+      // alias -> real id
+      const ali = aliasToId.get(slugify(wanted));
+      if (ali && document.getElementById(ali)) {
+        // keep URL clean by rewriting to real id
+        window.location.hash = ali;
+        if (firstRealId && ali === firstRealId) setActiveHref("#top");
+        else setActiveHref(`#${ali}`);
+      }
+    };
+
+    // capture so it fires even if inner spans etc.
+    document.addEventListener("click", onClick, true);
+
+    // 3) IO: active section while scrolling
+    const onScrollTop = () => {
+      if (isNearTop()) setActiveHref("#top");
+    };
+
+    let obs: IntersectionObserver | null = null;
+
+    if (observableIds.length) {
+      obs = new IntersectionObserver(
+        (entries) => {
+          if (isNearTop()) {
+            setActiveHref("#top");
+            return;
+          }
+
+          const best = entries
+            .filter((e) => e.isIntersecting)
+            .sort(
+              (a, b) => (b.intersectionRatio || 0) - (a.intersectionRatio || 0)
+            )[0];
+
+          if (!best) return;
+
+          const id = (best.target as HTMLElement).id;
+          if (!id) return;
+
+          if (firstRealId && id === firstRealId) {
+            setActiveHref("#top");
+            return;
+          }
+
+          setActiveHref(`#${id}`);
+        },
+        { rootMargin: "-30% 0px -60% 0px", threshold: [0.12, 0.2, 0.35] }
+      );
+
+      for (const id of observableIds) {
+        const el = document.getElementById(id);
+        if (el) obs.observe(el);
+      }
+    }
+
+    window.addEventListener("scroll", onScrollTop, { passive: true });
+    onScrollTop();
+
+    return () => {
+      window.removeEventListener("hashchange", applyHash);
+      document.removeEventListener("click", onClick, true);
+      window.removeEventListener("scroll", onScrollTop as any);
+      obs?.disconnect();
+    };
+  }, [
+    mounted,
+    observableIds,
+    firstRealId,
+    aliasToId,
+    slugify,
+    headerOffsetPx,
+    isNearTop,
+  ]);
 
   // wrapper auto-hooks for FX classes
   // IMPORTANT: shimmer is NOT applied here anymore (opt-in on buttons via .fx-cta)
@@ -301,7 +514,6 @@ export default function TemplateEngine({
     (s: Section, node: React.ReactNode, key: React.Key, variant: string) => {
       const t = String(s.type || "");
       if (t === "header" || t === "top") {
-        // ensure key is on the returned element (fix React key warning)
         return <React.Fragment key={key}>{node}</React.Fragment>;
       }
 
@@ -334,42 +546,24 @@ export default function TemplateEngine({
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxImg, closeLightbox]);
 
+  // IMPORTANT:
+  // We DO NOT set --header-offset here anymore.
+  // LegacyHeader / ProHeader already set:
+  //  - --header-h
+  //  - --header-offset (height + margin)
+  //  - scrollPaddingTop
+  // If we overwrite it here, Accueil & anchors become flaky.
+
   const headerRef = React.useRef<HTMLElement>(null);
-
-  // expose header height as CSS var (for scrollMarginTop etc.)
-  React.useEffect(() => {
-    if (!mounted) return;
-    const el = headerRef.current;
-    if (!el) return;
-
-    const setVar = () => {
-      const h = el.getBoundingClientRect().height || 84;
-      document.documentElement.style.setProperty(
-        "--header-offset",
-        `${Math.round(h)}px`
-      );
-    };
-
-    setVar();
-    const ro = new ResizeObserver(setVar);
-    ro.observe(el);
-    window.addEventListener("resize", setVar);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", setVar);
-    };
-  }, [mounted]);
 
   return (
     <div
       className={cx(
         "min-h-screen",
-        // ✅ bgPage/text are CLASSES (tailwind), not css values
         theme.bgPage,
         theme.text,
         fx.enabled && fx.ambient && "fx-ambient"
       )}
-      // ✅ canvas vars in style (CSS vars)
       style={{ ...(theme.canvasVar ?? {}) }}
     >
       <FxStyles enabled={!!fx.enabled} ambient={!!fx.ambient} />
@@ -396,6 +590,11 @@ export default function TemplateEngine({
               isScrolled={isScrolled}
               scrollT={scrollT}
               headerRef={type === "header" ? headerRef : undefined}
+              headerVariant={
+                type === "header"
+                  ? String((s as any).variant ?? "A")
+                  : undefined
+              }
               fx={fx}
               enableLightbox
               onOpen={(img: any) => setLightboxImg(img)}
@@ -404,7 +603,6 @@ export default function TemplateEngine({
               options={(liveConfig as any).options}
               layout={(liveConfig as any).options?.layout}
               maxDirectLinksInMenu={maxDirectLinksInMenu}
-              // ✅ pass canvasVar so header/menu can reuse exact surface
               canvasVar={theme.canvasVar}
               canvasStyle={canvasStyle}
             />
@@ -450,3 +648,10 @@ export default function TemplateEngine({
     </div>
   );
 }
+
+/*
+PS (Charcoal header noir “décalé”):
+- c’est côté Header (legacy/pro) quand hasCanvas=false, il met un fallback bg-slate-950.
+- si ton thème charcoal n’injecte pas de canvasVar (--te-canvas), hasCanvas reste false.
+- donc le fix final est dans legacy/pro header: remplacer le fallback bg-slate-950 par un fallback basé sur le thème (ex: theme.bgPage ou un token bgHeader).
+*/

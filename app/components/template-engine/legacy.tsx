@@ -140,8 +140,10 @@ function SocialRow({
 }
 
 /* ============================================================
-   BLOC 1D — OVERFLOW MENU (desktop)
-   - ✅ match header style when canvas is active
+   BLOC 1D — OVERFLOW MENU (desktop) — V2030 UX (compile-safe)
+   - ✅ trigger "Plus" devient ACTIF quand un sous-item est actif
+   - ✅ peut recevoir un buttonClassName (pour NavB pill)
+   - ✅ strong z-index (backdrop-filter safe)
    ============================================================ */
 
 function DesktopOverflowMenu({
@@ -150,82 +152,89 @@ function DesktopOverflowMenu({
   items,
   menuStyle,
   hasCanvas,
+  active = false,
+  buttonClassName,
+  showCaret = true,
 }: {
   theme: ThemeLike;
   label?: string;
   items: { href: string; label: string }[];
   menuStyle?: React.CSSProperties;
   hasCanvas?: boolean;
+  active?: boolean;
+  buttonClassName?: string;
+  showCaret?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    const onDown = (e: MouseEvent) => {
+    function onDoc(e: MouseEvent) {
       if (!open) return;
       const el = ref.current;
       if (!el) return;
-      if (el.contains(e.target as any)) return;
-      setOpen(false);
-    };
-
-    const onKey = (e: KeyboardEvent) => {
+      if (!el.contains(e.target as any)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
       if (!open) return;
       if (e.key === "Escape") setOpen(false);
-    };
-
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
     };
   }, [open]);
 
-  if (!items.length) return null;
+  if (!items?.length) return null;
+
+  // fallback si "canvas actif" mais menuStyle absent
+  const canvasFallbackStyle: React.CSSProperties = {
+    backgroundColor:
+      "color-mix(in srgb, var(--te-canvas, #0b0b0c) 85%, transparent)",
+    backdropFilter: "blur(14px)",
+    WebkitBackdropFilter: "blur(14px)",
+  };
+
+  // future-proof: si menuStyle existe, on le traite comme "canvas-like"
+  const useCanvasLike = Boolean(menuStyle) || Boolean(hasCanvas);
 
   return (
-    <div ref={ref} className="relative hidden md:block">
+    <div ref={ref} className="relative">
       <button
         type="button"
-        className={cx(
-          "group relative transition-colors px-2 py-1 rounded-lg",
-          theme.isDark
-            ? "text-white/80 hover:text-white"
-            : "text-slate-700 hover:text-slate-950"
-        )}
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
         aria-expanded={open}
+        className={cx(
+          // default trigger (NavA/C): inherit color, just play opacity
+          "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition text-inherit",
+          buttonClassName
+            ? buttonClassName
+            : cx(
+                active ? "opacity-100" : "opacity-80 hover:opacity-100",
+                open && "opacity-100"
+              )
+        )}
       >
         {label}
-        <span
-          className={cx(
-            "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity opacity-0 group-hover:opacity-100",
-            theme.accentFrom,
-            theme.accentTo
-          )}
-        />
+        {showCaret ? (
+          <span className={cx("transition", open ? "rotate-180" : "")}>▾</span>
+        ) : null}
       </button>
 
       {open ? (
         <div
           role="menu"
-          style={
-            hasCanvas
-              ? {
-                  ...(menuStyle ?? {}),
-                  // menu shadow plus doux que le header
-                  boxShadow: "0 14px 40px rgba(0,0,0,0.22)",
-                }
-              : undefined
-          }
+          style={useCanvasLike ? menuStyle ?? canvasFallbackStyle : undefined}
           className={cx(
-            "absolute right-0 mt-3 w-56 overflow-hidden border rounded-2xl backdrop-blur",
-            theme.isDark
-              ? "border-white/10 text-white"
-              : "border-slate-200 text-slate-900",
-            !hasCanvas && (theme.isDark ? "bg-slate-950/95" : "bg-white/90")
+            // ✅ strong z-index + keep dropdown above header shadows/backdrop contexts
+            "absolute right-0 z-[999] mt-3 w-56 overflow-hidden rounded-2xl border shadow-lg backdrop-blur",
+            useCanvasLike
+              ? "border-black/10 text-inherit"
+              : theme.isDark
+              ? "border-white/10 bg-slate-950/95 text-white"
+              : "border-slate-200 bg-white/85 text-slate-900"
           )}
         >
           {items.map((it) => (
@@ -233,11 +242,28 @@ function DesktopOverflowMenu({
               key={it.href}
               href={it.href}
               role="menuitem"
-              className={cx(
-                "block px-4 py-3 text-sm font-semibold",
-                theme.isDark ? "hover:bg-white/10" : "hover:bg-slate-50"
-              )}
               onClick={() => setOpen(false)}
+              className={cx(
+                "block px-4 py-3 text-sm font-semibold transition",
+                // active row highlight
+                it.href ===
+                  (typeof window !== "undefined" ? window.location.hash : "")
+                  ? useCanvasLike
+                    ? theme.isDark
+                      ? "bg-white/10"
+                      : "bg-black/5"
+                    : theme.isDark
+                    ? "bg-white/10"
+                    : "bg-slate-50"
+                  : "",
+                useCanvasLike
+                  ? theme.isDark
+                    ? "hover:bg-white/10"
+                    : "hover:bg-black/5"
+                  : theme.isDark
+                  ? "hover:bg-white/10"
+                  : "hover:bg-slate-50"
+              )}
             >
               {it.label}
             </a>
@@ -273,12 +299,14 @@ export function LegacyHeader(props: {
   scrollT?: number;
   layout?: LayoutTokens;
   globalLayout?: LayoutTokens;
+
+  // canvas plumbing
   canvasStyle?: "classic" | "immersive";
   canvasVar?: React.CSSProperties;
 }) {
   const { theme, brand, headerVariant, headerRef, showTeam, contact } = props;
 
-  // ✅ unify
+  // ✅ unify (old + new prop name)
   const maxDirectLinks = Number(
     (props as any).maxDirectLinksInMenu ?? (props as any).maxDirectLinks ?? 4
   );
@@ -305,6 +333,9 @@ export function LegacyHeader(props: {
 
   const navBase = "text-[12px] font-semibold uppercase tracking-[0.14em]";
 
+  // ------------------------------------------------------------
+  // Logo
+  // ------------------------------------------------------------
   const logoEnabled = (brand as any)?.logo?.enabled !== false;
   const logoMode =
     (((brand as any)?.logo?.mode ?? "logoPlusText") as LogoMode) ||
@@ -417,6 +448,7 @@ export function LegacyHeader(props: {
     | SocialConfig
     | undefined;
 
+  // sections → nav links (prefer real config)
   const secs = Array.isArray((props as any).sections)
     ? (props as any).sections
     : [];
@@ -429,6 +461,7 @@ export function LegacyHeader(props: {
     })
     .filter(Boolean) as { href: string; label: string }[];
 
+  // fallback links if config not providing good titles
   const direct = (props.galleryLinks ?? []).slice(
     0,
     Math.max(0, maxDirectLinks || 0)
@@ -454,6 +487,12 @@ export function LegacyHeader(props: {
   const inlineLinks = linksAll.slice(0, MAX_INLINE);
   const overflowLinks = linksAll.slice(MAX_INLINE);
 
+  // ✅ overflow active if current section belongs to overflow
+  const overflowActive =
+    overflowLinks.some((x) => x.href === activeHref) ||
+    // edge: if hash is unknown, keep Plus inactive; we don't guess
+    false;
+
   const headerPos = "fixed left-0 right-0 top-0";
   const headerZ = "z-50";
   const Spacer = (
@@ -461,15 +500,17 @@ export function LegacyHeader(props: {
   );
 
   /* ============================================================
-     CANVAS STYLE (header)
+     CANVAS STYLE (header + menus)
      ============================================================ */
 
+  // ✅ SINGLE source-of-truth canvas vars
   const canvasVar = ((props as any)?.canvasVar ??
     (theme as any)?.canvasVar ??
     {}) as React.CSSProperties;
 
   const hasCanvas = !!(canvasVar as any)?.["--te-canvas"];
 
+  // Header style (ton look actuel)
   const headerStyle: React.CSSProperties | undefined = hasCanvas
     ? {
         ...canvasVar,
@@ -482,6 +523,22 @@ export function LegacyHeader(props: {
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
         boxShadow: "0 6px 22px rgba(0,0,0,0.35)",
+      }
+    : undefined;
+
+  // ✅ MENU style (utilisé par DesktopOverflowMenu)
+  const menuStyle: React.CSSProperties | undefined = hasCanvas
+    ? {
+        ...canvasVar,
+        backgroundColor: isScrolled
+          ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 90%, transparent)"
+          : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 78%, transparent)",
+        backgroundImage: isScrolled
+          ? "linear-gradient(rgba(0,0,0,0.10), rgba(0,0,0,0.10))"
+          : "linear-gradient(rgba(0,0,0,0.12), rgba(0,0,0,0.12))",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.28)",
       }
     : undefined;
 
@@ -514,16 +571,54 @@ export function LegacyHeader(props: {
   );
 
   /* ============================================================
+     NAV TOKENS (canvas-first)
+     ============================================================ */
+
+  const navTextClass = hasCanvas
+    ? "text-inherit"
+    : theme.isDark
+    ? "text-white/80"
+    : "text-slate-700";
+
+  const navHoverTextClass = hasCanvas
+    ? "text-inherit"
+    : theme.isDark
+    ? "hover:text-white"
+    : "hover:text-slate-950";
+
+  const navShellClass = cx(
+    "hidden md:flex items-center gap-2 rounded-2xl border p-1.5 backdrop-blur",
+    hasCanvas
+      ? "border-white/10 bg-white/5"
+      : theme.isDark
+      ? "border-white/10 bg-white/5"
+      : "border-black/10 bg-white/40"
+  );
+
+  const pillBase = cx(
+    "rounded-2xl px-5 py-2 transition text-center hover:-translate-y-[1px] active:translate-y-0",
+    navBase
+  );
+
+  const pillActive = hasCanvas
+    ? "text-inherit bg-white/15 shadow-sm"
+    : theme.isDark
+    ? "text-white bg-white/10 shadow-sm"
+    : "text-slate-950 bg-white/90 shadow-sm";
+
+  const pillIdle = hasCanvas
+    ? "text-inherit opacity-80 hover:opacity-100 hover:bg-white/10"
+    : theme.isDark
+    ? "text-white/80 hover:text-white hover:bg-white/10"
+    : "text-slate-900/90 hover:text-slate-950 hover:bg-white/70 hover:shadow-sm";
+
+  /* ============================================================
      NAV Variants
      ============================================================ */
 
   const NavA = () => (
     <nav
-      className={cx(
-        "hidden md:flex items-center gap-7",
-        navBase,
-        theme.isDark ? "text-white/80" : "text-slate-700"
-      )}
+      className={cx("hidden md:flex items-center gap-7", navBase, navTextClass)}
     >
       {inlineLinks.map((lnk) => {
         const active = lnk.href === activeHref;
@@ -533,8 +628,11 @@ export function LegacyHeader(props: {
             href={lnk.href}
             className={cx(
               "group relative transition-colors",
-              theme.isDark ? "hover:text-white" : "hover:text-slate-950",
-              active && (theme.isDark ? "text-white" : "text-slate-950")
+              navHoverTextClass,
+              hasCanvas && !active && "opacity-80 hover:opacity-100",
+              active &&
+                !hasCanvas &&
+                (theme.isDark ? "text-white" : "text-slate-950")
             )}
           >
             {lnk.label}
@@ -549,65 +647,77 @@ export function LegacyHeader(props: {
           </a>
         );
       })}
-      <DesktopOverflowMenu
-        theme={theme}
-        items={overflowLinks}
-        menuStyle={headerStyle}
-        hasCanvas={hasCanvas}
-      />
+
+      {overflowLinks.length ? (
+        <div className="relative">
+          {/* underline for Plus (when overflow active) */}
+          <div className="group relative">
+            <DesktopOverflowMenu
+              theme={theme}
+              items={overflowLinks}
+              menuStyle={menuStyle}
+              hasCanvas={hasCanvas}
+              active={overflowActive}
+              // default button is fine for NavA; we just want active opacity
+            />
+            <span
+              className={cx(
+                "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
+                theme.accentFrom,
+                theme.accentTo,
+                overflowActive
+                  ? "opacity-100"
+                  : "opacity-0 group-hover:opacity-100"
+              )}
+            />
+          </div>
+        </div>
+      ) : null}
     </nav>
   );
 
-  const NavB = () => (
-    <nav
-      className={cx(
-        "hidden md:flex items-center gap-2 rounded-2xl border p-1.5 backdrop-blur",
-        theme.isDark
-          ? "border-white/10 bg-white/5"
-          : "border-slate-200 bg-slate-50"
-      )}
-    >
-      {inlineLinks.map((lnk) => {
-        const active = lnk.href === activeHref;
-        const activePill = theme.isDark
-          ? "text-white bg-white/10 shadow-sm"
-          : "text-slate-950 bg-white shadow-sm";
-        const idlePill = theme.isDark
-          ? "text-white/80 hover:text-white hover:bg-white/10"
-          : "text-slate-700 hover:text-slate-950 hover:bg-white hover:shadow-sm";
+  const NavB = () => {
+    return (
+      <nav className={navShellClass}>
+        {inlineLinks.map((lnk) => {
+          const active = lnk.href === activeHref;
+          return (
+            <a
+              key={lnk.href}
+              href={lnk.href}
+              className={cx(pillBase, active ? pillActive : pillIdle)}
+            >
+              {lnk.label}
+            </a>
+          );
+        })}
 
-        return (
-          <a
-            key={lnk.href}
-            href={lnk.href}
-            className={cx(
-              "rounded-2xl px-5 py-2 transition text-center hover:-translate-y-[1px] active:translate-y-0",
-              navBase,
-              active ? activePill : idlePill
-            )}
-          >
-            {lnk.label}
-          </a>
-        );
-      })}
-
-      <div className="hidden md:block">
-        <DesktopOverflowMenu
-          theme={theme}
-          items={overflowLinks}
-          menuStyle={headerStyle}
-          hasCanvas={hasCanvas}
-        />
-      </div>
-    </nav>
-  );
+        {overflowLinks.length ? (
+          <div className="hidden md:block">
+            <DesktopOverflowMenu
+              theme={theme}
+              items={overflowLinks}
+              menuStyle={menuStyle}
+              hasCanvas={hasCanvas}
+              active={overflowActive}
+              // ✅ make "Plus" a pill like others
+              buttonClassName={cx(
+                pillBase,
+                overflowActive ? pillActive : pillIdle
+              )}
+            />
+          </div>
+        ) : null}
+      </nav>
+    );
+  };
 
   const NavC = () => (
     <nav
       className={cx(
         "hidden md:flex items-center justify-center gap-8",
         navBase,
-        theme.isDark ? "text-white/80" : "text-slate-700"
+        navTextClass
       )}
     >
       {inlineLinks.map((lnk) => {
@@ -618,8 +728,11 @@ export function LegacyHeader(props: {
             href={lnk.href}
             className={cx(
               "group relative transition-colors",
-              theme.isDark ? "hover:text-white" : "hover:text-slate-950",
-              active && (theme.isDark ? "text-white" : "text-slate-950")
+              navHoverTextClass,
+              hasCanvas && !active && "opacity-80 hover:opacity-100",
+              active &&
+                !hasCanvas &&
+                (theme.isDark ? "text-white" : "text-slate-950")
             )}
           >
             {lnk.label}
@@ -634,12 +747,28 @@ export function LegacyHeader(props: {
           </a>
         );
       })}
-      <DesktopOverflowMenu
-        theme={theme}
-        items={overflowLinks}
-        menuStyle={headerStyle}
-        hasCanvas={hasCanvas}
-      />
+
+      {overflowLinks.length ? (
+        <div className="group relative">
+          <DesktopOverflowMenu
+            theme={theme}
+            items={overflowLinks}
+            menuStyle={menuStyle}
+            hasCanvas={hasCanvas}
+            active={overflowActive}
+          />
+          <span
+            className={cx(
+              "pointer-events-none absolute left-1/2 -translate-x-1/2 -bottom-2 h-[2px] w-10 bg-gradient-to-r transition-opacity",
+              theme.accentFrom,
+              theme.accentTo,
+              overflowActive
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100"
+            )}
+          />
+        </div>
+      ) : null}
     </nav>
   );
 
@@ -651,7 +780,7 @@ export function LegacyHeader(props: {
     const phone = contact?.phone ?? "";
     const email = contact?.email ?? "";
 
-    const pillBase = cx(
+    const pillBaseD = cx(
       "rounded-2xl border px-4 transition-all duration-200 backdrop-blur",
       theme.isDark
         ? "border-white/10 bg-white/5"
@@ -693,7 +822,7 @@ export function LegacyHeader(props: {
             >
               {phone ? (
                 <div
-                  className={cx("max-w-[220px]", pillBase)}
+                  className={cx("max-w-[220px]", pillBaseD)}
                   style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
                 >
                   <div
@@ -714,7 +843,7 @@ export function LegacyHeader(props: {
 
               {email ? (
                 <div
-                  className={cx("max-w-[260px]", pillBase)}
+                  className={cx("max-w-[260px]", pillBaseD)}
                   style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
                 >
                   <div

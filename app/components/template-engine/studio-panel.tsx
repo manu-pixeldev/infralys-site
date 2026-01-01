@@ -25,7 +25,7 @@ import {
 
 import { CSS } from "@dnd-kit/utilities";
 
-import { VARIANTS_BY_TYPE } from "./variants";
+import { VARIANTS, VARIANTS_BY_TYPE } from "./variants";
 import type { SocialKind } from "./socials";
 import { SOCIAL_DEFS } from "./socials";
 
@@ -160,6 +160,56 @@ function isTypingTarget(el: any) {
     tag === "select" ||
     !!el?.isContentEditable
   );
+}
+
+/**
+ * ✅ Robust variants resolver:
+ * - Prefer VARIANTS_BY_TYPE (explicit ordering)
+ * - Fallback to Object.keys(VARIANTS[type]) if BY_TYPE is stale/incorrect
+ * - Stable ordering for header: A..K then PRO
+ */
+function getVariantOptions(type: string): readonly string[] | null {
+  const t = String(type || "").trim();
+  const byType = (VARIANTS_BY_TYPE as any)?.[t] as
+    | readonly string[]
+    | undefined;
+
+  if (Array.isArray(byType) && byType.length) return byType;
+
+  const reg = (VARIANTS as any)?.[t];
+  if (!reg) return null;
+
+  const keys = Object.keys(reg);
+  if (!keys.length) return null;
+
+  if (t === "header") {
+    const order = [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J",
+      "K",
+      "PRO",
+    ];
+    const rank = new Map(order.map((v, i) => [v, i]));
+    keys.sort((a, b) => {
+      const ra = rank.get(a) ?? 999;
+      const rb = rank.get(b) ?? 999;
+      if (ra !== rb) return ra - rb;
+      return String(a).localeCompare(String(b));
+    });
+    return keys;
+  }
+
+  // default: alpha (stable enough)
+  keys.sort((a, b) => String(a).localeCompare(String(b)));
+  return keys;
 }
 
 /** Very small color helpers */
@@ -361,9 +411,10 @@ function SectionCard({
     transition,
   };
 
-  const opts = (VARIANTS_BY_TYPE[String(s.type)] ?? null) as
+  const opts = (getVariantOptions(String(s.type)) ?? null) as
     | readonly string[]
     | null;
+
   const current = String(s.variant ?? "A");
   const value = opts && opts.includes(current) ? current : opts?.[0] ?? current;
 
@@ -961,7 +1012,7 @@ export function StudioPanel({
     const s = sectionsView.find((x: any) => String(x.id) === String(id));
     if (!s) return;
 
-    const opts = (VARIANTS_BY_TYPE[String(s.type)] ?? null) as
+    const opts = (getVariantOptions(String(s.type)) ?? null) as
       | readonly string[]
       | null;
     if (!opts?.length) return;
