@@ -1,4 +1,3 @@
-// app/components/template-engine/fx-styles.tsx
 "use client";
 
 import React from "react";
@@ -15,6 +14,9 @@ export function FxStyles({
 
   return (
     <style jsx global>{`
+      /* ============================================================
+         BORDER SCAN (needs .fx-border-scan on wrapper)
+         ============================================================ */
       @keyframes scanBorder {
         0% {
           background-position: 0% 50%;
@@ -26,77 +28,126 @@ export function FxStyles({
 
       .fx-border-scan {
         position: relative;
+        isolation: isolate;
       }
+
       .fx-border-scan::before {
         content: "";
         position: absolute;
         inset: -1px;
-        border-radius: 24px;
+        border-radius: inherit;
         padding: 1px;
+
         background: linear-gradient(
             90deg,
             rgba(255, 255, 255, 0) 0%,
-            rgba(255, 255, 255, 0.25) 25%,
+            rgba(255, 255, 255, 0.55) 25%,
             rgba(255, 255, 255, 0) 50%
           )
           0% 50% / 200% 200%;
+
+        mix-blend-mode: screen;
+
         mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
         -webkit-mask: linear-gradient(#000 0 0) content-box,
           linear-gradient(#000 0 0);
         mask-composite: exclude;
         -webkit-mask-composite: xor;
-        opacity: 0.55;
+
+        opacity: 0.75;
         pointer-events: none;
-        animation: scanBorder 5s linear infinite;
+        animation: scanBorder 4.2s linear infinite;
+        z-index: 2;
       }
 
+      /* ============================================================
+         SOFT GLOW
+         ============================================================ */
       .fx-softglow {
         box-shadow: 0 18px 60px rgba(0, 0, 0, 0.08);
       }
 
+      /* ============================================================
+         SHIMMER CTA (OPT-IN ONLY)
+         - No longer applied to whole wrappers.
+         - Apply class .fx-cta on buttons/CTAs.
+         ============================================================ */
       @keyframes shimmer {
         0% {
-          transform: translateX(-120%) skewX(-18deg);
+          transform: translateX(-140%) skewX(-18deg);
           opacity: 0;
         }
-        20% {
+        18% {
           opacity: 0.55;
         }
         60% {
-          opacity: 0.35;
+          opacity: 0.28;
         }
         100% {
-          transform: translateX(120%) skewX(-18deg);
+          transform: translateX(140%) skewX(-18deg);
           opacity: 0;
         }
       }
-      .fx-shimmer {
+
+      /* opt-in target */
+      .fx-cta {
         position: relative;
         overflow: hidden;
+        isolation: isolate;
       }
-      .fx-shimmer::after {
+      .fx-cta::after {
         content: "";
         position: absolute;
-        top: -20%;
-        left: -40%;
-        width: 40%;
-        height: 140%;
+        top: -35%;
+        left: -55%;
+        width: 55%;
+        height: 170%;
         background: linear-gradient(
           90deg,
           transparent,
-          rgba(255, 255, 255, 0.35),
+          rgba(255, 255, 255, 0.55),
+          transparent
+        );
+        pointer-events: none;
+        z-index: 2;
+        animation: shimmer 2.8s ease-in-out infinite;
+      }
+
+      /* if you still want wrappers to shimmer, keep this alias
+         BUT it will not be auto-added anymore by TemplateEngine */
+      .fx-shimmer,
+      .fx-shimmer-cta {
+        position: relative;
+        overflow: hidden;
+        isolation: isolate;
+      }
+      .fx-shimmer::after,
+      .fx-shimmer-cta::after {
+        content: "";
+        position: absolute;
+        top: -35%;
+        left: -55%;
+        width: 55%;
+        height: 170%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.55),
           transparent
         );
         animation: shimmer 2.8s ease-in-out infinite;
         pointer-events: none;
+        z-index: 2;
       }
 
+      /* ============================================================
+         AMBIENT
+         ============================================================ */
       ${ambient
         ? `
-        /* ✅ FX AMBIENT SAFE : stacking context isolé */
         .fx-ambient {
           position: relative;
-          isolation: isolate; /* clé: protège header + évite z-index qui leak */
+          isolation: isolate;
           overflow: hidden;
         }
         .fx-ambient::before {
@@ -113,7 +164,9 @@ export function FxStyles({
       `
         : ``}
 
-      /* Reveal one-shot */
+      /* ============================================================
+         Reveal one-shot
+         ============================================================ */
       .reveal {
         will-change: opacity, transform;
         transition: opacity 520ms ease, transform 520ms ease;
@@ -133,6 +186,12 @@ export function FxStyles({
           opacity: 1 !important;
           transform: none !important;
           transition: none !important;
+        }
+        .fx-border-scan::before,
+        .fx-shimmer::after,
+        .fx-shimmer-cta::after,
+        .fx-cta::after {
+          animation: none !important;
         }
       }
     `}</style>

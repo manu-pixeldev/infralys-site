@@ -3,6 +3,7 @@
 
 import React from "react";
 import type { TemplateConfigInput } from "./types";
+import type { ThemeLike } from "./theme";
 
 import {
   DndContext,
@@ -55,6 +56,16 @@ const CANVAS = [
   "paper",
   "frost",
   "sand",
+
+  // ✅ LIGHT SIGNATURE (V14)
+  "porcelain",
+  "cloud",
+  "latte",
+  "sage",
+  "clay",
+  "lilac",
+
+  // legacy light
   "warm",
   "cool",
   "forest",
@@ -72,8 +83,19 @@ const CANVAS = [
   "aurora",
   "volcano",
   "cyber",
+
+  // 🤡 fun
+  "broken",
 ] as const;
 
+const SIGNATURE_CANVAS = new Set([
+  "porcelain",
+  "cloud",
+  "latte",
+  "sage",
+  "clay",
+  "lilac",
+]);
 
 const CONTAINERS = ["5xl", "6xl", "7xl", "full"] as const;
 const DENSITIES = ["compact", "normal", "spacious"] as const;
@@ -83,7 +105,6 @@ const LOGO_MODES = ["logoPlusText", "logoOnly", "textOnly"] as const;
 
 type DockSide = "left" | "right";
 type CanvasStyle = "classic" | "immersive";
-
 type AutoAccentMode = "off" | "muted" | "vivid";
 
 /* ------------------------ utils ------------------------ */
@@ -100,13 +121,16 @@ function clone<T>(v: T): T {
 
 function clampIndex(i: number, len: number) {
   if (len <= 0) return 0;
-  return (i % len + len) % len;
+  return ((i % len) + len) % len;
 }
 
 function parseThemeVariant(v?: string) {
   const raw = String(v ?? "amberOrange|classic").trim();
   const [a, c] = raw.includes("|") ? raw.split("|") : [raw, "classic"];
-  return { accent: (a || "amberOrange").trim(), canvas: (c || "classic").trim() };
+  return {
+    accent: (a || "amberOrange").trim(),
+    canvas: (c || "classic").trim(),
+  };
 }
 
 function joinThemeVariant(accent: string, canvas: string) {
@@ -130,7 +154,12 @@ function cycleInList(current: string, list: readonly string[], dir: -1 | 1) {
 
 function isTypingTarget(el: any) {
   const tag = String(el?.tagName ?? "").toLowerCase();
-  return tag === "input" || tag === "textarea" || tag === "select" || !!el?.isContentEditable;
+  return (
+    tag === "input" ||
+    tag === "textarea" ||
+    tag === "select" ||
+    !!el?.isContentEditable
+  );
 }
 
 /** Very small color helpers */
@@ -166,15 +195,13 @@ function rgbToHsl(r: number, g: number, b: number) {
 
 /**
  * Extract a dominant-ish color from an image via canvas sampling.
- * - Works best for same-origin images.
- * - If CORS blocks, it throws -> caller should fallback safely.
+ * If CORS blocks -> throws -> caller should fallback safely.
  */
 async function extractDominantRgb(
   src: string
 ): Promise<{ r: number; g: number; b: number } | null> {
   if (!src) return null;
 
-  // data: URLs OK; local public paths OK; external needs CORS
   const img = new Image();
   img.crossOrigin = "anonymous";
 
@@ -200,7 +227,6 @@ async function extractDominantRgb(
 
   const data = ctx.getImageData(0, 0, w, h).data;
 
-  // simple weighted average ignoring near-transparent + near-white/near-black
   let rSum = 0,
     gSum = 0,
     bSum = 0,
@@ -213,10 +239,9 @@ async function extractDominantRgb(
       g = data[i + 1],
       b = data[i + 2];
 
-    // ignore extreme backgrounds
     const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    if (lum > 245) continue; // near-white
-    if (lum < 10) continue; // near-black
+    if (lum > 245) continue;
+    if (lum < 10) continue;
 
     rSum += r;
     gSum += g;
@@ -225,7 +250,11 @@ async function extractDominantRgb(
   }
 
   if (!count) return null;
-  return { r: Math.round(rSum / count), g: Math.round(gSum / count), b: Math.round(bSum / count) };
+  return {
+    r: Math.round(rSum / count),
+    g: Math.round(gSum / count),
+    b: Math.round(bSum / count),
+  };
 }
 
 function pickAccentFromHsl(
@@ -233,19 +262,14 @@ function pickAccentFromHsl(
   s: number,
   l: number,
   mode: AutoAccentMode
-): typeof ACCENTS[number] {
-  // if low saturation -> mono-ish
+): (typeof ACCENTS)[number] {
   if (s < 0.18) {
     if (l < 0.35) return "monoDark";
-    // give a bit of character:
     return mode === "vivid" ? "slateIndigo" : "monoDark";
   }
 
-  // map hue to closest buckets
-  // red(0) -> blueRed; orange(30) -> amberOrange; green(120) -> emeraldTeal; blue(210) -> slateIndigo; purple(290) -> purplePink
   const hue = h;
 
-  // "muted" tends to more slate/mono, "vivid" keeps color
   if (mode === "muted") {
     if (hue >= 90 && hue <= 170) return "emeraldTeal";
     if (hue >= 200 && hue <= 260) return "slateIndigo";
@@ -254,7 +278,6 @@ function pickAccentFromHsl(
     return "monoDark";
   }
 
-  // vivid (default)
   if (hue >= 90 && hue <= 170) return "emeraldTeal";
   if (hue >= 200 && hue <= 260) return "slateIndigo";
   if (hue >= 260 && hue <= 330) return "purplePink";
@@ -291,6 +314,21 @@ function IconBtn({
   );
 }
 
+function Badge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700">
+      {children}
+    </span>
+  );
+}
+
+function allSocialKinds(): SocialKind[] {
+  // robust: order stable, includes everything
+  return Object.keys(SOCIAL_DEFS) as SocialKind[];
+}
+
+/* ------------------------ sections card ------------------------ */
+
 function SectionCard({
   s,
   onToggleEnabled,
@@ -306,14 +344,26 @@ function SectionCard({
 }) {
   const locked = s.lock === true;
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
     id: s.id,
     disabled: locked,
   });
 
-  const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition };
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
-  const opts = (VARIANTS_BY_TYPE[String(s.type)] ?? null) as readonly string[] | null;
+  const opts = (VARIANTS_BY_TYPE[String(s.type)] ?? null) as
+    | readonly string[]
+    | null;
   const current = String(s.variant ?? "A");
   const value = opts && opts.includes(current) ? current : opts?.[0] ?? current;
 
@@ -366,7 +416,9 @@ function SectionCard({
             </button>
 
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-slate-900">{s.title ?? s.type}</div>
+              <div className="truncate text-sm font-semibold text-slate-900">
+                {s.title ?? s.type}
+              </div>
               <div className="truncate text-xs text-slate-500">
                 {s.type} — {s.id}
                 {locked ? " — lock" : ""}
@@ -402,14 +454,18 @@ function SectionCard({
       <div className="mt-3">
         {opts ? (
           <div className="flex items-center gap-2">
-            <IconBtn title="Variant précédent (←)" onClick={() => cycle(-1)} disabled={!opts?.length}>
+            <IconBtn
+              title="Variant précédent (←)"
+              onClick={() => cycle(-1)}
+              disabled={!opts?.length}
+            >
               ◀
             </IconBtn>
 
             <select
               value={value}
               onChange={(e) => onChangeVariant(s.id, e.target.value)}
-              className="h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+              className="h-10 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
               title="Variant"
               onKeyDown={(e) => {
                 if (e.key === "ArrowLeft") {
@@ -429,7 +485,11 @@ function SectionCard({
               ))}
             </select>
 
-            <IconBtn title="Variant suivant (→)" onClick={() => cycle(1)} disabled={!opts?.length}>
+            <IconBtn
+              title="Variant suivant (→)"
+              onClick={() => cycle(1)}
+              disabled={!opts?.length}
+            >
               ▶
             </IconBtn>
           </div>
@@ -444,7 +504,9 @@ function SectionCard({
 
         {opts?.length ? (
           <div className="mt-2 text-[11px] text-slate-500">
-            Tip: clique la carte puis utilise <span className="font-semibold">←</span>/<span className="font-semibold">→</span>
+            Tip: clique la carte puis utilise{" "}
+            <span className="font-semibold">←</span>/
+            <span className="font-semibold">→</span>
           </div>
         ) : null}
       </div>
@@ -452,18 +514,19 @@ function SectionCard({
   );
 }
 
-function allSocialKinds(): SocialKind[] {
-  return Object.keys(SOCIAL_DEFS) as SocialKind[];
-}
+/* ------------------------ main ------------------------ */
 
 export function StudioPanel({
   config,
   setConfig,
+  theme,
 }: {
   config: TemplateConfigInput;
   setConfig: React.Dispatch<React.SetStateAction<TemplateConfigInput>>;
+  theme?: ThemeLike;
 }) {
-  const themeVariantRaw = (config as any)?.options?.themeVariant ?? "amberOrange|classic";
+  const themeVariantRaw =
+    (config as any)?.options?.themeVariant ?? "amberOrange|classic";
   const { accent, canvas } = parseThemeVariant(themeVariantRaw);
 
   const ui = (config as any)?.options?.studio?.ui ?? {};
@@ -471,15 +534,20 @@ export function StudioPanel({
   const minimized = !!ui.minimized;
 
   const studioEnabled = !!(config as any)?.options?.studio?.enabled;
-  const canvasStyle: CanvasStyle = (((config as any)?.options?.canvasStyle ?? "classic") as CanvasStyle) || "classic";
+  const canvasStyle: CanvasStyle =
+    (((config as any)?.options?.canvasStyle ?? "classic") as CanvasStyle) ||
+    "classic";
 
-  // ✅ Auto accent settings
   const autoAccentMode: AutoAccentMode =
-    (((config as any)?.options?.autoAccentMode ?? "off") as AutoAccentMode) || "off";
+    (((config as any)?.options?.autoAccentMode ?? "off") as AutoAccentMode) ||
+    "off";
 
-  const update = (fn: (draft: any) => any) => setConfig((prev) => fn(clone(prev)));
+  const update = (fn: (draft: any) => any) =>
+    setConfig((prev) => fn(clone(prev)));
 
-  const setStudioUi = (patch: Partial<{ dock: DockSide; minimized: boolean }>) =>
+  const setStudioUi = (
+    patch: Partial<{ dock: DockSide; minimized: boolean }>
+  ) =>
     update((d) => {
       d.options = d.options ?? {};
       d.options.studio = d.options.studio ?? {};
@@ -488,7 +556,8 @@ export function StudioPanel({
       return d;
     });
 
-  const toggleDock = () => setStudioUi({ dock: dock === "right" ? "left" : "right" });
+  const toggleDock = () =>
+    setStudioUi({ dock: dock === "right" ? "left" : "right" });
   const toggleMinimize = () => setStudioUi({ minimized: !minimized });
 
   const setStudioEnabled = (v: boolean) =>
@@ -499,8 +568,14 @@ export function StudioPanel({
       return d;
     });
 
-  const accentIndex = Math.max(0, (ACCENTS as readonly string[]).indexOf(accent));
-  const canvasIndex = Math.max(0, (CANVAS as readonly string[]).indexOf(canvas));
+  const accentIndex = Math.max(
+    0,
+    (ACCENTS as readonly string[]).indexOf(accent)
+  );
+  const canvasIndex = Math.max(
+    0,
+    (CANVAS as readonly string[]).indexOf(canvas)
+  );
 
   const setThemeVariant = (nextAccent: string, nextCanvas: string) =>
     update((d) => {
@@ -533,17 +608,24 @@ export function StudioPanel({
       return d;
     });
 
-  // ✅ refs: keyboard focus-aware for theme selects (Option A)
+  // refs for keyboard focus-aware theme controls
   const accentSelectRef = React.useRef<HTMLSelectElement>(null);
   const canvasSelectRef = React.useRef<HTMLSelectElement>(null);
   const shellRef = React.useRef<HTMLDivElement>(null);
 
-  // ✅ keyboard scope + active section
-  const [activeScope, setActiveScope] = React.useState<null | "accent" | "canvas">(null);
-  const [activeSectionId, setActiveSectionId] = React.useState<string | null>(null);
+  const [activeScope, setActiveScope] = React.useState<
+    null | "accent" | "canvas"
+  >(null);
+  const [activeSectionId, setActiveSectionId] = React.useState<string | null>(
+    null
+  );
 
   // ✅ Auto accent effect (guarded)
-  const lastAutoRef = React.useRef<{ src: string; mode: AutoAccentMode; applied: string } | null>(null);
+  const lastAutoRef = React.useRef<{
+    src: string;
+    mode: AutoAccentMode;
+    applied: string;
+  } | null>(null);
   const logoSrc = String((config as any)?.brand?.logo?.src ?? "");
   React.useEffect(() => {
     if (autoAccentMode === "off") return;
@@ -551,8 +633,13 @@ export function StudioPanel({
 
     const key = { src: logoSrc, mode: autoAccentMode };
     const last = lastAutoRef.current;
-    if (last && last.src === key.src && last.mode === key.mode && last.applied === accent) {
-      return; // already applied for this exact state
+    if (
+      last &&
+      last.src === key.src &&
+      last.mode === key.mode &&
+      last.applied === accent
+    ) {
+      return;
     }
 
     let cancelled = false;
@@ -568,13 +655,24 @@ export function StudioPanel({
         if (cancelled) return;
         if (picked && picked !== accent) {
           setThemeVariant(picked, canvas);
-          lastAutoRef.current = { src: logoSrc, mode: autoAccentMode, applied: picked };
+          lastAutoRef.current = {
+            src: logoSrc,
+            mode: autoAccentMode,
+            applied: picked,
+          };
         } else {
-          lastAutoRef.current = { src: logoSrc, mode: autoAccentMode, applied: accent };
+          lastAutoRef.current = {
+            src: logoSrc,
+            mode: autoAccentMode,
+            applied: accent,
+          };
         }
       } catch {
-        // CORS / decode / canvas tainted -> just stop safely (no loops)
-        lastAutoRef.current = { src: logoSrc, mode: autoAccentMode, applied: accent };
+        lastAutoRef.current = {
+          src: logoSrc,
+          mode: autoAccentMode,
+          applied: accent,
+        };
       }
     })();
 
@@ -582,29 +680,39 @@ export function StudioPanel({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logoSrc, autoAccentMode]); // intentionally not depending on accent/canvas to avoid churn
+  }, [logoSrc, autoAccentMode, canvas, accent]);
 
   const maxDirect = Number((config as any)?.options?.maxDirectLinksInMenu ?? 4);
   const setMaxDirect = (n: number) =>
     update((d) => {
       d.options = d.options ?? {};
-      d.options.maxDirectLinksInMenu = Math.max(0, Math.min(12, Number.isFinite(n) ? n : 4));
+      d.options.maxDirectLinksInMenu = Math.max(
+        0,
+        Math.min(12, Number.isFinite(n) ? n : 4)
+      );
       return d;
     });
 
-  const currentContainer = ((config as any)?.options?.layout?.container ?? "7xl") as (typeof CONTAINERS)[number];
-  const currentDensity = ((config as any)?.options?.layout?.density ?? "normal") as (typeof DENSITIES)[number];
-  const currentRadius = Number((config as any)?.options?.layout?.radius ?? 24) as (typeof RADII)[number];
+  const currentContainer = ((config as any)?.options?.layout?.container ??
+    "7xl") as (typeof CONTAINERS)[number];
+  const currentDensity = ((config as any)?.options?.layout?.density ??
+    "normal") as (typeof DENSITIES)[number];
+  const currentRadius = Number(
+    (config as any)?.options?.layout?.radius ?? 24
+  ) as (typeof RADII)[number] | number;
 
-  const setLayoutToken = (key: "container" | "density" | "radius", value: any) =>
+  const setLayoutToken = (
+    key: "container" | "density" | "radius",
+    value: any
+  ) =>
     update((d) => {
       d.options = d.options ?? {};
       d.options.layout = { ...(d.options.layout ?? {}), [key]: value };
       return d;
     });
 
-  const currentLogoMode =
-    (((config as any)?.brand?.logo?.mode ?? "logoPlusText") as any) as (typeof LOGO_MODES)[number];
+  const currentLogoMode = ((config as any)?.brand?.logo?.mode ??
+    "logoPlusText") as any as (typeof LOGO_MODES)[number];
   const setLogoMode = (mode: (typeof LOGO_MODES)[number]) =>
     update((d) => {
       d.brand = d.brand ?? {};
@@ -625,7 +733,10 @@ export function StudioPanel({
     update((d) => {
       d.brand = d.brand ?? {};
       d.brand.logo = d.brand.logo ?? {};
-      d.brand.logo.width = Math.max(24, Math.min(512, Number.isFinite(w) ? w : 80));
+      d.brand.logo.width = Math.max(
+        24,
+        Math.min(512, Number.isFinite(w) ? w : 80)
+      );
       return d;
     });
 
@@ -633,7 +744,10 @@ export function StudioPanel({
     update((d) => {
       d.brand = d.brand ?? {};
       d.brand.logo = d.brand.logo ?? {};
-      d.brand.logo.height = Math.max(24, Math.min(512, Number.isFinite(h) ? h : 80));
+      d.brand.logo.height = Math.max(
+        24,
+        Math.min(512, Number.isFinite(h) ? h : 80)
+      );
       return d;
     });
 
@@ -661,28 +775,68 @@ export function StudioPanel({
     });
 
   // ---------------------------
-  // SOCIALS (content.socials)
+  // SOCIALS
   // ---------------------------
   const socialKinds = allSocialKinds();
   const socialsCfg = ((config as any)?.content?.socials ?? {}) as any;
-  const socialsOrder: SocialKind[] =
-    Array.isArray(socialsCfg.order) && socialsCfg.order.length ? socialsCfg.order : socialKinds;
 
   const ensureSocialsRoot = (d: any) => {
     d.content = d.content ?? {};
     d.content.socials = d.content.socials ?? {};
     d.content.socials.links = d.content.socials.links ?? {};
     d.content.socials.enabled = d.content.socials.enabled ?? {};
-    d.content.socials.order = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
+    d.content.socials.order = Array.isArray(d.content.socials.order)
+      ? d.content.socials.order
+      : [];
   };
+
+  // ✅ keep enabled list consistent with both "enabled map" and "order"
+  const enabledSocials: SocialKind[] = React.useMemo(() => {
+    const enabledMap = (socialsCfg.enabled ?? {}) as any;
+    const order: SocialKind[] =
+      Array.isArray(socialsCfg.order) && socialsCfg.order.length
+        ? socialsCfg.order
+        : socialKinds;
+
+    return order.filter((k) => enabledMap[k] !== false);
+  }, [socialsCfg.enabled, socialsCfg.order, socialKinds]);
+
+  // ✅ FIX: dropdown should show socials that are not currently active in BOTH order+enabled
+  const disabledSocials: SocialKind[] = React.useMemo(() => {
+    const enabledMap = (socialsCfg.enabled ?? {}) as any;
+    const order: SocialKind[] = Array.isArray(socialsCfg.order)
+      ? socialsCfg.order
+      : [];
+
+    return socialKinds.filter((k) => {
+      const isEnabled = enabledMap[k] !== false;
+      const inOrder = order.includes(k);
+      return !(isEnabled && inOrder);
+    });
+  }, [socialKinds, socialsCfg.enabled, socialsCfg.order]);
 
   const setSocialEnabled = (kind: SocialKind, enabled: boolean) =>
     update((d) => {
       ensureSocialsRoot(d);
       d.content.socials.enabled[kind] = enabled;
-      const o: SocialKind[] = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
-      if (enabled && !o.includes(kind)) o.push(kind);
-      d.content.socials.order = o;
+
+      const o: SocialKind[] = Array.isArray(d.content.socials.order)
+        ? d.content.socials.order
+        : [];
+
+      if (enabled) {
+        if (!o.includes(kind)) o.push(kind);
+      } else {
+        // when disabling, keep in order optional — but remove from order so "Add" finds it again
+        d.content.socials.order = o.filter((x) => x !== kind);
+      }
+
+      if (!enabled) {
+        const links = d.content.socials.links ?? {};
+        // keep link if user wants to re-enable quickly; do not delete
+        d.content.socials.links = links;
+      }
+
       return d;
     });
 
@@ -690,19 +844,27 @@ export function StudioPanel({
     update((d) => {
       ensureSocialsRoot(d);
       d.content.socials.links[kind] = value;
+
       if (String(value || "").trim().length) {
-        d.content.socials.enabled[kind] = d.content.socials.enabled[kind] ?? true;
-        const o: SocialKind[] = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
+        d.content.socials.enabled[kind] =
+          d.content.socials.enabled[kind] ?? true;
+
+        const o: SocialKind[] = Array.isArray(d.content.socials.order)
+          ? d.content.socials.order
+          : [];
         if (!o.includes(kind)) o.push(kind);
         d.content.socials.order = o;
       }
+
       return d;
     });
 
   const moveSocial = (kind: SocialKind, dir: -1 | 1) =>
     update((d) => {
       ensureSocialsRoot(d);
-      const o: SocialKind[] = Array.isArray(d.content.socials.order) ? d.content.socials.order : [];
+      const o: SocialKind[] = Array.isArray(d.content.socials.order)
+        ? d.content.socials.order
+        : [];
       const idx = o.indexOf(kind);
       if (idx < 0) return d;
       const next = idx + dir;
@@ -714,26 +876,34 @@ export function StudioPanel({
       return d;
     });
 
+  const addSocial = (kind: SocialKind) => setSocialEnabled(kind, true);
+
   // ---------------------------
   // SECTIONS
   // ---------------------------
   const setSectionEnabled = (id: string, enabled: boolean) =>
     update((d) => {
-      const s = (d.sections ?? []).find((x: any) => String(x.id) === String(id));
+      const s = (d.sections ?? []).find(
+        (x: any) => String(x.id) === String(id)
+      );
       if (s) s.enabled = enabled;
       return d;
     });
 
   const setSectionVariant = (id: string, variant: string) =>
     update((d) => {
-      const s = (d.sections ?? []).find((x: any) => String(x.id) === String(id));
+      const s = (d.sections ?? []).find(
+        (x: any) => String(x.id) === String(id)
+      );
       if (s) s.variant = variant;
       return d;
     });
 
   const removeSection = (id: string) =>
     update((d) => {
-      d.sections = (d.sections ?? []).filter((s: any) => String(s.id) !== String(id));
+      d.sections = (d.sections ?? []).filter(
+        (s: any) => String(s.id) !== String(id)
+      );
       return d;
     });
 
@@ -742,8 +912,15 @@ export function StudioPanel({
       d.sections = Array.isArray(d.sections) ? d.sections : [];
       const id = nextId(d.sections, "split");
       const heroIndex = d.sections.findIndex((x: any) => x.type === "hero");
-      const insertAt = heroIndex >= 0 ? heroIndex + 1 : Math.min(1, d.sections.length);
-      d.sections.splice(insertAt, 0, { id, type: "split", title: "Section split", variant: "A", enabled: true });
+      const insertAt =
+        heroIndex >= 0 ? heroIndex + 1 : Math.min(1, d.sections.length);
+      d.sections.splice(insertAt, 0, {
+        id,
+        type: "split",
+        title: "Section split",
+        variant: "A",
+        enabled: true,
+      });
       return d;
     });
 
@@ -758,9 +935,11 @@ export function StudioPanel({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // ✅ UI: pin top+header first (UI ONLY) + hide "top" from list
+  // UI pin header first + hide top
   const pinnedTypes = new Set(["top", "header"]);
-  const sectionsRaw: any[] = Array.isArray((config as any).sections) ? (config as any).sections : [];
+  const sectionsRaw: any[] = Array.isArray((config as any).sections)
+    ? (config as any).sections
+    : [];
   const sectionsView = React.useMemo(() => {
     const pinned = sectionsRaw.filter((s) => pinnedTypes.has(String(s.type)));
     const rest = sectionsRaw.filter((s) => !pinnedTypes.has(String(s.type)));
@@ -771,7 +950,6 @@ export function StudioPanel({
       return pa - pb;
     });
 
-    // ✅ filter out top from UI (never editable)
     const pinnedNoTop = pinned.filter((s) => String(s.type) !== "top");
     return [...pinnedNoTop, ...rest];
   }, [sectionsRaw]);
@@ -783,7 +961,9 @@ export function StudioPanel({
     const s = sectionsView.find((x: any) => String(x.id) === String(id));
     if (!s) return;
 
-    const opts = (VARIANTS_BY_TYPE[String(s.type)] ?? null) as readonly string[] | null;
+    const opts = (VARIANTS_BY_TYPE[String(s.type)] ?? null) as
+      | readonly string[]
+      | null;
     if (!opts?.length) return;
 
     const current = String(s.variant ?? opts[0]);
@@ -791,7 +971,10 @@ export function StudioPanel({
     setSectionVariant(id, cycleInList(value, opts, dir));
   };
 
-  const sectionIds = React.useMemo(() => sectionsView.map((s) => s.id), [sectionsView]);
+  const sectionIds = React.useMemo(
+    () => sectionsView.map((s) => s.id),
+    [sectionsView]
+  );
 
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
@@ -809,7 +992,6 @@ export function StudioPanel({
       const moving = arr[oldIndex];
       const target = arr[newIndex];
 
-      // ✅ forbid dragging pinned
       if (pinnedTypes.has(String(moving?.type))) return d;
       if (pinnedTypes.has(String(target?.type))) return d;
 
@@ -821,6 +1003,90 @@ export function StudioPanel({
     });
   };
 
+  // ---------------------------
+  // PRESETS
+  // ---------------------------
+  const applyPreset = (name: "saas" | "pme" | "creative" | "family") => {
+    update((d) => {
+      d.options = d.options ?? {};
+      d.options.fx = d.options.fx ?? {};
+
+      const setTV = (a: string, c: string) => {
+        d.options.themeVariant = joinThemeVariant(a, c);
+      };
+
+      if (name === "saas") {
+        d.options.canvasStyle = "immersive";
+        setTV("slateIndigo", "cloud");
+        d.options.fx.enabled = true;
+        d.options.fx.ambient = true;
+        d.options.fx.softGlow = true;
+        d.options.fx.borderScan = true;
+        d.options.fx.shimmerCta = true;
+      }
+
+      if (name === "pme") {
+        d.options.canvasStyle = "classic";
+        setTV("amberOrange", "porcelain");
+        d.options.fx.enabled = true;
+        d.options.fx.ambient = false;
+        d.options.fx.softGlow = true;
+        d.options.fx.borderScan = false;
+        d.options.fx.shimmerCta = false;
+      }
+
+      if (name === "creative") {
+        d.options.canvasStyle = "immersive";
+        setTV("purplePink", "lilac");
+        d.options.fx.enabled = true;
+        d.options.fx.ambient = true;
+        d.options.fx.softGlow = true;
+        d.options.fx.borderScan = false;
+        d.options.fx.shimmerCta = true;
+      }
+
+      if (name === "family") {
+        d.options.canvasStyle = "classic";
+        setTV("emeraldTeal", "paper");
+        d.options.fx.enabled = false;
+        d.options.fx.ambient = false;
+        d.options.fx.softGlow = false;
+        d.options.fx.borderScan = false;
+        d.options.fx.shimmerCta = false;
+      }
+
+      return d;
+    });
+  };
+
+  const applyChaos = () => {
+    update((d) => {
+      d.options = d.options ?? {};
+      d.options.fx = d.options.fx ?? {};
+      const pick = <T,>(arr: readonly T[]) =>
+        arr[Math.floor(Math.random() * arr.length)];
+
+      const accent = pick(ACCENTS);
+      const canvas = pick(CANVAS);
+      const style: CanvasStyle = Math.random() < 0.55 ? "immersive" : "classic";
+
+      d.options.themeVariant = joinThemeVariant(String(accent), String(canvas));
+      d.options.canvasStyle = style;
+
+      const fxOn = Math.random() < 0.85;
+      d.options.fx.enabled = fxOn;
+      d.options.fx.ambient = fxOn && Math.random() < 0.7;
+      d.options.fx.softGlow = fxOn && Math.random() < 0.8;
+      d.options.fx.borderScan = fxOn && Math.random() < 0.6;
+      d.options.fx.shimmerCta = fxOn && Math.random() < 0.6;
+
+      return d;
+    });
+  };
+
+  // ---------------------------
+  // panel layout
+  // ---------------------------
   const panelPos =
     dock === "left"
       ? "fixed left-4 top-4 z-[9999] w-[380px] max-w-[92vw]"
@@ -828,6 +1094,38 @@ export function StudioPanel({
 
   const shell =
     "rounded-3xl border border-slate-200 bg-white/92 backdrop-blur shadow-[0_20px_60px_rgba(0,0,0,0.10)] overflow-hidden";
+
+  const TogglePill = ({
+    pressed,
+    onClick,
+    title,
+    label,
+  }: {
+    pressed: boolean;
+    onClick: () => void;
+    title: string;
+    label: string;
+  }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={cx(
+        "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold",
+        pressed
+          ? "border-slate-900 bg-slate-900 text-white"
+          : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+      )}
+    >
+      <span
+        className={cx(
+          "h-2 w-2 rounded-full",
+          pressed ? "bg-white" : "bg-slate-300"
+        )}
+      />
+      {label}
+    </button>
+  );
 
   if (minimized) {
     return (
@@ -858,7 +1156,6 @@ export function StudioPanel({
           const dir: -1 | 1 = e.key === "ArrowLeft" ? -1 : 1;
           const active = document.activeElement as any;
 
-          // if user is typing somewhere else => never intercept
           if (
             isTypingTarget(active) &&
             active !== accentSelectRef.current &&
@@ -867,7 +1164,6 @@ export function StudioPanel({
             return;
           }
 
-          // 1) direct focus on selects
           if (active === accentSelectRef.current) {
             if (autoAccentMode !== "off") return;
             e.preventDefault();
@@ -880,7 +1176,6 @@ export function StudioPanel({
             return;
           }
 
-          // 2) scope chosen (clicked in theme blocks)
           if (activeScope === "accent") {
             if (autoAccentMode !== "off") return;
             e.preventDefault();
@@ -893,81 +1188,99 @@ export function StudioPanel({
             return;
           }
 
-          // 3) global Option A: active section variant
           e.preventDefault();
           cycleGlobalVariant(dir);
         }}
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-900">StudioPanel</div>
-            <div className="text-xs text-slate-500 truncate">Template Engine • live config</div>
-          </div>
+        {/* header compact (1 line actions) */}
+        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-900">
+                StudioPanel
+              </div>
+              <div className="text-xs text-slate-500 truncate">
+                Template Engine • live config
+              </div>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleDock}
-              className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-50"
-              aria-label="Dock"
-              title="Dock gauche/droite"
-            >
-              ⇆ Dock
-            </button>
-            <button
-              type="button"
-              onClick={toggleMinimize}
-              className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-50"
-              aria-label="Minimiser"
-              title="Minimiser"
-            >
-              Minimiser
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleDock}
+                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-50"
+                title="Dock gauche/droite"
+              >
+                ⇆ Dock
+              </button>
+              <button
+                type="button"
+                onClick={toggleMinimize}
+                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-50"
+                title="Minimiser"
+              >
+                Minimiser
+              </button>
+
+              <TogglePill
+                pressed={studioEnabled}
+                onClick={() => setStudioEnabled(!studioEnabled)}
+                title="Activer/Désactiver Studio (Ctrl+K)"
+                label="Studio"
+              />
+            </div>
           </div>
         </div>
 
         <div className="max-h-[calc(100vh-2rem-64px)] overflow-y-auto px-5 pb-5 pt-4 space-y-4">
-          {/* Studio enabled */}
+          {/* TOOLS */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Studio activé</div>
-                <div className="text-xs text-slate-500">Ctrl+K pour afficher/cacher (rescue).</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setStudioEnabled(!studioEnabled)}
-                className={cx("relative h-7 w-12 rounded-full border transition", studioEnabled ? "bg-slate-900" : "bg-white")}
-                aria-pressed={studioEnabled}
-                title="Activer/Désactiver"
+            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">
+              TOOLS
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                href="/easter-eggs"
+                className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 hover:bg-slate-50 flex items-center justify-center"
+                title="Page Easter Eggs"
               >
-                <span
-                  className={cx(
-                    "absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition",
-                    studioEnabled ? "left-6 bg-white" : "left-1 bg-slate-900"
-                  )}
-                />
-              </button>
+                🥚 Easter
+              </a>
+              <a
+                href="/template-base?egg=1"
+                className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 hover:bg-slate-50 flex items-center justify-center"
+                title="Ouvre la demo avec egg=1"
+              >
+                🧪 egg=1
+              </a>
             </div>
           </div>
 
-          {/* THEME */}
+          {/* THEME compact */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">THÈME</div>
+            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">
+              THÈME
+            </div>
 
-            {/* Canvas style toggle */}
-            <div className="mb-4 rounded-3xl border border-slate-200 bg-white p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-900">Canvas style</div>
-                  <div className="text-xs text-slate-500 truncate">
-                    Classic = cards nettes • Immersive = univers (fond + modules)
+            {/* row: canvas style + auto accent */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-3xl border border-slate-200 bg-white p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900">
+                      Canvas
+                    </div>
+                    <div className="text-xs text-slate-500 truncate">
+                      Classic / Immersive
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setCanvasStyle(canvasStyle === "classic" ? "immersive" : "classic")}
+                    onClick={() =>
+                      setCanvasStyle(
+                        canvasStyle === "classic" ? "immersive" : "classic"
+                      )
+                    }
                     className={cx(
                       "relative h-7 w-12 rounded-full border transition",
                       canvasStyle === "immersive" ? "bg-slate-900" : "bg-white"
@@ -978,213 +1291,333 @@ export function StudioPanel({
                     <span
                       className={cx(
                         "absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition",
-                        canvasStyle === "immersive" ? "left-6 bg-white" : "left-1 bg-slate-900"
+                        canvasStyle === "immersive"
+                          ? "left-6 bg-white"
+                          : "left-1 bg-slate-900"
                       )}
                     />
                   </button>
                 </div>
               </div>
 
-              <div className="mt-2 text-[11px] text-slate-500">
-                Tip: focus Accent/Fond → <span className="font-semibold">←/→</span>. Sinon: flèches = variant de la section active.
+              <div className="rounded-3xl border border-slate-200 bg-white p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900">
+                      Accent auto
+                    </div>
+                    <div className="text-xs text-slate-500 truncate">
+                      depuis logo
+                    </div>
+                  </div>
+                  <select
+                    value={autoAccentMode}
+                    onChange={(e) =>
+                      setAutoAccentMode(e.target.value as AutoAccentMode)
+                    }
+                    className="h-10 w-[120px] rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+                    title="Auto accent mode"
+                  >
+                    <option value="off">Off</option>
+                    <option value="muted">Muted</option>
+                    <option value="vivid">Vivid</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            {/* Auto Accent */}
-            <div className="mb-4 rounded-3xl border border-slate-200 bg-white p-3">
+            {/* presets */}
+            <div className="mt-3 rounded-3xl border border-slate-200 bg-white p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-900">Accent auto (logo)</div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    Preset rapide
+                  </div>
                   <div className="text-xs text-slate-500 truncate">
-                    Extrait une couleur dominante du logo et choisit un accent proche.
+                    1 clic = thème + style + FX
                   </div>
                 </div>
-                <select
-                  value={autoAccentMode}
-                  onChange={(e) => setAutoAccentMode(e.target.value as AutoAccentMode)}
-                  className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
-                  title="Auto accent mode"
+
+                <button
+                  type="button"
+                  onClick={applyChaos}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 hover:bg-slate-50"
+                  title="Chaos contrôlé"
                 >
-                  <option value="off">Off</option>
-                  <option value="muted">Muted</option>
-                  <option value="vivid">Vivid</option>
-                </select>
+                  🎲 <span>Chaos</span>
+                </button>
               </div>
 
-              <div className="mt-2 text-[11px] text-slate-500">
-                Note: PNG/JPG externe sans CORS → fallback silencieux (pas de crash).
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {[
+                  ["SaaS 2030", "saas"],
+                  ["PME premium", "pme"],
+                  ["Creative", "creative"],
+                  ["Site famille", "family"],
+                ].map(([label, key]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => applyPreset(key as any)}
+                    className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 hover:bg-slate-50"
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Accent */}
             <div
-              className="mb-4"
+              className="mt-4"
               data-scope="accent"
               onFocusCapture={() => setActiveScope("accent")}
               onPointerDownCapture={() => setActiveScope("accent")}
             >
-              <div className="mb-2 text-xs font-semibold text-slate-700">Accent</div>
+              <div className="mb-2 text-xs font-semibold text-slate-700">
+                Accent
+              </div>
               <div className="flex items-center gap-2">
-                <IconBtn title="Accent précédent (←)" onClick={() => cycleAccent(-1)} disabled={autoAccentMode !== "off"}>
+                <IconBtn
+                  title="Accent précédent (←)"
+                  onClick={() => cycleAccent(-1)}
+                  disabled={autoAccentMode !== "off"}
+                >
                   ◀
                 </IconBtn>
 
                 <select
                   ref={accentSelectRef}
                   className={cx(
-                    "h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm",
+                    "h-10 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm",
                     autoAccentMode !== "off" && "opacity-60 cursor-not-allowed"
                   )}
                   value={accent}
                   disabled={autoAccentMode !== "off"}
                   onChange={(e) => setThemeVariant(e.target.value, canvas)}
-                  onKeyDown={(e) => {
-                    if (e.key === "ArrowLeft") { e.preventDefault(); cycleAccent(-1); }
-                    if (e.key === "ArrowRight") { e.preventDefault(); cycleAccent(1); }
-                  }}
                 >
                   {ACCENTS.map((k) => (
-                    <option key={k} value={k}>{k}</option>
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
                   ))}
                 </select>
 
-                <IconBtn title="Accent suivant (→)" onClick={() => cycleAccent(1)} disabled={autoAccentMode !== "off"}>
+                <IconBtn
+                  title="Accent suivant (→)"
+                  onClick={() => cycleAccent(1)}
+                  disabled={autoAccentMode !== "off"}
+                >
                   ▶
                 </IconBtn>
               </div>
-
-              {autoAccentMode !== "off" ? (
-                <div className="mt-2 text-[11px] text-slate-500">
-                  Accent manuel désactivé (mode auto).
-                </div>
-              ) : null}
             </div>
 
             {/* Canvas */}
             <div
+              className="mt-4"
               data-scope="canvas"
               onFocusCapture={() => setActiveScope("canvas")}
               onPointerDownCapture={() => setActiveScope("canvas")}
             >
-              <div className="mb-2 text-xs font-semibold text-slate-700">Fond (canvas)</div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold text-slate-700">
+                  Fond (canvas)
+                </div>
+                {SIGNATURE_CANVAS.has(canvas) ? <Badge>Signature</Badge> : null}
+              </div>
+
               <div className="flex items-center gap-2">
-                <IconBtn title="Fond précédent (←)" onClick={() => cycleCanvas(-1)}>◀</IconBtn>
+                <IconBtn
+                  title="Fond précédent (←)"
+                  onClick={() => cycleCanvas(-1)}
+                >
+                  ◀
+                </IconBtn>
+
                 <select
                   ref={canvasSelectRef}
-                  className="h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+                  className="h-10 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                   value={canvas}
                   onChange={(e) => setThemeVariant(accent, e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "ArrowLeft") { e.preventDefault(); cycleCanvas(-1); }
-                    if (e.key === "ArrowRight") { e.preventDefault(); cycleCanvas(1); }
-                  }}
                 >
                   {CANVAS.map((k) => (
-                    <option key={k} value={k}>{k}</option>
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
                   ))}
                 </select>
-                <IconBtn title="Fond suivant (→)" onClick={() => cycleCanvas(1)}>▶</IconBtn>
-              </div>
-              <div className="mt-2 text-[11px] text-slate-500">
-                Raccourcis: focus select → <span className="font-semibold">←/→</span>
+
+                <IconBtn
+                  title="Fond suivant (→)"
+                  onClick={() => cycleCanvas(1)}
+                >
+                  ▶
+                </IconBtn>
               </div>
             </div>
           </div>
 
           {/* BRAND */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">BRAND</div>
+            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">
+              BRAND
+            </div>
 
-            <label className="block text-xs font-semibold text-slate-700 mb-2">Logo mode</label>
-            <select
-              value={currentLogoMode}
-              onChange={(e) => setLogoMode(e.target.value as any)}
-              className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
-            >
-              {LOGO_MODES.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-2">Logo width</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Logo mode
+                </label>
+                <select
+                  value={currentLogoMode}
+                  onChange={(e) => setLogoMode(e.target.value as any)}
+                  className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+                >
+                  {LOGO_MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Logo src
+                </label>
+                <input
+                  value={String((config as any)?.brand?.logo?.src ?? "")}
+                  onChange={(e) => setLogoSrc(e.target.value)}
+                  className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Width
+                </label>
                 <input
                   type="number"
                   value={Number((config as any)?.brand?.logo?.width ?? 80)}
-                  onChange={(e) => setLogoW(parseInt(e.target.value || "80", 10))}
+                  onChange={(e) =>
+                    setLogoW(parseInt(e.target.value || "80", 10))
+                  }
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-2">Logo height</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Height
+                </label>
                 <input
                   type="number"
                   value={Number((config as any)?.brand?.logo?.height ?? 80)}
-                  onChange={(e) => setLogoH(parseInt(e.target.value || "80", 10))}
+                  onChange={(e) =>
+                    setLogoH(parseInt(e.target.value || "80", 10))
+                  }
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                 />
               </div>
             </div>
 
-            <div className="mt-4">
-              <label className="block text-xs font-semibold text-slate-700 mb-2">Logo src</label>
-              <input
-                value={String((config as any)?.brand?.logo?.src ?? "")}
-                onChange={(e) => setLogoSrc(e.target.value)}
-                className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
-              />
-            </div>
-
-            <div className="mt-4">
-              <label className="block text-xs font-semibold text-slate-700 mb-2">Nom</label>
-              <input
-                value={String((config as any)?.brand?.text?.name ?? "")}
-                onChange={(e) => setBrandName(e.target.value)}
-                className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
-              />
-            </div>
-
-            <div className="mt-4">
-              <label className="block text-xs font-semibold text-slate-700 mb-2">Sous-titre</label>
-              <input
-                value={String((config as any)?.brand?.text?.subtitle ?? "")}
-                onChange={(e) => setBrandSubtitle(e.target.value)}
-                className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
-              />
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Nom
+                </label>
+                <input
+                  value={String((config as any)?.brand?.text?.name ?? "")}
+                  onChange={(e) => setBrandName(e.target.value)}
+                  className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Sous-titre
+                </label>
+                <input
+                  value={String((config as any)?.brand?.text?.subtitle ?? "")}
+                  onChange={(e) => setBrandSubtitle(e.target.value)}
+                  className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+                />
+              </div>
             </div>
           </div>
 
           {/* SOCIALS */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">SOCIALS</div>
-            <div className="space-y-3">
-              {socialsOrder.map((k, idx) => {
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-xs font-semibold tracking-wide text-slate-600">
+                SOCIALS
+              </div>
+
+              <select
+                className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900"
+                value=""
+                onChange={(e) => {
+                  const v = e.target.value as SocialKind;
+                  if (v) addSocial(v);
+                  e.currentTarget.value = "";
+                }}
+                title="Ajouter un social"
+              >
+                <option value="">+ Add</option>
+                {disabledSocials.map((k) => (
+                  <option key={k} value={k}>
+                    {SOCIAL_DEFS[k]?.label ?? k}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              {enabledSocials.map((k, idx) => {
                 const def = SOCIAL_DEFS[k];
-                const enabled = ((socialsCfg.enabled ?? {}) as any)[k] !== false;
                 const val = String(((socialsCfg.links ?? {}) as any)[k] ?? "");
                 return (
-                  <div key={k} className="rounded-3xl border border-slate-200 bg-white p-3">
+                  <div
+                    key={k}
+                    className="rounded-3xl border border-slate-200 bg-white p-3"
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
                         <def.Icon className="opacity-70" />
                         <div className="min-w-0">
-                          <div className="text-sm font-semibold text-slate-900 truncate">{def.label}</div>
-                          <div className="text-xs text-slate-500 truncate">{k}</div>
+                          <div className="text-sm font-semibold text-slate-900 truncate">
+                            {def.label}
+                          </div>
+                          <div className="text-xs text-slate-500 truncate">
+                            {k}
+                          </div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <IconBtn title="Monter" onClick={() => moveSocial(k, -1)} disabled={idx === 0}>▲</IconBtn>
-                        <IconBtn title="Descendre" onClick={() => moveSocial(k, 1)} disabled={idx === socialsOrder.length - 1}>▼</IconBtn>
-                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                          ON
-                          <input
-                            type="checkbox"
-                            checked={enabled}
-                            onChange={(e) => setSocialEnabled(k, e.target.checked)}
-                          />
-                        </label>
+                        <IconBtn
+                          title="Monter"
+                          onClick={() => moveSocial(k, -1)}
+                          disabled={idx === 0}
+                        >
+                          ▲
+                        </IconBtn>
+                        <IconBtn
+                          title="Descendre"
+                          onClick={() => moveSocial(k, 1)}
+                          disabled={idx === enabledSocials.length - 1}
+                        >
+                          ▼
+                        </IconBtn>
+                        <button
+                          type="button"
+                          onClick={() => setSocialEnabled(k, false)}
+                          className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          title="Retirer de la liste"
+                        >
+                          ✕
+                        </button>
                       </div>
                     </div>
 
@@ -1193,63 +1626,79 @@ export function StudioPanel({
                         value={val}
                         onChange={(e) => setSocialLink(k, e.target.value)}
                         className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
-                        placeholder={k === "whatsapp" ? "ex: +3247... ou 3247..." : "ex: https://..."}
+                        placeholder={
+                          k === "whatsapp"
+                            ? "ex: +3247... ou 3247..."
+                            : "ex: https://..."
+                        }
                       />
-                      <div className="mt-1 text-[11px] text-slate-500">
-                        {k === "whatsapp"
-                          ? "WhatsApp: tu peux mettre juste les chiffres, on normalise au rendu."
-                          : "Astuce: URL complète recommandée."}
-                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
+
             <div className="mt-2 text-xs text-slate-500">
-              Les flèches ici modifient l’ordre d’affichage (header + contact).
+              (Les flèches changent l’ordre d’affichage header/contact)
             </div>
           </div>
 
           {/* LAYOUT */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">LAYOUT</div>
+            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">
+              LAYOUT
+            </div>
 
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-2">Container</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Container
+                </label>
                 <select
                   value={currentContainer}
                   onChange={(e) => setLayoutToken("container", e.target.value)}
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                 >
                   {CONTAINERS.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-2">Density</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Density
+                </label>
                 <select
                   value={currentDensity}
                   onChange={(e) => setLayoutToken("density", e.target.value)}
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                 >
                   {DENSITIES.map((d) => (
-                    <option key={d} value={d}>{d}</option>
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
                   ))}
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-2">Radius</label>
+              <div className="col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Radius
+                </label>
                 <select
                   value={String(currentRadius)}
-                  onChange={(e) => setLayoutToken("radius", Number(e.target.value))}
+                  onChange={(e) =>
+                    setLayoutToken("radius", Number(e.target.value))
+                  }
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
                 >
                   {RADII.map((r) => (
-                    <option key={r} value={r}>{r}</option>
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -1258,22 +1707,29 @@ export function StudioPanel({
 
           {/* NAV */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">NAV</div>
-            <label className="mb-2 block text-xs font-semibold text-slate-700">Max direct links (menu)</label>
+            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">
+              NAV
+            </div>
+            <label className="mb-2 block text-xs font-semibold text-slate-700">
+              Max direct links (menu)
+            </label>
             <input
               type="number"
               min={0}
               max={12}
               value={maxDirect}
-              onChange={(e) => setMaxDirect(parseInt(e.target.value || "0", 10))}
+              onChange={(e) =>
+                setMaxDirect(parseInt(e.target.value || "0", 10))
+              }
               className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
             />
-            <div className="mt-2 text-xs text-slate-500">(Les headers utilisent sections/galleries pour générer le menu)</div>
           </div>
 
           {/* FX */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">FX</div>
+            <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">
+              FX
+            </div>
 
             <div className="space-y-2 text-sm text-slate-800">
               {[
@@ -1283,7 +1739,10 @@ export function StudioPanel({
                 ["borderScan", "Border scan"],
                 ["shimmerCta", "Shimmer CTA"],
               ].map(([k, label]) => (
-                <label key={k} className="flex items-center justify-between gap-3">
+                <label
+                  key={k}
+                  className="flex items-center justify-between gap-3"
+                >
                   <span>{label}</span>
                   <input
                     type="checkbox"
@@ -1293,12 +1752,19 @@ export function StudioPanel({
                 </label>
               ))}
             </div>
+
+            <div className="mt-2 text-xs text-slate-500">
+              Shimmer CTA = uniquement sur les éléments qui ont la classe{" "}
+              <span className="font-semibold">fx-cta</span> (boutons/CTA).
+            </div>
           </div>
 
           {/* SECTIONS */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-xs font-semibold tracking-wide text-slate-600">SECTIONS</div>
+              <div className="text-xs font-semibold tracking-wide text-slate-600">
+                SECTIONS
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -1318,8 +1784,15 @@ export function StudioPanel({
             </div>
 
             <div className="mt-3 space-y-3">
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                <SortableContext items={sectionIds} strategy={verticalListSortingStrategy}>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={onDragEnd}
+              >
+                <SortableContext
+                  items={sectionIds}
+                  strategy={verticalListSortingStrategy}
+                >
                   {sectionsView.map((s: any) => (
                     <SectionCard
                       key={s.id}
@@ -1332,8 +1805,10 @@ export function StudioPanel({
                   ))}
                 </SortableContext>
               </DndContext>
+
               <div className="text-[11px] text-slate-500">
-                “header” est fixé en haut dans l’UI. “top” est masqué (ancre technique).
+                “header” est fixé en haut dans l’UI. “top” est masqué (ancre
+                technique).
               </div>
             </div>
           </div>
@@ -1342,5 +1817,3 @@ export function StudioPanel({
     </div>
   );
 }
-
-export default StudioPanel;

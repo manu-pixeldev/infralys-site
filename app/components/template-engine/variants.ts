@@ -2,7 +2,7 @@
 import type { ComponentType } from "react";
 import type { SectionType } from "./types";
 
-import { ProHeader, ProServices, ProGallery } from "./pro";
+import ProHeader, { ProServices, ProGallery } from "./pro";
 import { ProofStats } from "./proof";
 
 import {

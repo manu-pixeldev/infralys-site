@@ -1,6 +1,11 @@
 // app/components/template-engine/theme.ts
 import React from "react";
-import type { LayoutTokens, Container, Density, Radius } from "../../template-base/template.config";
+import type {
+  LayoutTokens,
+  Container,
+  Density,
+  Radius,
+} from "../../template-base/template.config";
 
 /** Small class joiner */
 export function cx(...c: (string | false | null | undefined)[]) {
@@ -41,7 +46,7 @@ type CanvasDef = {
   immersiveSurfaceBg?: string;
   immersiveSurfaceBorder?: string;
 
-  // optional extra "universe" feel (applied as additional class on bgPage)
+  // optional extra "universe" feel
   immersiveBgExtra?: string;
 
   // ✅ for header immersive backgroundColor + CSS var
@@ -49,20 +54,17 @@ type CanvasDef = {
 };
 
 const ACCENTS: Record<string, AccentDef> = {
-  // ✅ requested: amberOrange uses amber-400
   amberOrange: { accentFrom: "from-amber-400", accentTo: "to-orange-500" },
   emeraldTeal: { accentFrom: "from-emerald-500", accentTo: "to-teal-500" },
   blueRed: { accentFrom: "from-sky-500", accentTo: "to-rose-500" },
   purplePink: { accentFrom: "from-purple-500", accentTo: "to-pink-500" },
   slateIndigo: { accentFrom: "from-indigo-500", accentTo: "to-slate-700" },
 
-  // dark accents
   monoDark: { accentFrom: "from-cyan-400", accentTo: "to-blue-500" },
   monoDarkRose: { accentFrom: "from-fuchsia-400", accentTo: "to-rose-500" },
   monoDarkGold: { accentFrom: "from-amber-300", accentTo: "to-yellow-500" },
   monoDarkLime: { accentFrom: "from-lime-300", accentTo: "to-emerald-400" },
 
-  // ✅ FUTUR PACK accents (accents only, NOT canvases)
   neon: { accentFrom: "from-cyan-300", accentTo: "to-fuchsia-400" },
   aurora: { accentFrom: "from-emerald-300", accentTo: "to-cyan-300" },
   volcano: { accentFrom: "from-orange-400", accentTo: "to-rose-500" },
@@ -75,21 +77,11 @@ const ALIASES: Record<string, string> = {
   violetIndigo: "slateIndigo",
   slateMono: "monoDark",
 
-  // ✅ user-friendly aliases
   amberOrange400: "amberOrange",
   amberOrange500: "amberOrange",
 };
 
-/**
- * CANVAS:
- * - Les "univers" (neon/aurora/volcano/cyber) avaient un bg trop proche de charcoal.
- * - Ici: backgrounds HEX distincts + radials plus punchy => différence visible même en "classic",
- *   et encore plus en "immersive".
- */
 const CANVAS: Record<string, CanvasDef> = {
-  // ----------------
-  // LIGHT (classic)
-  // ----------------
   classic: {
     bgPage: "bg-slate-50",
     isDark: false,
@@ -146,7 +138,54 @@ const CANVAS: Record<string, CanvasDef> = {
     canvasHex: "#FAF9F7",
   },
 
-  // legacy light variants (kept)
+  porcelain: {
+    bgPage: "bg-[#F6F7FB]",
+    isDark: false,
+    canvasHex: "#F6F7FB",
+    immersiveBgExtra:
+      "bg-[radial-gradient(1200px_700px_at_20%_0%,rgba(99,102,241,0.10),transparent_55%),radial-gradient(1000px_700px_at_85%_20%,rgba(56,189,248,0.10),transparent_55%)]",
+  },
+
+  cloud: {
+    bgPage: "bg-[#F3F6FA]",
+    isDark: false,
+    canvasHex: "#F3F6FA",
+    immersiveBgExtra:
+      "bg-[radial-gradient(1200px_700px_at_25%_0%,rgba(14,165,233,0.12),transparent_58%),radial-gradient(900px_650px_at_85%_25%,rgba(148,163,184,0.10),transparent_60%)]",
+  },
+
+  latte: {
+    bgPage: "bg-[#F6EFE6]",
+    isDark: false,
+    canvasHex: "#F6EFE6",
+    immersiveBgExtra:
+      "bg-[radial-gradient(1200px_700px_at_22%_0%,rgba(245,158,11,0.12),transparent_58%),radial-gradient(950px_650px_at_88%_22%,rgba(168,85,247,0.08),transparent_60%)]",
+  },
+
+  sage: {
+    bgPage: "bg-[#EAF3EE]",
+    isDark: false,
+    canvasHex: "#EAF3EE",
+    immersiveBgExtra:
+      "bg-[radial-gradient(1200px_700px_at_22%_0%,rgba(16,185,129,0.12),transparent_58%),radial-gradient(950px_650px_at_88%_22%,rgba(34,211,238,0.08),transparent_60%)]",
+  },
+
+  clay: {
+    bgPage: "bg-[#F3E8E4]",
+    isDark: false,
+    canvasHex: "#F3E8E4",
+    immersiveBgExtra:
+      "bg-[radial-gradient(1200px_700px_at_20%_0%,rgba(244,63,94,0.10),transparent_60%),radial-gradient(950px_650px_at_86%_22%,rgba(245,158,11,0.10),transparent_60%)]",
+  },
+
+  lilac: {
+    bgPage: "bg-[#F2EEFB]",
+    isDark: false,
+    canvasHex: "#F2EEFB",
+    immersiveBgExtra:
+      "bg-[radial-gradient(1200px_700px_at_20%_0%,rgba(168,85,247,0.12),transparent_58%),radial-gradient(950px_650px_at_86%_22%,rgba(59,130,246,0.10),transparent_60%)]",
+  },
+
   warm: {
     bgPage: "bg-amber-50",
     isDark: false,
@@ -176,9 +215,6 @@ const CANVAS: Record<string, CanvasDef> = {
     canvasHex: "#FFF7ED",
   },
 
-  // ----------------
-  // DARK (classic)
-  // ----------------
   charcoal: {
     bgPage: "bg-slate-950",
     isDark: true,
@@ -239,7 +275,6 @@ const CANVAS: Record<string, CanvasDef> = {
     canvasHex: "#05070B",
   },
 
-  // ✅ extra dark canvases (FULL-PAGE universes) — corrected (distinct bg + punchy radials)
   neon: {
     bgPage: "bg-[#05050A]",
     isDark: true,
@@ -288,7 +323,6 @@ const CANVAS: Record<string, CanvasDef> = {
     canvasHex: "#03110A",
   },
 
-  // ✅ fun: broken / glitch canvas (usable in CANVAS list)
   broken: {
     bgPage: "bg-[#07070A]",
     isDark: true,
@@ -316,12 +350,14 @@ export function parseThemeVariant(v?: string) {
     return { accent: a || "amberOrange", canvas: c || "classic" };
   }
 
-  // legacy: single key might be a canvas
-  if (CANVAS[raw]) return { accent: "amberOrange", canvas: raw };
+  if ((CANVAS as any)[raw]) return { accent: "amberOrange", canvas: raw };
   return { accent: raw, canvas: "classic" };
 }
 
-export type GetThemeArg = ThemeVariant | { accent?: string; canvas?: string; style?: CanvasStyle } | undefined;
+export type GetThemeArg =
+  | ThemeVariant
+  | { accent?: string; canvas?: string; style?: CanvasStyle }
+  | undefined;
 
 export function getTheme(arg?: GetThemeArg): ThemeLike {
   const parsed =
@@ -333,7 +369,9 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
         };
 
   const style: CanvasStyle =
-    typeof arg === "object" && arg ? (String((arg as any).style || "classic") as CanvasStyle) : "classic";
+    typeof arg === "object" && arg
+      ? (String((arg as any).style || "classic") as CanvasStyle)
+      : "classic";
 
   const accentKey = normalizeAccentKey(parsed.accent);
   const accent = ACCENTS[accentKey] ?? ACCENTS.amberOrange;
@@ -343,22 +381,53 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
 
   const isDark = canvas.isDark;
   const text = isDark ? "text-white" : "text-slate-900";
-
   const immersive = style === "immersive";
 
   const baseBg = canvas.bgPage;
   const extra = immersive ? canvas.immersiveBgExtra : undefined;
   const bgPage = extra ? cx(baseBg, extra) : baseBg;
 
-  const surfaceBg = immersive
-    ? canvas.immersiveSurfaceBg ?? (isDark ? "bg-white/6" : "bg-white/72")
-    : canvas.surfaceBg ?? (isDark ? "bg-white/5" : "bg-white");
-
-  const surfaceBorder = immersive
-    ? canvas.immersiveSurfaceBorder ?? (isDark ? "border-white/12" : "border-slate-200/50")
-    : canvas.surfaceBorder ?? (isDark ? "border-white/10" : "border-slate-200");
-
   const canvasHex = canvas.canvasHex ?? (isDark ? "#0b0b0c" : "#ffffff");
+
+  const canvasVar = {
+    ["--te-canvas" as any]: canvasHex,
+
+    ["--te-surface" as any]: isDark
+      ? immersive
+        ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 88%, white 12%)"
+        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 92%, white 8%)"
+      : immersive
+      ? "color-mix(in srgb, var(--te-canvas, #ffffff) 70%, white 30%)"
+      : "color-mix(in srgb, var(--te-canvas, #ffffff) 78%, white 22%)",
+
+    ["--te-surface-2" as any]: isDark
+      ? immersive
+        ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 84%, white 16%)"
+        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 88%, white 12%)"
+      : immersive
+      ? "color-mix(in srgb, var(--te-canvas, #ffffff) 62%, white 38%)"
+      : "color-mix(in srgb, var(--te-canvas, #ffffff) 70%, white 30%)",
+
+    ["--te-surface-border" as any]: isDark
+      ? immersive
+        ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 76%, white 24%)"
+        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 80%, white 20%)"
+      : immersive
+      ? "color-mix(in srgb, var(--te-canvas, #ffffff) 86%, black 14%)"
+      : "color-mix(in srgb, var(--te-canvas, #ffffff) 90%, black 10%)",
+  } as React.CSSProperties;
+
+  const surfaceBg = isDark
+    ? immersive
+      ? canvas.immersiveSurfaceBg ?? "bg-white/7"
+      : canvas.surfaceBg ?? "bg-white/6"
+    : "bg-[color:var(--te-surface)]";
+
+  const surfaceBorder = isDark
+    ? immersive
+      ? canvas.immersiveSurfaceBorder ?? "border-white/14"
+      : canvas.surfaceBorder ?? "border-white/12"
+    : "border-[color:var(--te-surface-border)]";
 
   return {
     bgPage,
@@ -368,10 +437,8 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
     surfaceBg,
     surfaceBorder,
     isDark,
-
-    // ✅ used by header immersive + main style var
     canvasStyle: immersive ? "immersive" : "classic",
-    canvasVar: { ["--te-canvas" as any]: canvasHex } as React.CSSProperties,
+    canvasVar,
   };
 }
 
@@ -389,7 +456,6 @@ export function resolveLayout(layout?: LayoutTokens, globalLayout?: LayoutTokens
   };
 }
 
-// ✅ keep ONLY ONE export named containerClass in the whole file
 export function containerClass(container?: Container) {
   const base = "mx-auto w-full px-4 sm:px-6 lg:px-8";
   switch (container) {
@@ -408,22 +474,22 @@ export function containerClass(container?: Container) {
 export function sectionPadY(density?: Density) {
   switch (String(density ?? "normal")) {
     case "compact":
-      return "py-8 md:py-10";
+      return "py-10 md:py-12";
     case "spacious":
-      return "py-20 md:py-24";
+      return "py-20 md:py-28";
     default:
-      return "py-12 md:py-16";
+      return "py-14 md:py-20";
   }
 }
 
 export function heroPadY(density?: Density) {
   switch (String(density ?? "normal")) {
     case "compact":
-      return "pt-10 md:pt-12 pb-10 md:pb-12";
+      return "pt-12 md:pt-16 pb-10 md:pb-14";
     case "spacious":
-      return "pt-16 md:pt-20 pb-14 md:pb-18";
+      return "pt-20 md:pt-28 pb-16 md:pb-20";
     default:
-      return "pt-12 md:pt-14 pb-10 md:pb-12";
+      return "pt-16 md:pt-22 pb-12 md:pb-16";
   }
 }
 

@@ -141,16 +141,21 @@ function SocialRow({
 
 /* ============================================================
    BLOC 1D — OVERFLOW MENU (desktop)
+   - ✅ match header style when canvas is active
    ============================================================ */
 
 function DesktopOverflowMenu({
   theme,
   label = "Plus",
   items,
+  menuStyle,
+  hasCanvas,
 }: {
   theme: ThemeLike;
   label?: string;
   items: { href: string; label: string }[];
+  menuStyle?: React.CSSProperties;
+  hasCanvas?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -206,12 +211,21 @@ function DesktopOverflowMenu({
       {open ? (
         <div
           role="menu"
+          style={
+            hasCanvas
+              ? {
+                  ...(menuStyle ?? {}),
+                  // menu shadow plus doux que le header
+                  boxShadow: "0 14px 40px rgba(0,0,0,0.22)",
+                }
+              : undefined
+          }
           className={cx(
-            "absolute right-0 mt-3 w-56 overflow-hidden border shadow-lg",
+            "absolute right-0 mt-3 w-56 overflow-hidden border rounded-2xl backdrop-blur",
             theme.isDark
-              ? "border-white/10 bg-slate-950/95 text-white"
-              : "border-slate-200 bg-white/85 text-slate-900",
-            "backdrop-blur rounded-2xl"
+              ? "border-white/10 text-white"
+              : "border-slate-200 text-slate-900",
+            !hasCanvas && (theme.isDark ? "bg-slate-950/95" : "bg-white/90")
           )}
         >
           {items.map((it) => (
@@ -245,7 +259,12 @@ export function LegacyHeader(props: {
   galleryLinks: { id: string; title: string }[];
   headerRef: React.RefObject<HTMLElement>;
   showTeam: boolean;
-  maxDirectLinks: number;
+
+  // old prop name
+  maxDirectLinks?: number;
+  // ✅ new prop name from TemplateEngine
+  maxDirectLinksInMenu?: number;
+
   contact?: { phone?: string; email?: string };
   content?: any;
   sections?: any[];
@@ -255,17 +274,14 @@ export function LegacyHeader(props: {
   layout?: LayoutTokens;
   globalLayout?: LayoutTokens;
   canvasStyle?: "classic" | "immersive";
-  canvasVar?: React.CSSProperties; // ✅ important
+  canvasVar?: React.CSSProperties;
 }) {
-  const {
-    theme,
-    brand,
-    headerVariant,
-    headerRef,
-    showTeam,
-    maxDirectLinks,
-    contact,
-  } = props;
+  const { theme, brand, headerVariant, headerRef, showTeam, contact } = props;
+
+  // ✅ unify
+  const maxDirectLinks = Number(
+    (props as any).maxDirectLinksInMenu ?? (props as any).maxDirectLinks ?? 4
+  );
 
   const variant = (headerVariant ?? "A") as HeaderVariantX;
   const l = resolveLayout(props.layout, props.globalLayout);
@@ -326,7 +342,7 @@ export function LegacyHeader(props: {
     );
 
   /* ============================================================
-     BLOC H — HEADER HEIGHT SYNC (sets --header-h / --header-offset)
+     HEADER HEIGHT SYNC
      ============================================================ */
   React.useLayoutEffect(() => {
     const el = headerRef?.current as HTMLElement | null;
@@ -445,9 +461,7 @@ export function LegacyHeader(props: {
   );
 
   /* ============================================================
-     BLOC 2A — CANVAS VAR + HEADER STYLE UNIQUE (SOURCE DE VÉRITÉ)
-     - props.canvasVar > theme.canvasVar > {}
-     - translucide pro (jamais transparent)
+     CANVAS STYLE (header)
      ============================================================ */
 
   const canvasVar = ((props as any)?.canvasVar ??
@@ -459,16 +473,12 @@ export function LegacyHeader(props: {
   const headerStyle: React.CSSProperties | undefined = hasCanvas
     ? {
         ...canvasVar,
-
-        // ✅ translucide réel (alpha < 1)
         backgroundColor: isScrolled
           ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 90%, transparent)"
           : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 78%, transparent)",
-
         backgroundImage: isScrolled
           ? "linear-gradient(rgba(0,0,0,0.12), rgba(0,0,0,0.12))"
           : "linear-gradient(rgba(0,0,0,0.16), rgba(0,0,0,0.16))",
-
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
         boxShadow: "0 6px 22px rgba(0,0,0,0.35)",
@@ -490,10 +500,6 @@ export function LegacyHeader(props: {
         : "bg-white/88 backdrop-blur")
   );
 
-  /* ============================================================
-     BLOC 2B — HEADER SHELL
-     ============================================================ */
-
   const HeaderShell = (children: React.ReactNode) => (
     <>
       <header
@@ -508,7 +514,7 @@ export function LegacyHeader(props: {
   );
 
   /* ============================================================
-     BLOC 2C — NAV Variants
+     NAV Variants
      ============================================================ */
 
   const NavA = () => (
@@ -543,7 +549,12 @@ export function LegacyHeader(props: {
           </a>
         );
       })}
-      <DesktopOverflowMenu theme={theme} items={overflowLinks} />
+      <DesktopOverflowMenu
+        theme={theme}
+        items={overflowLinks}
+        menuStyle={headerStyle}
+        hasCanvas={hasCanvas}
+      />
     </nav>
   );
 
@@ -581,7 +592,12 @@ export function LegacyHeader(props: {
       })}
 
       <div className="hidden md:block">
-        <DesktopOverflowMenu theme={theme} items={overflowLinks} />
+        <DesktopOverflowMenu
+          theme={theme}
+          items={overflowLinks}
+          menuStyle={headerStyle}
+          hasCanvas={hasCanvas}
+        />
       </div>
     </nav>
   );
@@ -618,12 +634,17 @@ export function LegacyHeader(props: {
           </a>
         );
       })}
-      <DesktopOverflowMenu theme={theme} items={overflowLinks} />
+      <DesktopOverflowMenu
+        theme={theme}
+        items={overflowLinks}
+        menuStyle={headerStyle}
+        hasCanvas={hasCanvas}
+      />
     </nav>
   );
 
   /* ============================================================
-     BLOC 2D — RENDER D
+     RENDER D
      ============================================================ */
 
   const RenderD = () => {
@@ -721,7 +742,6 @@ export function LegacyHeader(props: {
             </div>
           </Wrap>
 
-          {/* barre nav D : même style que header */}
           <div
             style={headerStyle}
             className={cx(
@@ -746,7 +766,7 @@ export function LegacyHeader(props: {
   };
 
   /* ============================================================
-     BLOC 2E — RENDER A/B/C
+     RENDER A/B/C
      ============================================================ */
 
   const RenderA = () =>

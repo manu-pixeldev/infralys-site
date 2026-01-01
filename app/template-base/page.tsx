@@ -2,20 +2,23 @@
 "use client";
 
 import React from "react";
-import { TemplateEngine } from "../components/template-engine/template-engine";
+import TemplateEngine from "../components/template-engine/template-engine";
 import { DEFAULT_TEMPLATE_CONFIG } from "./template.config";
 import type { TemplateConfigInput } from "../components/template-engine/types";
 
 const LS_KEY = "infralys.templateBase.config.v1";
 
 function clone<T>(v: T): T {
-  if (typeof (globalThis as any).structuredClone === "function") return (globalThis as any).structuredClone(v);
+  if (typeof (globalThis as any).structuredClone === "function") {
+    return (globalThis as any).structuredClone(v);
+  }
   return JSON.parse(JSON.stringify(v));
 }
 
 function loadInitial(): TemplateConfigInput {
   // ✅ important: pas de localStorage côté “server render”
-  if (typeof window === "undefined") return clone(DEFAULT_TEMPLATE_CONFIG) as any;
+  if (typeof window === "undefined")
+    return clone(DEFAULT_TEMPLATE_CONFIG) as any;
 
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -33,7 +36,9 @@ export default function TemplateBasePage() {
   React.useEffect(() => setMounted(true), []);
 
   // ✅ 2) Init stable (même rendu SSR/CSR)
-  const [config, setConfig] = React.useState<TemplateConfigInput>(() => clone(DEFAULT_TEMPLATE_CONFIG) as any);
+  const [config, setConfig] = React.useState<TemplateConfigInput>(
+    () => clone(DEFAULT_TEMPLATE_CONFIG) as any
+  );
 
   // ✅ 3) Hydrate depuis localStorage après mount
   React.useEffect(() => {
