@@ -279,16 +279,22 @@ export default function TemplateEngine({
 
   /* ============================================================
      ACTIVE SECTION HIGHLIGHT (V2030 - stable + deep link safe)
-     - ✅ Accueil = #top (even if real first section is #hero)
-     - ✅ hash direct /template-base#preuves => alias => scroll offset correct
-     - ✅ no TS errors add/removeEventListener
+     - ✅ “Accueil” highlights the HOME section href (#hero usually)
+     - ✅ #top still works as an alias (scroll top), but highlight stays on home
+     - ✅ NO SCROLL when effect re-runs due to Studio edits
      ============================================================ */
 
   const [activeHref, setActiveHref] = React.useState<string>("#top");
 
+  // ✅ prevents “studio edit => re-run effect => applyHash scroll jump”
+  const didInitHashScrollRef = React.useRef(false);
+  const lastHashAppliedRef = React.useRef<string>("");
+
+  // ✅ keep timeout ids so we can cancel on cleanup / re-run
+  const hashTimeoutsRef = React.useRef<number[]>([]);
+
   const slugify = React.useCallback((s: string) => {
     const raw = String(s || "").toLowerCase();
-    // normalize may not exist in some envs (safe)
     const norm = (raw as any).normalize ? raw.normalize("NFD") : raw;
     return norm
       .replace(/[\u0300-\u036f]/g, "")
@@ -322,6 +328,11 @@ export default function TemplateEngine({
     return observableIds.includes("hero") ? "hero" : firstRealId;
   }, [observableIds, firstRealId]);
 
+  // ✅ single helper so “Accueil” highlight is consistent everywhere
+  const setActiveHome = React.useCallback(() => {
+    setActiveHref(homeId ? `#${homeId}` : "#top");
+  }, [homeId]);
+
   // aliases: allow #preuves (title) to resolve to the real id
   const aliasToId = React.useMemo(() => {
     const map = new Map<string, string>();
@@ -332,7 +343,6 @@ export default function TemplateEngine({
       const title = String((s as any).title || "").trim();
       if (title) map.set(slugify(title), id);
 
-      // also accept raw id as alias
       map.set(slugify(id), id);
     }
     return map;
@@ -349,26 +359,28 @@ export default function TemplateEngine({
   const isNearTop = React.useCallback(() => {
     const off = headerOffsetPx();
     const y = window.scrollY || 0;
-    // generous threshold so "Accueil" comes back reliably
     return y <= Math.max(24, Math.round(off * 0.75));
   }, [headerOffsetPx]);
 
   React.useEffect(() => {
     if (!mounted) return;
 
+    // kill old delayed scrolls (prevents “ghost jump”)
+    for (const t of hashTimeoutsRef.current) window.clearTimeout(t);
+    hashTimeoutsRef.current = [];
+
     const resolveHashToHref = (rawHash: string): string | null => {
       const raw = String(rawHash || "").trim();
       if (!raw || raw === "#") return null;
 
+      // keep supporting #top as an alias
       if (raw === "#top") return "#top";
 
       const wanted = raw.startsWith("#") ? raw.slice(1) : raw;
       if (!wanted) return null;
 
-      // direct id exists
       if (document.getElementById(wanted)) return `#${wanted}`;
 
-      // try alias (e.g. #preuves)
       const ali = aliasToId.get(slugify(wanted));
       if (ali && document.getElementById(ali)) return `#${ali}`;
 
@@ -379,39 +391,67 @@ export default function TemplateEngine({
       const el = document.getElementById(id);
       if (!el) return;
 
-      // offset-aware anchor
       const y =
         el.getBoundingClientRect().top + window.scrollY - headerOffsetPx();
       window.scrollTo({ top: Math.max(0, y), behavior });
     };
 
-    // 1) hash sync (deep link / manual typing)
-    const applyHash = () => {
+    const applyHash = (forceScroll: boolean) => {
       const resolved = resolveHashToHref(window.location.hash);
       if (!resolved) return;
 
+      // If effect re-runs (studio edit) and hash didn't change, do NOT scroll.
+      const currentHash = String(window.location.hash || "");
+      const hashChanged = currentHash !== lastHashAppliedRef.current;
+
+      if (!forceScroll && !hashChanged && didInitHashScrollRef.current) {
+        // still keep highlight sane (no jump)
+        if (resolved === "#top") setActiveHome();
+        else {
+          const id = resolved.slice(1);
+          if (homeId && id === homeId) setActiveHome();
+          else setActiveHref(resolved);
+        }
+        return;
+      }
+
+      // record
+      lastHashAppliedRef.current = currentHash;
+
+      // #top: highlight “Accueil” but optionally scroll to very top
       if (resolved === "#top") {
-        setActiveHref("#top");
-        window.scrollTo({ top: 0, behavior: "auto" });
+        setActiveHome();
+        if (forceScroll) window.scrollTo({ top: 0, behavior: "auto" });
         return;
       }
 
       const id = resolved.slice(1);
 
-      // ✅ treat home section (hero/first) as Accueil
-      if (homeId && id === homeId) setActiveHref("#top");
+      if (homeId && id === homeId) setActiveHome();
       else setActiveHref(resolved);
 
-      // fix the “lands under header / looks like on top” issue:
-      // re-apply after layout settle
+      if (!forceScroll) return;
+
+      // offset-aware anchor; delayed re-apply after layout settle
       requestAnimationFrame(() => scrollToId(id, "auto"));
-      window.setTimeout(() => scrollToId(id, "auto"), 200);
+      const t = window.setTimeout(() => scrollToId(id, "auto"), 200);
+      hashTimeoutsRef.current.push(t);
     };
 
-    applyHash();
-    window.addEventListener("hashchange", applyHash);
+    // ✅ Mount behavior:
+    // - first time only => scroll to hash if present
+    // - on subsequent effect runs (studio edits) => NO scroll
+    if (!didInitHashScrollRef.current) {
+      didInitHashScrollRef.current = true;
+      applyHash(true);
+    } else {
+      applyHash(false);
+    }
 
-    // 2) clicking anchors => immediate highlight + alias support
+    const onHash = () => applyHash(true);
+    window.addEventListener("hashchange", onHash);
+
+    // clicking anchors => immediate highlight + alias support
     const onClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
@@ -423,36 +463,32 @@ export default function TemplateEngine({
       if (!hrefRaw.startsWith("#")) return;
 
       if (hrefRaw === "#top") {
-        setActiveHref("#top");
+        setActiveHome();
         return;
       }
 
       const wanted = hrefRaw.slice(1);
       if (!wanted) return;
 
-      // direct id exists
       if (document.getElementById(wanted)) {
-        if (homeId && wanted === homeId) setActiveHref("#top");
+        if (homeId && wanted === homeId) setActiveHome();
         else setActiveHref(`#${wanted}`);
         return;
       }
 
-      // alias -> real id
       const ali = aliasToId.get(slugify(wanted));
       if (ali && document.getElementById(ali)) {
-        // keep URL clean by rewriting to real id
         window.location.hash = ali;
-        if (homeId && ali === homeId) setActiveHref("#top");
+        if (homeId && ali === homeId) setActiveHome();
         else setActiveHref(`#${ali}`);
       }
     };
 
-    // capture so it fires even if inner spans etc.
     document.addEventListener("click", onClick, true);
 
-    // 3) IO: active section while scrolling
+    // near-top highlight => “Accueil” (not a special #top that doesn't exist in menu)
     const onScrollTop = () => {
-      if (isNearTop()) setActiveHref("#top");
+      if (isNearTop()) setActiveHome();
     };
 
     let obs: IntersectionObserver | null = null;
@@ -461,7 +497,7 @@ export default function TemplateEngine({
       obs = new IntersectionObserver(
         (entries) => {
           if (isNearTop()) {
-            setActiveHref("#top");
+            setActiveHome();
             return;
           }
 
@@ -476,9 +512,8 @@ export default function TemplateEngine({
           const id = (best.target as HTMLElement).id;
           if (!id) return;
 
-          // ✅ treat home section (hero/first) as Accueil
           if (homeId && id === homeId) {
-            setActiveHref("#top");
+            setActiveHome();
             return;
           }
 
@@ -497,10 +532,14 @@ export default function TemplateEngine({
     onScrollTop();
 
     return () => {
-      window.removeEventListener("hashchange", applyHash);
+      window.removeEventListener("hashchange", onHash);
       document.removeEventListener("click", onClick, true);
-      window.removeEventListener("scroll", onScrollTop as any);
+      window.removeEventListener("scroll", onScrollTop);
+
       obs?.disconnect();
+
+      for (const t of hashTimeoutsRef.current) window.clearTimeout(t);
+      hashTimeoutsRef.current = [];
     };
   }, [
     mounted,
@@ -510,6 +549,7 @@ export default function TemplateEngine({
     slugify,
     headerOffsetPx,
     isNearTop,
+    setActiveHome,
   ]);
 
   // wrapper auto-hooks for FX classes
@@ -550,15 +590,32 @@ export default function TemplateEngine({
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxImg, closeLightbox]);
 
-  // IMPORTANT:
-  // We DO NOT set --header-offset here anymore.
-  // LegacyHeader / ProHeader already set:
-  //  - --header-h
-  //  - --header-offset (height + margin)
-  //  - scrollPaddingTop
-  // If we overwrite it here, Accueil & anchors become flaky.
-
   const headerRef = React.useRef<HTMLElement>(null);
+
+  // ✅ Step 1 — ensure canvas CSS vars are globally available (header / menus / portals)
+  React.useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const style = theme.canvasVar as any;
+    if (!style) return;
+
+    // apply vars to <html> so sticky header + dropdowns always inherit
+    const root = document.documentElement;
+
+    const keys = Object.keys(style);
+    for (const k of keys) {
+      if (!k.startsWith("--")) continue;
+      root.style.setProperty(k, String(style[k]));
+    }
+
+    return () => {
+      // cleanup only what we set
+      for (const k of keys) {
+        if (!k.startsWith("--")) continue;
+        root.style.removeProperty(k);
+      }
+    };
+  }, [theme.canvasVar]);
 
   return (
     <div

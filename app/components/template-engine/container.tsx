@@ -1,3 +1,4 @@
+// app/components/template-engine/container.tsx
 import React from "react";
 import type { ThemeLike } from "./theme";
 import type { JSX } from "react";
@@ -37,12 +38,13 @@ export function Surface({
 }) {
   return (
     <As
-      className={cx("rounded-2xl border", className)}
-      style={{
-        background: theme.surfaceBg,
-        borderColor: theme.surfaceBorder,
-        ...style,
-      }}
+      className={cx(
+        "rounded-2xl border",
+        theme.surfaceBg,
+        theme.surfaceBorder,
+        className
+      )}
+      style={style}
     >
       {children}
     </As>

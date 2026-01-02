@@ -1,3 +1,4 @@
+// app/components/template-engine/proof.tsx
 "use client";
 
 import React from "react";
@@ -81,9 +82,8 @@ export function ProofStats(props: any) {
               key={i}
               className={cx(
                 "rounded-2xl border p-6",
-                theme.isDark
-                  ? "border-white/10 bg-white/5"
-                  : "border-slate-200 bg-white"
+                theme.surfaceBorder,
+                theme.surfaceBg
               )}
             >
               <div

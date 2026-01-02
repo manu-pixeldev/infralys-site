@@ -57,6 +57,9 @@ function Wrap({
 
 /* ============================================================
    BLOC 1B — SURFACE (autonome: glass + border + text)
+   - ✅ FIX: quand un canvas est actif, on fait matcher le fond
+     des modules sur le fond du HEADER (basé sur --te-canvas),
+     pour éviter le "module trop clair" sur charcoal.
    ============================================================ */
 
 function Surface({
@@ -76,16 +79,46 @@ function Surface({
 }) {
   const l = resolveLayout(layout, globalLayout);
 
+  // canvas vars (si présents)
+  const canvasVar =
+    (((theme as any)?.canvasVar ?? {}) as React.CSSProperties) || {};
+
+  const hasCanvas =
+    !!(canvasVar as any)?.["--te-canvas"] ||
+    !!(canvasVar as any)?.["--te-surface"] ||
+    !!(canvasVar as any)?.["--te-surface-2"] ||
+    !!(canvasVar as any)?.["--te-surface-border"];
+
   // fallback si jamais un thème n'a pas de surfaceBg
   const fallbackBg = theme.isDark ? "bg-white/5" : "bg-white/85";
 
+  // ✅ Quand canvas actif: on "teinte" la surface avec le CANVAS (comme le header),
+  // au lieu d'un bg-white/xx qui devient trop clair sur charcoal.
+  const canvasSurfaceStyle: React.CSSProperties | undefined = hasCanvas
+    ? {
+        ...canvasVar,
+        // même matière que le header, mais un poil plus "surface"
+        backgroundColor:
+          "color-mix(in srgb, var(--te-canvas, #020617) 88%, transparent)",
+        borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+      }
+    : undefined;
+
   return (
     <div
-      style={{ ...radiusStyle(l.radius), ...style }}
+      style={{
+        ...radiusStyle(l.radius),
+        ...(canvasSurfaceStyle ?? {}),
+        ...style,
+      }}
       className={cx(
         "border backdrop-blur",
+        // ✅ en canvas: border via var (inline), mais on garde la class au cas où
         theme.surfaceBorder,
-        theme.surfaceBg || fallbackBg,
+        // ✅ en canvas: on évite theme.surfaceBg si ça décale (charcoal)
+        hasCanvas ? "bg-transparent" : theme.surfaceBg || fallbackBg,
         theme.isDark ? "text-white" : "text-slate-900",
         className
       )}
@@ -121,7 +154,7 @@ function SocialRow({
   );
 
   return (
-    <div className={cx("flex items-center gap-2", className)} role="list">
+    <div className={cx("flex items-center gap-2", className)}>
       {items.map(({ kind, href, def }) => (
         <a
           key={kind}
@@ -131,7 +164,6 @@ function SocialRow({
           title={def.label}
           aria-label={def.label}
           className={cx(btnBase, btnTheme, "h-10 w-10")}
-          role="listitem"
         >
           <def.Icon className="opacity-90" />
         </a>
@@ -142,6 +174,9 @@ function SocialRow({
 
 /* ============================================================
    BLOC 1D — OVERFLOW MENU (desktop) — V2030 UX (compile-safe)
+   - ✅ label dynamique possible
+   - ✅ activeRow basé sur activeHref (pas window.location.hash)
+   - ✅ menu bg cohérent via --te-surface/--te-surface-2
    ============================================================ */
 
 function DesktopOverflowMenu({
@@ -153,6 +188,7 @@ function DesktopOverflowMenu({
   active = false,
   buttonClassName,
   showCaret = true,
+  activeHref,
 }: {
   theme: ThemeLike;
   label?: string;
@@ -162,6 +198,7 @@ function DesktopOverflowMenu({
   active?: boolean;
   buttonClassName?: string;
   showCaret?: boolean;
+  activeHref?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -187,13 +224,16 @@ function DesktopOverflowMenu({
 
   if (!items?.length) return null;
 
+  // ✅ fallback canvas-like (si menuStyle absent)
   const canvasFallbackStyle: React.CSSProperties = {
     backgroundColor:
-      "color-mix(in srgb, var(--te-canvas, #0b0b0c) 85%, transparent)",
+      "color-mix(in srgb, var(--te-surface-2, rgba(18,18,22,0.78)) 88%, transparent)",
+    borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
     backdropFilter: "blur(14px)",
     WebkitBackdropFilter: "blur(14px)",
   };
 
+  // future-proof: si menuStyle existe, on le traite comme "canvas-like"
   const useCanvasLike = Boolean(menuStyle) || Boolean(hasCanvas);
 
   return (
@@ -225,42 +265,44 @@ function DesktopOverflowMenu({
           className={cx(
             "absolute right-0 z-[999] mt-3 w-56 overflow-hidden rounded-2xl border shadow-lg backdrop-blur",
             useCanvasLike
-              ? "border-black/10 text-inherit"
+              ? "border-[color:var(--te-surface-border)] text-inherit"
               : theme.isDark
               ? "border-white/10 bg-slate-950/95 text-white"
               : "border-slate-200 bg-white/85 text-slate-900"
           )}
         >
-          {items.map((it) => (
-            <a
-              key={it.href}
-              href={it.href}
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className={cx(
-                "block px-4 py-3 text-sm font-semibold transition",
-                it.href ===
-                  (typeof window !== "undefined" ? window.location.hash : "")
-                  ? useCanvasLike
-                    ? theme.isDark
+          {items.map((it) => {
+            const rowActive = it.href === (activeHref ?? "");
+            return (
+              <a
+                key={it.href}
+                href={it.href}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={cx(
+                  "block px-4 py-3 text-sm font-semibold transition",
+                  rowActive
+                    ? useCanvasLike
+                      ? theme.isDark
+                        ? "bg-white/10"
+                        : "bg-black/5"
+                      : theme.isDark
                       ? "bg-white/10"
-                      : "bg-black/5"
+                      : "bg-slate-50"
+                    : "",
+                  useCanvasLike
+                    ? theme.isDark
+                      ? "hover:bg-white/10"
+                      : "hover:bg-black/5"
                     : theme.isDark
-                    ? "bg-white/10"
-                    : "bg-slate-50"
-                  : "",
-                useCanvasLike
-                  ? theme.isDark
                     ? "hover:bg-white/10"
-                    : "hover:bg-black/5"
-                  : theme.isDark
-                  ? "hover:bg-white/10"
-                  : "hover:bg-slate-50"
-              )}
-            >
-              {it.label}
-            </a>
-          ))}
+                    : "hover:bg-slate-50"
+                )}
+              >
+                {it.label}
+              </a>
+            );
+          })}
         </div>
       ) : null}
     </div>
@@ -279,7 +321,9 @@ export function LegacyHeader(props: {
   headerRef: React.RefObject<HTMLElement>;
   showTeam: boolean;
 
+  // old prop name
   maxDirectLinks?: number;
+  // ✅ new prop name from TemplateEngine
   maxDirectLinksInMenu?: number;
 
   contact?: { phone?: string; email?: string };
@@ -291,11 +335,13 @@ export function LegacyHeader(props: {
   layout?: LayoutTokens;
   globalLayout?: LayoutTokens;
 
+  // canvas plumbing
   canvasStyle?: "classic" | "immersive";
   canvasVar?: React.CSSProperties;
 }) {
   const { theme, brand, headerVariant, headerRef, showTeam, contact } = props;
 
+  // ✅ unify (old + new prop name)
   const maxDirectLinks = Number(
     (props as any).maxDirectLinksInMenu ?? (props as any).maxDirectLinks ?? 4
   );
@@ -309,10 +355,6 @@ export function LegacyHeader(props: {
     Math.min(1, Number(props.scrollT ?? (props.isScrolled ? 1 : 0)))
   );
   const isScrolled = t > 0.15;
-
-  // ✅ V16 FIX: HOME semantics (Accueil = #top OR #hero)
-  const isHomeHref = (href?: string) => href === "#top" || href === "#hero";
-  const isHomeActive = isHomeHref(activeHref);
 
   const lerp = (a: number, b: number) => a + (b - a) * t;
 
@@ -395,6 +437,7 @@ export function LegacyHeader(props: {
     };
   }, [headerRef]);
 
+  // ✅ Anti-tremblement subtitle
   const subtitleRaw = (brand as any)?.text?.subtitle;
   const subtitleText = hasText(subtitleRaw) ? String(subtitleRaw) : "\u00A0";
 
@@ -444,14 +487,32 @@ export function LegacyHeader(props: {
   const secs = Array.isArray((props as any).sections)
     ? (props as any).sections
     : [];
-  const orderedLinks = secs
+
+  // ✅ first real section id (hero etc.) so we can map it to "#top"
+  const firstSectionId =
+    secs.find(
+      (sec: any) =>
+        sec?.enabled !== false && sec?.type !== "header" && sec?.type !== "top"
+    )?.id ?? "";
+
+  const orderedLinksRaw = secs
     .filter((sec: any) => sec?.enabled !== false)
     .map((sec: any) => {
       if (!sec?.type || sec.type === "header" || sec.type === "top")
         return null;
-      return { href: `#${sec.id}`, label: sec.title ?? sec.id };
+      const href = `#${sec.id}`;
+      const label = sec.title ?? sec.id;
+      return { href, label };
     })
     .filter(Boolean) as { href: string; label: string }[];
+
+  // ✅ Map the FIRST section to Accueil/#top (so activeHref "#top" matches!)
+  const orderedLinks = orderedLinksRaw.map((lnk, idx) => {
+    if (idx === 0 && firstSectionId && lnk.href === `#${firstSectionId}`) {
+      return { href: "#top", label: "Accueil" };
+    }
+    return lnk;
+  });
 
   // fallback links if config not providing good titles
   const direct = (props.galleryLinks ?? []).slice(
@@ -479,12 +540,10 @@ export function LegacyHeader(props: {
   const inlineLinks = linksAll.slice(0, MAX_INLINE);
   const overflowLinks = linksAll.slice(MAX_INLINE);
 
-  // ✅ overflow active if current section belongs to overflow
-  const overflowActive = overflowLinks.some((x) => {
-    // ✅ V16 FIX: treat #hero/#top equivalence
-    if (isHomeHref(x.href) && isHomeActive) return true;
-    return x.href === activeHref;
-  });
+  // ✅ V2030 Option 1: Plus label becomes the active overflow label
+  const overflowActiveLink = overflowLinks.find((x) => x.href === activeHref);
+  const overflowLabel = overflowActiveLink ? overflowActiveLink.label : "Plus";
+  const overflowActive = Boolean(overflowActiveLink);
 
   const headerPos = "fixed left-0 right-0 top-0";
   const headerZ = "z-50";
@@ -494,60 +553,49 @@ export function LegacyHeader(props: {
 
   /* ============================================================
      CANVAS STYLE (header + menus)
+     - Header = basé sur --te-canvas (fond page)
+     - Menu = basé sur --te-surface-2 (surface flottante)
      ============================================================ */
 
+  // ✅ SINGLE source-of-truth canvas vars
   const canvasVar = ((props as any)?.canvasVar ??
     (theme as any)?.canvasVar ??
     {}) as React.CSSProperties;
 
-  // ✅ V16 FIX: less fragile hasCanvas
-  const teCanvas = (canvasVar as any)?.["--te-canvas"];
-  const hasCanvas = typeof teCanvas === "string" && teCanvas.trim().length > 0;
+  const hasCanvas =
+    !!(canvasVar as any)?.["--te-canvas"] ||
+    !!(canvasVar as any)?.["--te-surface"] ||
+    !!(canvasVar as any)?.["--te-surface-2"] ||
+    !!(canvasVar as any)?.["--te-surface-border"];
 
-  // ✅ V16 FIX: always provide a good fallback header/menu style
-  const headerStyle: React.CSSProperties = hasCanvas
+  // ✅ Header: match le FOND (canvas), pas la surface
+  const headerStyle: React.CSSProperties | undefined = hasCanvas
     ? {
         ...canvasVar,
         backgroundColor: isScrolled
-          ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 90%, transparent)"
-          : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 78%, transparent)",
-        backgroundImage: isScrolled
-          ? "linear-gradient(rgba(0,0,0,0.12), rgba(0,0,0,0.12))"
-          : "linear-gradient(rgba(0,0,0,0.16), rgba(0,0,0,0.16))",
+          ? "color-mix(in srgb, var(--te-canvas, #020617) 92%, transparent)"
+          : "color-mix(in srgb, var(--te-canvas, #020617) 86%, transparent)",
+        borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
-        boxShadow: "0 6px 22px rgba(0,0,0,0.35)",
+        boxShadow: isScrolled
+          ? "0 10px 34px rgba(0,0,0,0.32)"
+          : "0 6px 22px rgba(0,0,0,0.22)",
       }
-    : {
-        backgroundColor: theme.isDark
-          ? "rgba(2,6,23,0.88)"
-          : "rgba(255,255,255,0.88)",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-        boxShadow: "0 6px 22px rgba(0,0,0,0.25)",
-      };
+    : undefined;
 
-  const menuStyle: React.CSSProperties = hasCanvas
+  // ✅ Menu dropdown: surface (doit “flotter” au-dessus)
+  const menuStyle: React.CSSProperties | undefined = hasCanvas
     ? {
         ...canvasVar,
-        backgroundColor: isScrolled
-          ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 90%, transparent)"
-          : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 78%, transparent)",
-        backgroundImage: isScrolled
-          ? "linear-gradient(rgba(0,0,0,0.10), rgba(0,0,0,0.10))"
-          : "linear-gradient(rgba(0,0,0,0.12), rgba(0,0,0,0.12))",
+        backgroundColor:
+          "color-mix(in srgb, var(--te-surface-2, rgba(18,18,22,0.78)) 88%, transparent)",
+        borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.28)",
+        boxShadow: "0 18px 55px rgba(0,0,0,0.28)",
       }
-    : {
-        backgroundColor: theme.isDark
-          ? "rgba(2,6,23,0.95)"
-          : "rgba(255,255,255,0.92)",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.22)",
-      };
+    : undefined;
 
   const headerClassBase = cx(
     headerPos,
@@ -555,7 +603,16 @@ export function LegacyHeader(props: {
     "border-b transition-[background-color,backdrop-filter] duration-200",
     theme.isDark
       ? "border-white/10 text-white"
-      : "border-slate-200 text-slate-900"
+      : "border-slate-200 text-slate-900",
+    !hasCanvas &&
+      (theme.isDark
+        ? "bg-slate-950/70 backdrop-blur"
+        : "bg-white/70 backdrop-blur"),
+    !hasCanvas &&
+      isScrolled &&
+      (theme.isDark
+        ? "bg-slate-950/78 backdrop-blur"
+        : "bg-white/78 backdrop-blur")
   );
 
   const HeaderShell = (children: React.ReactNode) => (
@@ -580,7 +637,6 @@ export function LegacyHeader(props: {
     : theme.isDark
     ? "text-white/80"
     : "text-slate-700";
-
   const navHoverTextClass = hasCanvas
     ? "text-inherit"
     : theme.isDark
@@ -590,7 +646,7 @@ export function LegacyHeader(props: {
   const navShellClass = cx(
     "hidden md:flex items-center gap-2 rounded-2xl border p-1.5 backdrop-blur",
     hasCanvas
-      ? "border-white/10 bg-white/5"
+      ? "border-[color:var(--te-surface-border)] bg-white/5"
       : theme.isDark
       ? "border-white/10 bg-white/5"
       : "border-black/10 bg-white/40"
@@ -622,11 +678,7 @@ export function LegacyHeader(props: {
       className={cx("hidden md:flex items-center gap-7", navBase, navTextClass)}
     >
       {inlineLinks.map((lnk) => {
-        // ✅ V16 FIX: Accueil underline works even if link is #hero
-        const active = isHomeHref(lnk.href)
-          ? isHomeActive
-          : lnk.href === activeHref;
-
+        const active = lnk.href === activeHref;
         return (
           <a
             key={lnk.href}
@@ -658,10 +710,12 @@ export function LegacyHeader(props: {
           <div className="group relative">
             <DesktopOverflowMenu
               theme={theme}
+              label={overflowLabel}
               items={overflowLinks}
               menuStyle={menuStyle}
               hasCanvas={hasCanvas}
               active={overflowActive}
+              activeHref={activeHref}
             />
             <span
               className={cx(
@@ -679,43 +733,40 @@ export function LegacyHeader(props: {
     </nav>
   );
 
-  const NavB = () => {
-    return (
-      <nav className={navShellClass}>
-        {inlineLinks.map((lnk) => {
-          const active = isHomeHref(lnk.href)
-            ? isHomeActive
-            : lnk.href === activeHref;
+  const NavB = () => (
+    <nav className={navShellClass}>
+      {inlineLinks.map((lnk) => {
+        const active = lnk.href === activeHref;
+        return (
+          <a
+            key={lnk.href}
+            href={lnk.href}
+            className={cx(pillBase, active ? pillActive : pillIdle)}
+          >
+            {lnk.label}
+          </a>
+        );
+      })}
 
-          return (
-            <a
-              key={lnk.href}
-              href={lnk.href}
-              className={cx(pillBase, active ? pillActive : pillIdle)}
-            >
-              {lnk.label}
-            </a>
-          );
-        })}
-
-        {overflowLinks.length ? (
-          <div className="hidden md:block">
-            <DesktopOverflowMenu
-              theme={theme}
-              items={overflowLinks}
-              menuStyle={menuStyle}
-              hasCanvas={hasCanvas}
-              active={overflowActive}
-              buttonClassName={cx(
-                pillBase,
-                overflowActive ? pillActive : pillIdle
-              )}
-            />
-          </div>
-        ) : null}
-      </nav>
-    );
-  };
+      {overflowLinks.length ? (
+        <div className="hidden md:block">
+          <DesktopOverflowMenu
+            theme={theme}
+            label={overflowLabel}
+            items={overflowLinks}
+            menuStyle={menuStyle}
+            hasCanvas={hasCanvas}
+            active={overflowActive}
+            activeHref={activeHref}
+            buttonClassName={cx(
+              pillBase,
+              overflowActive ? pillActive : pillIdle
+            )}
+          />
+        </div>
+      ) : null}
+    </nav>
+  );
 
   const NavC = () => (
     <nav
@@ -726,10 +777,7 @@ export function LegacyHeader(props: {
       )}
     >
       {inlineLinks.map((lnk) => {
-        const active = isHomeHref(lnk.href)
-          ? isHomeActive
-          : lnk.href === activeHref;
-
+        const active = lnk.href === activeHref;
         return (
           <a
             key={lnk.href}
@@ -760,10 +808,12 @@ export function LegacyHeader(props: {
         <div className="group relative">
           <DesktopOverflowMenu
             theme={theme}
+            label={overflowLabel}
             items={overflowLinks}
             menuStyle={menuStyle}
             hasCanvas={hasCanvas}
             active={overflowActive}
+            activeHref={activeHref}
           />
           <span
             className={cx(
@@ -1080,7 +1130,7 @@ export function LegacyHero({
             theme={theme}
             layout={layout}
             globalLayout={globalLayout}
-            className={cx("p-10 md:p-14")}
+            className="p-10 md:p-14"
           >
             <div className="max-w-3xl mx-auto text-center">
               {hasText(kicker) ? (
@@ -1150,7 +1200,7 @@ export function LegacyHero({
           theme={theme}
           layout={layout}
           globalLayout={globalLayout}
-          className={cx("p-10 md:p-14", theme.isDark && "bg-white/5")}
+          className="p-10 md:p-14"
         >
           <div className="grid items-center gap-10 md:grid-cols-2">
             <div>
@@ -1249,7 +1299,7 @@ export function LegacySplit(props: any) {
           theme={theme}
           layout={layout}
           globalLayout={globalLayout}
-          className={cx("p-8 md:p-10", theme.isDark && "bg-white/5")}
+          className="p-8 md:p-10"
         >
           <div
             className={cx(
@@ -1333,7 +1383,7 @@ export function LegacyServices(props: any) {
       theme={theme}
       layout={layout}
       globalLayout={globalLayout}
-      className={cx("p-6", theme.isDark && "bg-white/5")}
+      className="p-6"
     >
       <div
         className={cx(
@@ -1480,7 +1530,7 @@ export function LegacyTeam(props: any) {
               theme={theme}
               layout={layout}
               globalLayout={globalLayout}
-              className={cx("p-6", theme.isDark && "bg-white/5")}
+              className="p-6"
             >
               <div
                 className={cx(
@@ -1507,7 +1557,7 @@ export function LegacyTeam(props: any) {
 }
 
 /* ============================================================
-   BLOC 7 — GALLERIES (stack / twoCol / threeCol)
+   BLOC 7 — GALLERIES (stack / twoCol / threeCol + pro* aliases)
    ============================================================ */
 
 export function LegacyGalleries(props: any) {
@@ -1521,23 +1571,39 @@ export function LegacyGalleries(props: any) {
     enableLightbox,
     variant,
   } = props;
+
   const l = resolveLayout(layout, globalLayout);
 
-  const v = String(variant ?? "twoCol");
+  // normalize variant (supports pro* names safely)
+  const rawV = String(variant ?? "twoCol")
+    .trim()
+    .toLowerCase();
+
+  const v =
+    rawV.includes("three") || rawV.includes("3col")
+      ? "threeCol"
+      : rawV.includes("two") || rawV.includes("2col")
+      ? "twoCol"
+      : rawV.includes("stack") || rawV.includes("one") || rawV.includes("1col")
+      ? "stack"
+      : rawV;
+
   const cols =
     v === "threeCol"
-      ? "md:grid-cols-3"
+      ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3"
       : v === "stack"
-      ? "md:grid-cols-1"
-      : "md:grid-cols-2";
+      ? "grid-cols-1"
+      : "grid-cols-1 sm:grid-cols-2 md:grid-cols-2";
+
+  const aspect = v === "stack" ? "aspect-[16/7]" : "aspect-[16/11]";
 
   const galleries = Array.isArray(content?.galleries) ? content.galleries : [];
   const g = galleries.find((x: any) => x?.id === sectionId) ?? galleries[0];
+
   const title = g?.title ?? "Galeries";
   const desc = g?.description ?? "";
   const images = Array.isArray(g?.images) ? g.images : [];
 
-  // ✅ (optionnel mais safe) fallback si vide
   if (!images.length) {
     return (
       <section
@@ -1599,6 +1665,7 @@ export function LegacyGalleries(props: any) {
           >
             {title}
           </h2>
+
           {hasText(desc) ? (
             <p
               className={cx(
@@ -1629,15 +1696,23 @@ export function LegacyGalleries(props: any) {
                   theme.isDark ? "border-white/10" : "border-slate-200"
                 )}
               >
-                <div className="relative aspect-[16/11]">
+                <div className={cx("relative", aspect)}>
                   <NextImage
                     src={img.src}
                     alt={img.alt ?? "Visuel"}
                     fill
                     className="object-cover"
+                    sizes={
+                      v === "threeCol"
+                        ? "(min-width: 768px) 33vw, 100vw"
+                        : v === "twoCol"
+                        ? "(min-width: 640px) 50vw, 100vw"
+                        : "100vw"
+                    }
                   />
                 </div>
               </div>
+
               {hasText(img.caption) ? (
                 <div
                   className={cx(
@@ -1804,7 +1879,7 @@ export function LegacyContact(props: any) {
             theme={theme}
             layout={layout}
             globalLayout={globalLayout}
-            className={cx("p-6 md:p-8", theme.isDark && "bg-white/5")}
+            className="p-6 md:p-8"
           >
             <div
               className={cx(
@@ -1880,7 +1955,7 @@ export function LegacyContact(props: any) {
           theme={theme}
           layout={layout}
           globalLayout={globalLayout}
-          className={cx("p-8 md:p-10", theme.isDark && "bg-white/5")}
+          className="p-8 md:p-10"
         >
           <div className="grid gap-8 md:grid-cols-2">
             <div>

@@ -224,7 +224,8 @@ const CANVAS: Record<string, CanvasDef> = {
     immersiveSurfaceBorder: "border-white/12",
     immersiveBgExtra:
       "bg-[radial-gradient(1200px_700px_at_20%_0%,rgba(56,189,248,0.10),transparent_55%),radial-gradient(900px_700px_at_80%_20%,rgba(168,85,247,0.10),transparent_55%)]",
-    canvasHex: "#0b0b0c",
+    canvasHex: "#020617", // match bg-slate-950
+
   },
 
   midnight: {
@@ -417,17 +418,9 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
       : "color-mix(in srgb, var(--te-canvas, #ffffff) 90%, black 10%)",
   } as React.CSSProperties;
 
-  const surfaceBg = isDark
-    ? immersive
-      ? canvas.immersiveSurfaceBg ?? "bg-white/7"
-      : canvas.surfaceBg ?? "bg-white/6"
-    : "bg-[color:var(--te-surface)]";
-
-  const surfaceBorder = isDark
-    ? immersive
-      ? canvas.immersiveSurfaceBorder ?? "border-white/14"
-      : canvas.surfaceBorder ?? "border-white/12"
-    : "border-[color:var(--te-surface-border)]";
+  // ✅ FIX STEP 3 — unify: ALWAYS use CSS vars so header/sections match in charcoal
+  const surfaceBg = "bg-[color:var(--te-surface)]";
+  const surfaceBorder = "border-[color:var(--te-surface-border)]";
 
   return {
     bgPage,

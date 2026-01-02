@@ -40,6 +40,44 @@ function splitMenu(nav: NavItem[], maxDirect: number) {
   return { direct: nav.slice(0, n), more: nav.slice(n) };
 }
 
+/** "more" label: show active section label if active is in "more" list */
+function getMoreLabel({
+  more,
+  activeHref,
+  fallback = "AUTRES",
+}: {
+  more: NavItem[];
+  activeHref?: string;
+  fallback?: string;
+}) {
+  if (!activeHref) return fallback;
+  const hit = more.find((x) => x.href === activeHref);
+  return hit?.label ? hit.label : fallback;
+}
+
+function isMoreActive(more: NavItem[], activeHref?: string) {
+  return !!activeHref && more.some((x) => x.href === activeHref);
+}
+
+function galleryGridClass(variant?: string) {
+  const v = String(variant || "")
+    .trim()
+    .toLowerCase();
+
+  // accept many names (safe)
+  if (v.includes("one") || v.includes("1col") || v.includes("stack")) {
+    return "grid grid-cols-1 gap-4";
+  }
+  if (v.includes("two") || v.includes("2col")) {
+    return "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2";
+  }
+  if (v.includes("four") || v.includes("4col")) {
+    return "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4";
+  }
+  // default = 3 cols
+  return "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3";
+}
+
 export default function ProHeader({
   theme,
   brand,
@@ -78,30 +116,60 @@ export default function ProHeader({
     };
   }, [open]);
 
-  const surfaceStyle: React.CSSProperties = {
-    background: theme.isDark ? undefined : "var(--te-surface)",
-    borderColor: theme.isDark ? undefined : "var(--te-surface-border)",
-  };
+  // =========================
+  // Glass styles with fallback
+  // - backgroundColor always works
+  // - background uses color-mix if supported
+  // =========================
+  const darkFallback = "rgba(18,18,22,0.62)";
+  const lightFallback = "rgba(255,255,255,0.72)";
+
+  const surfaceStyle: React.CSSProperties = theme.isDark
+    ? {
+        backgroundColor: darkFallback,
+        background:
+          "color-mix(in srgb, var(--te-surface, rgba(18,18,22,0.92)) 70%, transparent)",
+        border: "1px solid var(--te-surface-border, rgba(255,255,255,0.10))",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+      }
+    : {
+        backgroundColor: lightFallback,
+        background:
+          "color-mix(in srgb, var(--te-surface, rgba(255,255,255,0.92)) 72%, transparent)",
+        border: "1px solid var(--te-surface-border, rgba(0,0,0,0.10))",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+      };
 
   const headerBgStyle: React.CSSProperties = theme.isDark
     ? {
-        background: theme.surfaceBg,
-        border: `1px solid ${theme.surfaceBorder}`,
+        backgroundColor: darkFallback,
+        background:
+          "color-mix(in srgb, var(--te-surface, rgba(18,18,22,0.62)) 72%, transparent)",
+        border: "1px solid var(--te-surface-border, rgba(255,255,255,0.10))",
+        backdropFilter: isScrolled ? "blur(14px)" : "blur(10px)",
+        WebkitBackdropFilter: isScrolled ? "blur(14px)" : "blur(10px)",
       }
     : {
-        background: "var(--te-surface)",
-        border: "1px solid var(--te-surface-border)",
+        backgroundColor: lightFallback,
+        background:
+          "color-mix(in srgb, var(--te-surface, rgba(255,255,255,0.70)) 72%, transparent)",
+        border: "1px solid var(--te-surface-border, rgba(0,0,0,0.10))",
+        backdropFilter: isScrolled ? "blur(12px)" : "blur(8px)",
+        WebkitBackdropFilter: isScrolled ? "blur(12px)" : "blur(8px)",
       };
 
   const pillBg = theme.isDark
-    ? theme.isDark
-      ? "rgba(255,255,255,0.10)"
-      : "rgba(0,0,0,0.06)"
-    : "color-mix(in srgb, var(--te-surface) 70%, white 30%)";
+    ? "rgba(255,255,255,0.10)"
+    : "color-mix(in srgb, var(--te-surface, rgba(255,255,255,0.92)) 70%, white 30%)";
 
   const logoMode = String(brand?.logo?.mode ?? "logoPlusText");
   const logoSrc = String(brand?.logo?.src ?? "");
   const showImg = logoMode !== "textOnly" && !!logoSrc;
+
+  const moreLabel = getMoreLabel({ more, activeHref, fallback: "AUTRES" });
+  const moreActive = isMoreActive(more, activeHref);
 
   return (
     <header
@@ -167,15 +235,18 @@ export default function ProHeader({
                     "rounded-full px-4 py-2 text-xs font-semibold opacity-85 hover:opacity-100 transition",
                     fx?.enabled && fx?.shimmerCta ? "fx-cta" : ""
                   )}
-                  style={{ background: open ? pillBg : "transparent" }}
+                  style={{
+                    background: open || moreActive ? pillBg : "transparent",
+                  }}
                   aria-expanded={open}
                 >
-                  AUTRES <span className="opacity-60">⋯</span>
+                  {moreLabel.toUpperCase()}{" "}
+                  <span className="opacity-60">▾</span>
                 </button>
 
                 {open ? (
                   <div
-                    className="absolute right-0 mt-2 w-56 overflow-hidden rounded-2xl border shadow-[0_18px_55px_rgba(0,0,0,0.18)]"
+                    className="absolute right-0 mt-2 w-56 overflow-hidden rounded-2xl shadow-[0_18px_55px_rgba(0,0,0,0.18)]"
                     style={surfaceStyle}
                   >
                     <div className="p-2">
@@ -215,14 +286,16 @@ export function ProServices() {
   );
 }
 
-/* ---------------- PRO GALLERY (minimal real gallery) ---------------- */
+/* ---------------- PRO GALLERY (variant-aware) ---------------- */
 
 export function ProGallery({
   content,
   config,
+  variant,
 }: {
   content?: any;
   config?: any;
+  variant?: string;
 }) {
   const images: any[] =
     (content?.gallery?.images as any[]) ??
@@ -251,16 +324,23 @@ export function ProGallery({
         <div
           className="rounded-3xl border p-6"
           style={{
-            background: "var(--te-surface)",
-            borderColor: "var(--te-surface-border)",
+            backgroundColor: "rgba(18,18,22,0.35)",
+            background:
+              "color-mix(in srgb, var(--te-surface, rgba(18,18,22,0.55)) 85%, transparent)",
+            borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
           }}
         >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={galleryGridClass(variant)}>
             {list.map((img, i) => (
               <div
                 key={`${img?.src ?? "img"}:${i}`}
                 className="overflow-hidden rounded-2xl border"
-                style={{ borderColor: "var(--te-surface-border)" }}
+                style={{
+                  borderColor:
+                    "var(--te-surface-border, rgba(255,255,255,0.10))",
+                }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

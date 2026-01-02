@@ -8,7 +8,8 @@ export type SocialKind =
   | "whatsapp"
   | "instagram"
   | "linkedin"
-  | "youtube";
+  | "youtube"
+  | "tiktok";
 
 export type SocialDef = {
   label: string;
@@ -48,18 +49,20 @@ const IconInstagram = (p: { className?: string }) => <Glyph {...p}>◎</Glyph>;
 const IconLinkedIn = (p: { className?: string }) => <Glyph {...p}>in</Glyph>;
 const IconWhatsApp = (p: { className?: string }) => <Glyph {...p}>wa</Glyph>;
 const IconYouTube = (p: { className?: string }) => <Glyph {...p}>▶</Glyph>;
+const IconTikTok = (p: { className?: string }) => <Glyph {...p}>♪</Glyph>;
 
 export const SOCIAL_DEFS: Record<SocialKind, SocialDef> = {
   website: { label: "Site", Icon: IconGlobe },
   facebook: { label: "Facebook", Icon: IconFacebook },
   instagram: { label: "Instagram", Icon: IconInstagram },
   linkedin: { label: "LinkedIn", Icon: IconLinkedIn },
+  youtube: { label: "YouTube", Icon: IconYouTube },
   whatsapp: {
     label: "WhatsApp",
     hrefPrefix: "https://wa.me/",
     Icon: IconWhatsApp,
   },
-  youtube: { label: "YouTube", Icon: IconYouTube },
+  tiktok: { label: "TikTok", Icon: IconTikTok },
 };
 
 export type SocialRecord = Partial<Record<SocialKind, string | null>>;
@@ -71,6 +74,16 @@ export type SocialConfig =
       enabled?: Partial<Record<SocialKind, boolean>>;
       order?: SocialKind[];
     };
+
+const ORDER_DEFAULT: SocialKind[] = [
+  "website",
+  "facebook",
+  "instagram",
+  "linkedin",
+  "youtube",
+  "whatsapp",
+  "tiktok",
+];
 
 function normalizeUrl(kind: SocialKind, raw: string, def: SocialDef) {
   const v = String(raw || "").trim();
@@ -100,25 +113,40 @@ function isNewShape(cfg: any): cfg is Exclude<SocialConfig, SocialRecord> {
   );
 }
 
-export function resolveSocialLinks(cfg?: SocialConfig) {
-  const orderDefault = Object.keys(SOCIAL_DEFS) as SocialKind[];
+/** ✅ Tolérance legacy (si ton localStorage a encore des anciennes clés) */
+function coerceLegacyLinks(rawLinks: any): SocialRecord {
+  const links: any = { ...(rawLinks ?? {}) };
 
+  // legacy: site/url/web -> website
+  if (!links.website) {
+    links.website = links.site || links.url || links.web || links.www || null;
+  }
+
+  // legacy: "wa" -> whatsapp
+  if (!links.whatsapp) {
+    links.whatsapp = links.wa || null;
+  }
+
+  return links as SocialRecord;
+}
+
+export function resolveSocialLinks(cfg?: SocialConfig) {
   const links: SocialRecord = !cfg
     ? {}
     : isNewShape(cfg)
-    ? cfg.links ?? {}
-    : (cfg as SocialRecord);
+    ? coerceLegacyLinks(cfg.links ?? {})
+    : coerceLegacyLinks(cfg as SocialRecord);
 
   const enabled = isNewShape(cfg) ? cfg.enabled ?? {} : {};
   const order = (
-    isNewShape(cfg) && cfg.order?.length ? cfg.order : orderDefault
+    isNewShape(cfg) && cfg.order?.length ? cfg.order : ORDER_DEFAULT
   ) as SocialKind[];
 
   return order
     .filter((k) => enabled[k] !== false)
     .map((k) => {
       const def = SOCIAL_DEFS[k];
-      const raw = links[k];
+      const raw = (links as any)[k];
       const href = raw ? normalizeUrl(k, raw, def) : "";
       return href ? { kind: k, href, def } : null;
     })
