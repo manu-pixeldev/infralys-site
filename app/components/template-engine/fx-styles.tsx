@@ -69,7 +69,6 @@ export function FxStyles({
 
       /* ============================================================
          SHIMMER CTA (OPT-IN ONLY)
-         - No longer applied to whole wrappers.
          - Apply class .fx-cta on buttons/CTAs.
          ============================================================ */
       @keyframes shimmer {
@@ -89,7 +88,6 @@ export function FxStyles({
         }
       }
 
-      /* opt-in target */
       .fx-cta {
         position: relative;
         overflow: hidden;
@@ -113,8 +111,6 @@ export function FxStyles({
         animation: shimmer 2.8s ease-in-out infinite;
       }
 
-      /* if you still want wrappers to shimmer, keep this alias
-         BUT it will not be auto-added anymore by TemplateEngine */
       .fx-shimmer,
       .fx-shimmer-cta {
         position: relative;
@@ -141,7 +137,7 @@ export function FxStyles({
       }
 
       /* ============================================================
-         AMBIENT
+         AMBIENT (improved bottom)
          ============================================================ */
       ${ambient
         ? `
@@ -159,10 +155,55 @@ export function FxStyles({
           background:
             radial-gradient(circle at 20% 20%, rgba(0,0,0,0.06), transparent 40%),
             radial-gradient(circle at 80% 10%, rgba(0,0,0,0.05), transparent 45%),
-            radial-gradient(circle at 60% 90%, rgba(0,0,0,0.04), transparent 50%);
+
+            /* bottom center (existing but a touch stronger) */
+            radial-gradient(circle at 60% 92%, rgba(0,0,0,0.05), transparent 52%),
+
+            /* NEW: bottom corners (very soft) */
+            radial-gradient(circle at 15% 95%, rgba(0,0,0,0.04), transparent 55%),
+            radial-gradient(circle at 85% 95%, rgba(0,0,0,0.04), transparent 55%);
         }
       `
         : ``}
+
+      /* ============================================================
+         NEON CORNERS (OPT-IN) — add class .fx-neon-corners on wrapper
+         - Designed for dark canvases (neon/aurora/cyber/volcano)
+         - Stays subtle, does not wash cards
+         ============================================================ */
+      .fx-neon-corners {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+      }
+      .fx-neon-corners::after {
+        content: "";
+        position: absolute;
+        inset: -10%;
+        pointer-events: none;
+        z-index: -1;
+        background: radial-gradient(
+            900px 600px at 12% 8%,
+            rgba(34, 211, 238, 0.12),
+            transparent 60%
+          ),
+          radial-gradient(
+            900px 600px at 88% 12%,
+            rgba(232, 121, 249, 0.1),
+            transparent 60%
+          ),
+          radial-gradient(
+            900px 700px at 14% 92%,
+            rgba(34, 211, 238, 0.09),
+            transparent 64%
+          ),
+          radial-gradient(
+            900px 700px at 86% 92%,
+            rgba(232, 121, 249, 0.08),
+            transparent 64%
+          );
+        filter: blur(0px);
+      }
 
       /* ============================================================
          Reveal one-shot

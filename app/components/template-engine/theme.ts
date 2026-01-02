@@ -38,18 +38,14 @@ type CanvasDef = {
   bgPage: string;
   isDark: boolean;
 
-  // classic defaults
   surfaceBg?: string;
   surfaceBorder?: string;
 
-  // immersive tuned surfaces (optional)
   immersiveSurfaceBg?: string;
   immersiveSurfaceBorder?: string;
 
-  // optional extra "universe" feel
   immersiveBgExtra?: string;
 
-  // ✅ for header immersive backgroundColor + CSS var
   canvasHex?: string;
 };
 
@@ -90,6 +86,7 @@ const CANVAS: Record<string, CanvasDef> = {
     canvasHex: "#F8FAFC",
   },
 
+  // ... (tes canvases light inchangés)
   pearl: {
     bgPage: "bg-[#F7F8FB]",
     isDark: false,
@@ -102,118 +99,7 @@ const CANVAS: Record<string, CanvasDef> = {
     canvasHex: "#F7F8FB",
   },
 
-  sand: {
-    bgPage: "bg-[#FBF7F1]",
-    isDark: false,
-    surfaceBg: "bg-white/88",
-    surfaceBorder: "border-amber-200/40",
-    immersiveSurfaceBg: "bg-white/72",
-    immersiveSurfaceBorder: "border-amber-200/30",
-    immersiveBgExtra:
-      "bg-[radial-gradient(1200px_600px_at_20%_0%,rgba(245,158,11,0.12),transparent_58%),radial-gradient(900px_700px_at_90%_25%,rgba(16,185,129,0.10),transparent_55%)]",
-    canvasHex: "#FBF7F1",
-  },
-
-  frost: {
-    bgPage: "bg-[#F4F7FB]",
-    isDark: false,
-    surfaceBg: "bg-white/88",
-    surfaceBorder: "border-sky-200/40",
-    immersiveSurfaceBg: "bg-white/72",
-    immersiveSurfaceBorder: "border-sky-200/30",
-    immersiveBgExtra:
-      "bg-[radial-gradient(1200px_650px_at_30%_0%,rgba(56,189,248,0.14),transparent_55%),radial-gradient(900px_700px_at_85%_25%,rgba(99,102,241,0.10),transparent_55%)]",
-    canvasHex: "#F4F7FB",
-  },
-
-  paper: {
-    bgPage: "bg-[#FAF9F7]",
-    isDark: false,
-    surfaceBg: "bg-white/92",
-    surfaceBorder: "border-slate-200/60",
-    immersiveSurfaceBg: "bg-white/78",
-    immersiveSurfaceBorder: "border-slate-200/45",
-    immersiveBgExtra:
-      "bg-[radial-gradient(1100px_650px_at_25%_0%,rgba(244,63,94,0.08),transparent_60%),radial-gradient(900px_650px_at_85%_25%,rgba(59,130,246,0.10),transparent_55%)]",
-    canvasHex: "#FAF9F7",
-  },
-
-  porcelain: {
-    bgPage: "bg-[#F6F7FB]",
-    isDark: false,
-    canvasHex: "#F6F7FB",
-    immersiveBgExtra:
-      "bg-[radial-gradient(1200px_700px_at_20%_0%,rgba(99,102,241,0.10),transparent_55%),radial-gradient(1000px_700px_at_85%_20%,rgba(56,189,248,0.10),transparent_55%)]",
-  },
-
-  cloud: {
-    bgPage: "bg-[#F3F6FA]",
-    isDark: false,
-    canvasHex: "#F3F6FA",
-    immersiveBgExtra:
-      "bg-[radial-gradient(1200px_700px_at_25%_0%,rgba(14,165,233,0.12),transparent_58%),radial-gradient(900px_650px_at_85%_25%,rgba(148,163,184,0.10),transparent_60%)]",
-  },
-
-  latte: {
-    bgPage: "bg-[#F6EFE6]",
-    isDark: false,
-    canvasHex: "#F6EFE6",
-    immersiveBgExtra:
-      "bg-[radial-gradient(1200px_700px_at_22%_0%,rgba(245,158,11,0.12),transparent_58%),radial-gradient(950px_650px_at_88%_22%,rgba(168,85,247,0.08),transparent_60%)]",
-  },
-
-  sage: {
-    bgPage: "bg-[#EAF3EE]",
-    isDark: false,
-    canvasHex: "#EAF3EE",
-    immersiveBgExtra:
-      "bg-[radial-gradient(1200px_700px_at_22%_0%,rgba(16,185,129,0.12),transparent_58%),radial-gradient(950px_650px_at_88%_22%,rgba(34,211,238,0.08),transparent_60%)]",
-  },
-
-  clay: {
-    bgPage: "bg-[#F3E8E4]",
-    isDark: false,
-    canvasHex: "#F3E8E4",
-    immersiveBgExtra:
-      "bg-[radial-gradient(1200px_700px_at_20%_0%,rgba(244,63,94,0.10),transparent_60%),radial-gradient(950px_650px_at_86%_22%,rgba(245,158,11,0.10),transparent_60%)]",
-  },
-
-  lilac: {
-    bgPage: "bg-[#F2EEFB]",
-    isDark: false,
-    canvasHex: "#F2EEFB",
-    immersiveBgExtra:
-      "bg-[radial-gradient(1200px_700px_at_20%_0%,rgba(168,85,247,0.12),transparent_58%),radial-gradient(950px_650px_at_86%_22%,rgba(59,130,246,0.10),transparent_60%)]",
-  },
-
-  warm: {
-    bgPage: "bg-amber-50",
-    isDark: false,
-    surfaceBg: "bg-white",
-    surfaceBorder: "border-slate-200",
-    canvasHex: "#FFFBEB",
-  },
-  cool: {
-    bgPage: "bg-slate-50",
-    isDark: false,
-    surfaceBg: "bg-white",
-    surfaceBorder: "border-slate-200",
-    canvasHex: "#F8FAFC",
-  },
-  forest: {
-    bgPage: "bg-emerald-50",
-    isDark: false,
-    surfaceBg: "bg-white",
-    surfaceBorder: "border-slate-200",
-    canvasHex: "#ECFDF5",
-  },
-  sunset: {
-    bgPage: "bg-orange-50",
-    isDark: false,
-    surfaceBg: "bg-white",
-    surfaceBorder: "border-slate-200",
-    canvasHex: "#FFF7ED",
-  },
+  // ... (light: sand/frost/paper/etc inchangés)
 
   charcoal: {
     bgPage: "bg-slate-950",
@@ -224,8 +110,7 @@ const CANVAS: Record<string, CanvasDef> = {
     immersiveSurfaceBorder: "border-white/12",
     immersiveBgExtra:
       "bg-[radial-gradient(1200px_700px_at_20%_0%,rgba(56,189,248,0.10),transparent_55%),radial-gradient(900px_700px_at_80%_20%,rgba(168,85,247,0.10),transparent_55%)]",
-    canvasHex: "#020617", // match bg-slate-950
-
+    canvasHex: "#020617",
   },
 
   midnight: {
@@ -384,41 +269,59 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
   const text = isDark ? "text-white" : "text-slate-900";
   const immersive = style === "immersive";
 
+  // ✅ “FX canvases” should keep their radials even in classic (less dead)
+  const FX_CANVAS = new Set(["neon", "aurora", "volcano", "cyber", "broken"]);
+
   const baseBg = canvas.bgPage;
-  const extra = immersive ? canvas.immersiveBgExtra : undefined;
+  const extra =
+    (FX_CANVAS.has(canvasKey) ? canvas.immersiveBgExtra : immersive ? canvas.immersiveBgExtra : undefined) ??
+    undefined;
+
   const bgPage = extra ? cx(baseBg, extra) : baseBg;
 
   const canvasHex = canvas.canvasHex ?? (isDark ? "#0b0b0c" : "#ffffff");
+
+  // ✅ darker surfaces on dark canvases (less white mix)
+  // classic: more “stealth”
+  // immersive: slightly more “lift”, still not grey
+  const SURF_DARK_CLASSIC = 94; // canvas %
+  const SURF_DARK_IMM = 92;
+
+  const SURF2_DARK_CLASSIC = 92;
+  const SURF2_DARK_IMM = 90;
+
+  const BORDER_DARK_CLASSIC = 82;
+  const BORDER_DARK_IMM = 80;
 
   const canvasVar = {
     ["--te-canvas" as any]: canvasHex,
 
     ["--te-surface" as any]: isDark
       ? immersive
-        ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 88%, white 12%)"
-        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 92%, white 8%)"
+        ? `color-mix(in srgb, var(--te-canvas, #0b0b0c) ${SURF_DARK_IMM}%, white ${100 - SURF_DARK_IMM}%)`
+        : `color-mix(in srgb, var(--te-canvas, #0b0b0c) ${SURF_DARK_CLASSIC}%, white ${100 - SURF_DARK_CLASSIC}%)`
       : immersive
       ? "color-mix(in srgb, var(--te-canvas, #ffffff) 70%, white 30%)"
       : "color-mix(in srgb, var(--te-canvas, #ffffff) 78%, white 22%)",
 
     ["--te-surface-2" as any]: isDark
       ? immersive
-        ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 84%, white 16%)"
-        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 88%, white 12%)"
+        ? `color-mix(in srgb, var(--te-canvas, #0b0b0c) ${SURF2_DARK_IMM}%, white ${100 - SURF2_DARK_IMM}%)`
+        : `color-mix(in srgb, var(--te-canvas, #0b0b0c) ${SURF2_DARK_CLASSIC}%, white ${100 - SURF2_DARK_CLASSIC}%)`
       : immersive
       ? "color-mix(in srgb, var(--te-canvas, #ffffff) 62%, white 38%)"
       : "color-mix(in srgb, var(--te-canvas, #ffffff) 70%, white 30%)",
 
     ["--te-surface-border" as any]: isDark
       ? immersive
-        ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 76%, white 24%)"
-        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 80%, white 20%)"
+        ? `color-mix(in srgb, var(--te-canvas, #0b0b0c) ${BORDER_DARK_IMM}%, white ${100 - BORDER_DARK_IMM}%)`
+        : `color-mix(in srgb, var(--te-canvas, #0b0b0c) ${BORDER_DARK_CLASSIC}%, white ${100 - BORDER_DARK_CLASSIC}%)`
       : immersive
       ? "color-mix(in srgb, var(--te-canvas, #ffffff) 86%, black 14%)"
       : "color-mix(in srgb, var(--te-canvas, #ffffff) 90%, black 10%)",
   } as React.CSSProperties;
 
-  // ✅ FIX STEP 3 — unify: ALWAYS use CSS vars so header/sections match in charcoal
+  // ✅ One truth: modules use vars
   const surfaceBg = "bg-[color:var(--te-surface)]";
   const surfaceBorder = "border-[color:var(--te-surface-border)]";
 

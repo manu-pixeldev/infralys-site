@@ -1,3 +1,4 @@
+// app/components/template-engine/pro.tsx
 "use client";
 
 import React from "react";
@@ -40,7 +41,6 @@ function splitMenu(nav: NavItem[], maxDirect: number) {
   return { direct: nav.slice(0, n), more: nav.slice(n) };
 }
 
-/** "more" label: show active section label if active is in "more" list */
 function getMoreLabel({
   more,
   activeHref,
@@ -64,7 +64,6 @@ function galleryGridClass(variant?: string) {
     .trim()
     .toLowerCase();
 
-  // accept many names (safe)
   if (v.includes("one") || v.includes("1col") || v.includes("stack")) {
     return "grid grid-cols-1 gap-4";
   }
@@ -74,7 +73,6 @@ function galleryGridClass(variant?: string) {
   if (v.includes("four") || v.includes("4col")) {
     return "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4";
   }
-  // default = 3 cols
   return "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3";
 }
 
@@ -116,11 +114,7 @@ export default function ProHeader({
     };
   }, [open]);
 
-  // =========================
   // Glass styles with fallback
-  // - backgroundColor always works
-  // - background uses color-mix if supported
-  // =========================
   const darkFallback = "rgba(18,18,22,0.62)";
   const lightFallback = "rgba(255,255,255,0.72)";
 
@@ -292,10 +286,12 @@ export function ProGallery({
   content,
   config,
   variant,
+  theme,
 }: {
   content?: any;
   config?: any;
   variant?: string;
+  theme?: ThemeLike;
 }) {
   const images: any[] =
     (content?.gallery?.images as any[]) ??
@@ -313,6 +309,34 @@ export function ProGallery({
 
   const list = images.length ? images : fallback;
 
+  const hasTheme = !!theme;
+  const Sheen = hasTheme ? (
+    <div
+      aria-hidden="true"
+      className={cx(
+        "pointer-events-none absolute inset-0 opacity-[0.10]",
+        "mix-blend-screen"
+      )}
+    >
+      <div
+        className={cx(
+          "absolute -top-24 -left-24 h-56 w-56 rounded-full blur-3xl",
+          "bg-gradient-to-br",
+          theme!.accentFrom,
+          theme!.accentTo
+        )}
+      />
+      <div
+        className={cx(
+          "absolute -bottom-28 -right-28 h-72 w-72 rounded-full blur-3xl",
+          "bg-gradient-to-br",
+          theme!.accentFrom,
+          theme!.accentTo
+        )}
+      />
+    </div>
+  ) : null;
+
   return (
     <section className="py-20">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -321,18 +345,18 @@ export function ProGallery({
           <p className="mt-1 text-sm opacity-75">Galerie (PRO)</p>
         </div>
 
+        {/* ✅ Align PRO card with legacy Surface look */}
         <div
-          className="rounded-3xl border p-6"
+          className="relative overflow-hidden rounded-3xl border p-6"
           style={{
-            backgroundColor: "rgba(18,18,22,0.35)",
-            background:
-              "color-mix(in srgb, var(--te-surface, rgba(18,18,22,0.55)) 85%, transparent)",
+            backgroundColor: "var(--te-surface, rgba(18,18,22,0.35))",
             borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
           }}
         >
-          <div className={galleryGridClass(variant)}>
+          {Sheen}
+          <div className={cx("relative", galleryGridClass(variant))}>
             {list.map((img, i) => (
               <div
                 key={`${img?.src ?? "img"}:${i}`}

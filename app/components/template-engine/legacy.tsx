@@ -57,9 +57,8 @@ function Wrap({
 
 /* ============================================================
    BLOC 1B — SURFACE (autonome: glass + border + text)
-   - ✅ FIX: quand un canvas est actif, on fait matcher le fond
-     des modules sur le fond du HEADER (basé sur --te-canvas),
-     pour éviter le "module trop clair" sur charcoal.
+   ✅ FIX: en canvas, on utilise la "surface" (pas le canvas)
+   -> évite le carré trop clair / mismatch charcoal
    ============================================================ */
 
 function Surface({
@@ -79,7 +78,6 @@ function Surface({
 }) {
   const l = resolveLayout(layout, globalLayout);
 
-  // canvas vars (si présents)
   const canvasVar =
     (((theme as any)?.canvasVar ?? {}) as React.CSSProperties) || {};
 
@@ -89,17 +87,14 @@ function Surface({
     !!(canvasVar as any)?.["--te-surface-2"] ||
     !!(canvasVar as any)?.["--te-surface-border"];
 
-  // fallback si jamais un thème n'a pas de surfaceBg
   const fallbackBg = theme.isDark ? "bg-white/5" : "bg-white/85";
 
-  // ✅ Quand canvas actif: on "teinte" la surface avec le CANVAS (comme le header),
-  // au lieu d'un bg-white/xx qui devient trop clair sur charcoal.
+  // ✅ Material surface (card), pas le fond page
   const canvasSurfaceStyle: React.CSSProperties | undefined = hasCanvas
     ? {
         ...canvasVar,
-        // même matière que le header, mais un poil plus "surface"
         backgroundColor:
-          "color-mix(in srgb, var(--te-canvas, #020617) 88%, transparent)",
+          "color-mix(in srgb, var(--te-surface, rgba(18,18,22,0.78)) 82%, transparent)",
         borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
@@ -115,9 +110,7 @@ function Surface({
       }}
       className={cx(
         "border backdrop-blur",
-        // ✅ en canvas: border via var (inline), mais on garde la class au cas où
         theme.surfaceBorder,
-        // ✅ en canvas: on évite theme.surfaceBg si ça décale (charcoal)
         hasCanvas ? "bg-transparent" : theme.surfaceBg || fallbackBg,
         theme.isDark ? "text-white" : "text-slate-900",
         className
@@ -174,9 +167,6 @@ function SocialRow({
 
 /* ============================================================
    BLOC 1D — OVERFLOW MENU (desktop) — V2030 UX (compile-safe)
-   - ✅ label dynamique possible
-   - ✅ activeRow basé sur activeHref (pas window.location.hash)
-   - ✅ menu bg cohérent via --te-surface/--te-surface-2
    ============================================================ */
 
 function DesktopOverflowMenu({
@@ -224,16 +214,14 @@ function DesktopOverflowMenu({
 
   if (!items?.length) return null;
 
-  // ✅ fallback canvas-like (si menuStyle absent)
   const canvasFallbackStyle: React.CSSProperties = {
     backgroundColor:
-      "color-mix(in srgb, var(--te-surface-2, rgba(18,18,22,0.78)) 88%, transparent)",
+      "color-mix(in srgb, var(--te-surface-2, rgba(18,18,22,0.86)) 86%, transparent)",
     borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
     backdropFilter: "blur(14px)",
     WebkitBackdropFilter: "blur(14px)",
   };
 
-  // future-proof: si menuStyle existe, on le traite comme "canvas-like"
   const useCanvasLike = Boolean(menuStyle) || Boolean(hasCanvas);
 
   return (
@@ -321,27 +309,30 @@ export function LegacyHeader(props: {
   headerRef: React.RefObject<HTMLElement>;
   showTeam: boolean;
 
-  // old prop name
   maxDirectLinks?: number;
-  // ✅ new prop name from TemplateEngine
   maxDirectLinksInMenu?: number;
 
   contact?: { phone?: string; email?: string };
   content?: any;
   sections?: any[];
   activeHref?: string;
+
+  // ✅ NEW (si TemplateEngine le passe) : vraie home section (#hero etc.)
+  homeHref?: string;
+
   isScrolled?: boolean;
   scrollT?: number;
   layout?: LayoutTokens;
   globalLayout?: LayoutTokens;
 
-  // canvas plumbing
   canvasStyle?: "classic" | "immersive";
   canvasVar?: React.CSSProperties;
+
+  // ✅ options (for homeLabel)
+  options?: any;
 }) {
   const { theme, brand, headerVariant, headerRef, showTeam, contact } = props;
 
-  // ✅ unify (old + new prop name)
   const maxDirectLinks = Number(
     (props as any).maxDirectLinksInMenu ?? (props as any).maxDirectLinks ?? 4
   );
@@ -350,6 +341,12 @@ export function LegacyHeader(props: {
   const l = resolveLayout(props.layout, props.globalLayout);
 
   const activeHref = props.activeHref ?? "#top";
+  const homeHref = props.homeHref ?? "#top"; // ✅ fallback safe
+
+  // ✅ label Accueil configurable
+  const homeLabel =
+    String((props as any)?.options?.nav?.homeLabel ?? "Accueil") || "Accueil";
+
   const t = Math.max(
     0,
     Math.min(1, Number(props.scrollT ?? (props.isScrolled ? 1 : 0)))
@@ -368,9 +365,7 @@ export function LegacyHeader(props: {
 
   const navBase = "text-[12px] font-semibold uppercase tracking-[0.14em]";
 
-  // ------------------------------------------------------------
   // Logo
-  // ------------------------------------------------------------
   const logoEnabled = (brand as any)?.logo?.enabled !== false;
   const logoMode =
     (((brand as any)?.logo?.mode ?? "logoPlusText") as LogoMode) ||
@@ -407,9 +402,6 @@ export function LegacyHeader(props: {
       />
     );
 
-  /* ============================================================
-     HEADER HEIGHT SYNC
-     ============================================================ */
   React.useLayoutEffect(() => {
     const el = headerRef?.current as HTMLElement | null;
     if (!el) return;
@@ -437,7 +429,6 @@ export function LegacyHeader(props: {
     };
   }, [headerRef]);
 
-  // ✅ Anti-tremblement subtitle
   const subtitleRaw = (brand as any)?.text?.subtitle;
   const subtitleText = hasText(subtitleRaw) ? String(subtitleRaw) : "\u00A0";
 
@@ -483,17 +474,9 @@ export function LegacyHeader(props: {
     | SocialConfig
     | undefined;
 
-  // sections → nav links (prefer real config)
   const secs = Array.isArray((props as any).sections)
     ? (props as any).sections
     : [];
-
-  // ✅ first real section id (hero etc.) so we can map it to "#top"
-  const firstSectionId =
-    secs.find(
-      (sec: any) =>
-        sec?.enabled !== false && sec?.type !== "header" && sec?.type !== "top"
-    )?.id ?? "";
 
   const orderedLinksRaw = secs
     .filter((sec: any) => sec?.enabled !== false)
@@ -501,26 +484,30 @@ export function LegacyHeader(props: {
       if (!sec?.type || sec.type === "header" || sec.type === "top")
         return null;
       const href = `#${sec.id}`;
-      const label = sec.title ?? sec.id;
+      // ✅ navLabel editable
+      const label = sec.navLabel ?? sec.title ?? sec.id;
       return { href, label };
     })
     .filter(Boolean) as { href: string; label: string }[];
 
-  // ✅ Map the FIRST section to Accueil/#top (so activeHref "#top" matches!)
-  const orderedLinks = orderedLinksRaw.map((lnk, idx) => {
-    if (idx === 0 && firstSectionId && lnk.href === `#${firstSectionId}`) {
-      return { href: "#top", label: "Accueil" };
-    }
-    return lnk;
-  });
+  // ✅ Remplace le lien qui matche homeHref par "Accueil" (ou préfixe si absent)
+  const hasHomeInOrdered = orderedLinksRaw.some((x) => x.href === homeHref);
 
-  // fallback links if config not providing good titles
+  const orderedLinks = (
+    hasHomeInOrdered
+      ? orderedLinksRaw.map((lnk) =>
+          lnk.href === homeHref ? { ...lnk, label: homeLabel } : lnk
+        )
+      : [{ href: homeHref, label: homeLabel }, ...orderedLinksRaw]
+  ).filter(Boolean) as { href: string; label: string }[];
+
   const direct = (props.galleryLinks ?? []).slice(
     0,
     Math.max(0, maxDirectLinks || 0)
   );
+
   const fallbackLinks = [
-    { href: "#top", label: "Accueil" },
+    { href: homeHref, label: homeLabel },
     { href: "#services", label: "Services" },
     ...(showTeam ? [{ href: "#team", label: "Équipe" }] : []),
     ...direct.map((g) => ({ href: `#${g.id}`, label: g.title })),
@@ -540,7 +527,6 @@ export function LegacyHeader(props: {
   const inlineLinks = linksAll.slice(0, MAX_INLINE);
   const overflowLinks = linksAll.slice(MAX_INLINE);
 
-  // ✅ V2030 Option 1: Plus label becomes the active overflow label
   const overflowActiveLink = overflowLinks.find((x) => x.href === activeHref);
   const overflowLabel = overflowActiveLink ? overflowActiveLink.label : "Plus";
   const overflowActive = Boolean(overflowActiveLink);
@@ -551,13 +537,6 @@ export function LegacyHeader(props: {
     <div aria-hidden="true" style={{ height: "var(--header-h, 0px)" }} />
   );
 
-  /* ============================================================
-     CANVAS STYLE (header + menus)
-     - Header = basé sur --te-canvas (fond page)
-     - Menu = basé sur --te-surface-2 (surface flottante)
-     ============================================================ */
-
-  // ✅ SINGLE source-of-truth canvas vars
   const canvasVar = ((props as any)?.canvasVar ??
     (theme as any)?.canvasVar ??
     {}) as React.CSSProperties;
@@ -568,7 +547,7 @@ export function LegacyHeader(props: {
     !!(canvasVar as any)?.["--te-surface-2"] ||
     !!(canvasVar as any)?.["--te-surface-border"];
 
-  // ✅ Header: match le FOND (canvas), pas la surface
+  // header = canvas (fond page)
   const headerStyle: React.CSSProperties | undefined = hasCanvas
     ? {
         ...canvasVar,
@@ -584,12 +563,12 @@ export function LegacyHeader(props: {
       }
     : undefined;
 
-  // ✅ Menu dropdown: surface (doit “flotter” au-dessus)
+  // menu = surface (flottant)
   const menuStyle: React.CSSProperties | undefined = hasCanvas
     ? {
         ...canvasVar,
         backgroundColor:
-          "color-mix(in srgb, var(--te-surface-2, rgba(18,18,22,0.78)) 88%, transparent)",
+          "color-mix(in srgb, var(--te-surface-2, rgba(18,18,22,0.86)) 86%, transparent)",
         borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
@@ -628,10 +607,6 @@ export function LegacyHeader(props: {
     </>
   );
 
-  /* ============================================================
-     NAV TOKENS (canvas-first)
-     ============================================================ */
-
   const navTextClass = hasCanvas
     ? "text-inherit"
     : theme.isDark
@@ -668,10 +643,6 @@ export function LegacyHeader(props: {
     : theme.isDark
     ? "text-white/80 hover:text-white hover:bg-white/10"
     : "text-slate-900/90 hover:text-slate-950 hover:bg-white/70 hover:shadow-sm";
-
-  /* ============================================================
-     NAV Variants
-     ============================================================ */
 
   const NavA = () => (
     <nav
@@ -830,10 +801,6 @@ export function LegacyHeader(props: {
     </nav>
   );
 
-  /* ============================================================
-     RENDER D
-     ============================================================ */
-
   const RenderD = () => {
     const phone = contact?.phone ?? "";
     const email = contact?.email ?? "";
@@ -860,7 +827,7 @@ export function LegacyHeader(props: {
             className={cx("grid grid-cols-[auto_1fr_auto] items-center gap-4")}
             style={{ paddingTop: padY2, paddingBottom: padY2 }}
           >
-            <a href="#top" className="flex items-center gap-3 min-w-0">
+            <a href={homeHref} className="flex items-center gap-3 min-w-0">
               <div
                 style={{
                   transform: `scale(${logoScale})`,
@@ -881,7 +848,10 @@ export function LegacyHeader(props: {
               {phone ? (
                 <div
                   className={cx("max-w-[220px]", pillBaseD)}
-                  style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
+                  style={{
+                    paddingTop: lerp(8, 6),
+                    paddingBottom: lerp(8, 6),
+                  }}
                 >
                   <div
                     className={cx(
@@ -902,7 +872,10 @@ export function LegacyHeader(props: {
               {email ? (
                 <div
                   className={cx("max-w-[260px]", pillBaseD)}
-                  style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
+                  style={{
+                    paddingTop: lerp(8, 6),
+                    paddingBottom: lerp(8, 6),
+                  }}
                 >
                   <div
                     className={cx(
@@ -952,10 +925,6 @@ export function LegacyHeader(props: {
     );
   };
 
-  /* ============================================================
-     RENDER A/B/C
-     ============================================================ */
-
   const RenderA = () =>
     HeaderShell(
       <Wrap
@@ -965,7 +934,7 @@ export function LegacyHeader(props: {
         style={{ paddingTop: padY, paddingBottom: padY }}
       >
         <a
-          href="#top"
+          href={homeHref}
           className="flex items-center gap-3 min-w-0 flex-[0_0_auto]"
         >
           <div
@@ -1001,7 +970,7 @@ export function LegacyHeader(props: {
         style={{ paddingTop: padY, paddingBottom: padY }}
       >
         <a
-          href="#top"
+          href={homeHref}
           className="flex items-center gap-3 min-w-0 flex-[0_0_auto]"
         >
           <div
@@ -1037,7 +1006,7 @@ export function LegacyHeader(props: {
         style={{ paddingTop: padY, paddingBottom: padY }}
       >
         <div className="justify-self-start">
-          <a href="#top" className="flex items-center gap-3 min-w-0">
+          <a href={homeHref} className="flex items-center gap-3 min-w-0">
             <div
               style={{
                 transform: `scale(${logoScale})`,
@@ -1574,7 +1543,6 @@ export function LegacyGalleries(props: any) {
 
   const l = resolveLayout(layout, globalLayout);
 
-  // normalize variant (supports pro* names safely)
   const rawV = String(variant ?? "twoCol")
     .trim()
     .toLowerCase();
@@ -1678,54 +1646,61 @@ export function LegacyGalleries(props: any) {
           ) : null}
         </div>
 
-        <div className={cx("grid gap-6", cols)}>
-          {images.map((img: any, i: number) => (
-            <button
-              key={i}
-              type="button"
-              className={cx(
-                "text-left",
-                enableLightbox ? "cursor-zoom-in" : "cursor-default"
-              )}
-              onClick={() => enableLightbox && onOpen?.(img)}
-            >
-              <div
-                style={radiusStyle(l.radius)}
+        <Surface
+          theme={theme}
+          layout={layout}
+          globalLayout={globalLayout}
+          className="p-6 md:p-8"
+        >
+          <div className={cx("grid gap-6", cols)}>
+            {images.map((img: any, i: number) => (
+              <button
+                key={i}
+                type="button"
                 className={cx(
-                  "relative overflow-hidden border",
-                  theme.isDark ? "border-white/10" : "border-slate-200"
+                  "text-left",
+                  enableLightbox ? "cursor-zoom-in" : "cursor-default"
                 )}
+                onClick={() => enableLightbox && onOpen?.(img)}
               >
-                <div className={cx("relative", aspect)}>
-                  <NextImage
-                    src={img.src}
-                    alt={img.alt ?? "Visuel"}
-                    fill
-                    className="object-cover"
-                    sizes={
-                      v === "threeCol"
-                        ? "(min-width: 768px) 33vw, 100vw"
-                        : v === "twoCol"
-                        ? "(min-width: 640px) 50vw, 100vw"
-                        : "100vw"
-                    }
-                  />
-                </div>
-              </div>
-
-              {hasText(img.caption) ? (
                 <div
+                  style={radiusStyle(l.radius)}
                   className={cx(
-                    "mt-2 text-sm",
-                    theme.isDark ? "text-white/70" : "text-slate-600"
+                    "relative overflow-hidden border",
+                    theme.isDark ? "border-white/10" : "border-slate-200"
                   )}
                 >
-                  {img.caption}
+                  <div className={cx("relative", aspect)}>
+                    <NextImage
+                      src={img.src}
+                      alt={img.alt ?? "Visuel"}
+                      fill
+                      className="object-cover"
+                      sizes={
+                        v === "threeCol"
+                          ? "(min-width: 768px) 33vw, 100vw"
+                          : v === "twoCol"
+                          ? "(min-width: 640px) 50vw, 100vw"
+                          : "100vw"
+                      }
+                    />
+                  </div>
                 </div>
-              ) : null}
-            </button>
-          ))}
-        </div>
+
+                {hasText(img.caption) ? (
+                  <div
+                    className={cx(
+                      "mt-2 text-sm",
+                      theme.isDark ? "text-white/70" : "text-slate-600"
+                    )}
+                  >
+                    {img.caption}
+                  </div>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </Surface>
       </Wrap>
     </section>
   );
