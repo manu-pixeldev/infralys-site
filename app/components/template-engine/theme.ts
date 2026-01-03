@@ -98,7 +98,7 @@ const CANVAS: Record<string, CanvasDef> = {
     immersiveSurfaceBg: "bg-white/78",
     immersiveSurfaceBorder: "border-slate-200/50",
     immersiveBgExtra:
-      "bg-[radial-gradient(1200px_600px_at_20%_0%,rgba(99,102,241,0.10),transparent_55%),radial-gradient(1000px_700px_at_80%_20%,rgba(14,165,233,0.10),transparent_55%)]",
+      "bg-[radial-gradient(900px_700px_at_18%_0%,rgba(34,211,238,0.30),transparent_58%),radial-gradient(900px_700px_at_82%_18%,rgba(232,121,249,0.30),transparent_58%),radial-gradient(1200px_900px_at_50%_120%,rgba(99,102,241,0.16),transparent_62%)]",
     canvasHex: "#F7F8FB",
   },
 
@@ -224,8 +224,7 @@ const CANVAS: Record<string, CanvasDef> = {
     immersiveSurfaceBorder: "border-white/12",
     immersiveBgExtra:
       "bg-[radial-gradient(1200px_700px_at_20%_0%,rgba(56,189,248,0.10),transparent_55%),radial-gradient(900px_700px_at_80%_20%,rgba(168,85,247,0.10),transparent_55%)]",
-    canvasHex: "#020617", // match bg-slate-950
-
+    canvasHex: "#020617",
   },
 
   midnight: {
@@ -385,7 +384,9 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
   const immersive = style === "immersive";
 
   const baseBg = canvas.bgPage;
-  const extra = immersive ? canvas.immersiveBgExtra : undefined;
+
+  // ✅ bg extra: on le garde aussi en classic (l’immersive vient surtout du header glass)
+  const extra = canvas.immersiveBgExtra;
   const bgPage = extra ? cx(baseBg, extra) : baseBg;
 
   const canvasHex = canvas.canvasHex ?? (isDark ? "#0b0b0c" : "#ffffff");
@@ -393,33 +394,33 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
   const canvasVar = {
     ["--te-canvas" as any]: canvasHex,
 
+    // ✅ surfaces: tuning (menu/popover = surface, cards/modules = surface-2)
     ["--te-surface" as any]: isDark
       ? immersive
         ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 88%, white 12%)"
-        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 92%, white 8%)"
+        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 90%, white 10%)"
       : immersive
-      ? "color-mix(in srgb, var(--te-canvas, #ffffff) 70%, white 30%)"
-      : "color-mix(in srgb, var(--te-canvas, #ffffff) 78%, white 22%)",
+      ? "color-mix(in srgb, var(--te-canvas, #ffffff) 66%, white 34%)"
+      : "color-mix(in srgb, var(--te-canvas, #ffffff) 72%, white 28%)",
 
     ["--te-surface-2" as any]: isDark
       ? immersive
-        ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 84%, white 16%)"
-        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 88%, white 12%)"
+        ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 82%, white 18%)"
+        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 84%, white 16%)"
       : immersive
-      ? "color-mix(in srgb, var(--te-canvas, #ffffff) 62%, white 38%)"
-      : "color-mix(in srgb, var(--te-canvas, #ffffff) 70%, white 30%)",
+      ? "color-mix(in srgb, var(--te-canvas, #ffffff) 58%, white 42%)"
+      : "color-mix(in srgb, var(--te-canvas, #ffffff) 64%, white 36%)",
 
-    ["--te-surface-border" as any]: isDark
-      ? immersive
-        ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 76%, white 24%)"
-        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 80%, white 20%)"
-      : immersive
-      ? "color-mix(in srgb, var(--te-canvas, #ffffff) 86%, black 14%)"
-      : "color-mix(in srgb, var(--te-canvas, #ffffff) 90%, black 10%)",
+["--te-surface-border" as any]: isDark
+  ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 94%, white 6%)"
+  : immersive
+  ? "color-mix(in srgb, var(--te-canvas, #ffffff) 92%, black 8%)"
+  : "color-mix(in srgb, var(--te-canvas, #ffffff) 94%, black 6%)",
+
   } as React.CSSProperties;
 
-  // ✅ FIX STEP 3 — unify: ALWAYS use CSS vars so header/sections match in charcoal
-  const surfaceBg = "bg-[color:var(--te-surface)]";
+  // ✅ cards/modules (plus de contraste)
+  const surfaceBg = "bg-[color:var(--te-surface-2)]";
   const surfaceBorder = "border-[color:var(--te-surface-border)]";
 
   return {

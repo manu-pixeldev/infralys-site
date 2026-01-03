@@ -39,3 +39,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# Clients locaux / backups (ne jamais versionner)
+app/clients/joyeuxbordel/

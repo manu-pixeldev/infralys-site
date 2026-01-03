@@ -31,6 +31,95 @@ function hasText(v: any) {
 }
 
 /* ============================================================
+   BLOC 0B — GLASS HELPERS (1 source de vérité, anti “miroir”)
+   ============================================================ */
+
+function pickCanvasVar(theme: ThemeLike, propsCanvasVar?: React.CSSProperties) {
+  return (
+    ((propsCanvasVar ??
+      (theme as any)?.canvasVar ??
+      {}) as React.CSSProperties) || {}
+  );
+}
+
+function hasCanvasVars(canvasVar: React.CSSProperties) {
+  const v: any = canvasVar || {};
+  return (
+    !!v["--te-canvas"] ||
+    !!v["--te-surface"] ||
+    !!v["--te-surface-2"] ||
+    !!v["--te-surface-border"]
+  );
+}
+
+/** Header glass: un poil translucide en scroll, plus dense en top */
+function headerGlassStyle(
+  theme: ThemeLike,
+  canvasVar: React.CSSProperties,
+  isScrolled: boolean
+): React.CSSProperties {
+  const dark = theme.isDark;
+
+  // Top = plus dense (moins de miroir), Scroll = un peu plus transparent (premium)
+  const mixTop = dark
+    ? "color-mix(in srgb, var(--te-canvas, #020617) 94%, transparent)"
+    : "color-mix(in srgb, var(--te-canvas, #ffffff) 92%, transparent)";
+  const mixScroll = dark
+    ? "color-mix(in srgb, var(--te-canvas, #020617) 88%, transparent)"
+    : "color-mix(in srgb, var(--te-canvas, #ffffff) 86%, transparent)";
+
+  return {
+    ...canvasVar,
+    background: dark
+      ? `linear-gradient(to bottom, rgba(255,255,255,0.04), rgba(255,255,255,0.00)), ${
+          isScrolled ? mixScroll : mixTop
+        }`
+      : `linear-gradient(to bottom, rgba(255,255,255,0.45), rgba(255,255,255,0.10)), ${
+          isScrolled ? mixScroll : mixTop
+        }`,
+    borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
+    backdropFilter: "blur(12px) saturate(125%)",
+    WebkitBackdropFilter: "blur(12px) saturate(125%)",
+    boxShadow: isScrolled
+      ? "0 10px 34px rgba(0,0,0,0.28)"
+      : "0 2px 10px rgba(0,0,0,0.16)",
+  };
+}
+
+/** Dropdown glass: lisible (pas miroir), fond plus dense que header */
+function menuGlassStyle(
+  theme: ThemeLike,
+  canvasVar: React.CSSProperties
+): React.CSSProperties {
+  const dark = theme.isDark;
+
+  // Dense -> tu vois un peu derrière, mais pas au point de lire l’image.
+  const base = dark
+    ? "color-mix(in srgb, var(--te-canvas, #020617) 92%, transparent)"
+    : "color-mix(in srgb, var(--te-canvas, #ffffff) 90%, transparent)";
+
+  // Sheen léger (premium) + smoke (stabilise la lisibilité)
+  const sheen = dark
+    ? "linear-gradient(to bottom, rgba(255,255,255,0.08), rgba(255,255,255,0.02))"
+    : "linear-gradient(to bottom, rgba(255,255,255,0.70), rgba(255,255,255,0.25))";
+
+  const smoke = dark
+    ? "linear-gradient(to bottom, rgba(2,6,23,0.38), rgba(2,6,23,0.18))"
+    : "";
+
+  return {
+    ...canvasVar,
+    background: dark ? `${sheen}, ${smoke}, ${base}` : `${sheen}, ${base}`,
+    borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
+    backdropFilter: "blur(18px) saturate(130%)",
+    WebkitBackdropFilter: "blur(18px) saturate(130%)",
+    boxShadow: dark
+      ? "0 24px 70px rgba(0,0,0,0.45)"
+      : "0 18px 55px rgba(0,0,0,0.18)",
+  };
+}
+
+/* ============================================================
    BLOC 1 — UI HELPERS
    ============================================================ */
 
@@ -56,10 +145,7 @@ function Wrap({
 }
 
 /* ============================================================
-   BLOC 1B — SURFACE (autonome: glass + border + text)
-   - ✅ FIX: quand un canvas est actif, on fait matcher le fond
-     des modules sur le fond du HEADER (basé sur --te-canvas),
-     pour éviter le "module trop clair" sur charcoal.
+   BLOC 1B — SURFACE (autonome)
    ============================================================ */
 
 function Surface({
@@ -79,46 +165,27 @@ function Surface({
 }) {
   const l = resolveLayout(layout, globalLayout);
 
-  // canvas vars (si présents)
-  const canvasVar =
-    (((theme as any)?.canvasVar ?? {}) as React.CSSProperties) || {};
+  const canvasVar = pickCanvasVar(theme);
+  const hasCanvas = hasCanvasVars(canvasVar);
 
-  const hasCanvas =
-    !!(canvasVar as any)?.["--te-canvas"] ||
-    !!(canvasVar as any)?.["--te-surface"] ||
-    !!(canvasVar as any)?.["--te-surface-2"] ||
-    !!(canvasVar as any)?.["--te-surface-border"];
-
-  // fallback si jamais un thème n'a pas de surfaceBg
   const fallbackBg = theme.isDark ? "bg-white/5" : "bg-white/85";
-
-  // ✅ Quand canvas actif: on "teinte" la surface avec le CANVAS (comme le header),
-  // au lieu d'un bg-white/xx qui devient trop clair sur charcoal.
-  const canvasSurfaceStyle: React.CSSProperties | undefined = hasCanvas
-    ? {
-        ...canvasVar,
-        // même matière que le header, mais un poil plus "surface"
-        backgroundColor:
-          "color-mix(in srgb, var(--te-canvas, #020617) 88%, transparent)",
-        borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-      }
-    : undefined;
 
   return (
     <div
       style={{
         ...radiusStyle(l.radius),
-        ...(canvasSurfaceStyle ?? {}),
+        ...(hasCanvas ? canvasVar : {}),
         ...style,
       }}
       className={cx(
-        "border backdrop-blur",
-        // ✅ en canvas: border via var (inline), mais on garde la class au cas où
-        theme.surfaceBorder,
-        // ✅ en canvas: on évite theme.surfaceBg si ça décale (charcoal)
-        hasCanvas ? "bg-transparent" : theme.surfaceBg || fallbackBg,
+        "border backdrop-blur-xl",
+        hasCanvas
+          ? "bg-[color:var(--te-surface)]"
+          : theme.surfaceBg || fallbackBg,
+        hasCanvas
+          ? "border-[color:var(--te-surface-border)]"
+          : theme.surfaceBorder ||
+              (theme.isDark ? "border-white/10" : "border-slate-200"),
         theme.isDark ? "text-white" : "text-slate-900",
         className
       )}
@@ -173,10 +240,7 @@ function SocialRow({
 }
 
 /* ============================================================
-   BLOC 1D — OVERFLOW MENU (desktop) — V2030 UX (compile-safe)
-   - ✅ label dynamique possible
-   - ✅ activeRow basé sur activeHref (pas window.location.hash)
-   - ✅ menu bg cohérent via --te-surface/--te-surface-2
+   BLOC 1D — OVERFLOW MENU (desktop)
    ============================================================ */
 
 function DesktopOverflowMenu({
@@ -224,16 +288,19 @@ function DesktopOverflowMenu({
 
   if (!items?.length) return null;
 
-  // ✅ fallback canvas-like (si menuStyle absent)
+  // fallback “glass” si jamais menuStyle n’est pas fourni
   const canvasFallbackStyle: React.CSSProperties = {
-    backgroundColor:
-      "color-mix(in srgb, var(--te-surface-2, rgba(18,18,22,0.78)) 88%, transparent)",
-    borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
-    backdropFilter: "blur(14px)",
-    WebkitBackdropFilter: "blur(14px)",
+    background: theme.isDark
+      ? "linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(255,255,255,0.02)), color-mix(in srgb, var(--te-canvas, #020617) 92%, transparent)"
+      : "linear-gradient(to bottom, rgba(255,255,255,0.70), rgba(255,255,255,0.25)), color-mix(in srgb, var(--te-canvas, #ffffff) 90%, transparent)",
+    borderColor: theme.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
+    backdropFilter: "blur(18px) saturate(130%)",
+    WebkitBackdropFilter: "blur(18px) saturate(130%)",
+    boxShadow: theme.isDark
+      ? "0 24px 70px rgba(0,0,0,0.45)"
+      : "0 18px 55px rgba(0,0,0,0.18)",
   };
 
-  // future-proof: si menuStyle existe, on le traite comme "canvas-like"
   const useCanvasLike = Boolean(menuStyle) || Boolean(hasCanvas);
 
   return (
@@ -263,7 +330,7 @@ function DesktopOverflowMenu({
           role="menu"
           style={useCanvasLike ? menuStyle ?? canvasFallbackStyle : undefined}
           className={cx(
-            "absolute right-0 z-[999] mt-3 w-56 overflow-hidden rounded-2xl border shadow-lg backdrop-blur",
+            "absolute right-0 z-[999] mt-3 w-56 overflow-hidden rounded-2xl border shadow-lg",
             useCanvasLike
               ? "border-[color:var(--te-surface-border)] text-inherit"
               : theme.isDark
@@ -282,21 +349,11 @@ function DesktopOverflowMenu({
                 className={cx(
                   "block px-4 py-3 text-sm font-semibold transition",
                   rowActive
-                    ? useCanvasLike
-                      ? theme.isDark
-                        ? "bg-white/10"
-                        : "bg-black/5"
-                      : theme.isDark
-                      ? "bg-white/10"
-                      : "bg-slate-50"
-                    : "",
-                  useCanvasLike
                     ? theme.isDark
-                      ? "hover:bg-white/10"
-                      : "hover:bg-black/5"
-                    : theme.isDark
-                    ? "hover:bg-white/10"
-                    : "hover:bg-slate-50"
+                      ? "bg-white/10"
+                      : "bg-black/5"
+                    : "",
+                  theme.isDark ? "hover:bg-white/10" : "hover:bg-black/5"
                 )}
               >
                 {it.label}
@@ -321,9 +378,7 @@ export function LegacyHeader(props: {
   headerRef: React.RefObject<HTMLElement>;
   showTeam: boolean;
 
-  // old prop name
   maxDirectLinks?: number;
-  // ✅ new prop name from TemplateEngine
   maxDirectLinksInMenu?: number;
 
   contact?: { phone?: string; email?: string };
@@ -335,13 +390,11 @@ export function LegacyHeader(props: {
   layout?: LayoutTokens;
   globalLayout?: LayoutTokens;
 
-  // canvas plumbing
   canvasStyle?: "classic" | "immersive";
   canvasVar?: React.CSSProperties;
 }) {
   const { theme, brand, headerVariant, headerRef, showTeam, contact } = props;
 
-  // ✅ unify (old + new prop name)
   const maxDirectLinks = Number(
     (props as any).maxDirectLinksInMenu ?? (props as any).maxDirectLinks ?? 4
   );
@@ -349,7 +402,6 @@ export function LegacyHeader(props: {
   const variant = (headerVariant ?? "A") as HeaderVariantX;
   const l = resolveLayout(props.layout, props.globalLayout);
 
-  const activeHref = props.activeHref ?? "#top";
   const t = Math.max(
     0,
     Math.min(1, Number(props.scrollT ?? (props.isScrolled ? 1 : 0)))
@@ -368,9 +420,7 @@ export function LegacyHeader(props: {
 
   const navBase = "text-[12px] font-semibold uppercase tracking-[0.14em]";
 
-  // ------------------------------------------------------------
   // Logo
-  // ------------------------------------------------------------
   const logoEnabled = (brand as any)?.logo?.enabled !== false;
   const logoMode =
     (((brand as any)?.logo?.mode ?? "logoPlusText") as LogoMode) ||
@@ -407,9 +457,6 @@ export function LegacyHeader(props: {
       />
     );
 
-  /* ============================================================
-     HEADER HEIGHT SYNC
-     ============================================================ */
   React.useLayoutEffect(() => {
     const el = headerRef?.current as HTMLElement | null;
     if (!el) return;
@@ -437,7 +484,6 @@ export function LegacyHeader(props: {
     };
   }, [headerRef]);
 
-  // ✅ Anti-tremblement subtitle
   const subtitleRaw = (brand as any)?.text?.subtitle;
   const subtitleText = hasText(subtitleRaw) ? String(subtitleRaw) : "\u00A0";
 
@@ -488,12 +534,18 @@ export function LegacyHeader(props: {
     ? (props as any).sections
     : [];
 
-  // ✅ first real section id (hero etc.) so we can map it to "#top"
   const firstSectionId =
     secs.find(
       (sec: any) =>
         sec?.enabled !== false && sec?.type !== "header" && sec?.type !== "top"
     )?.id ?? "";
+
+  // ✅ FIX Accueil pas souligné
+  const rawActiveHref = props.activeHref ?? "#top";
+  const activeHref =
+    firstSectionId && rawActiveHref === `#${firstSectionId}`
+      ? "#top"
+      : rawActiveHref;
 
   const orderedLinksRaw = secs
     .filter((sec: any) => sec?.enabled !== false)
@@ -506,7 +558,6 @@ export function LegacyHeader(props: {
     })
     .filter(Boolean) as { href: string; label: string }[];
 
-  // ✅ Map the FIRST section to Accueil/#top (so activeHref "#top" matches!)
   const orderedLinks = orderedLinksRaw.map((lnk, idx) => {
     if (idx === 0 && firstSectionId && lnk.href === `#${firstSectionId}`) {
       return { href: "#top", label: "Accueil" };
@@ -514,7 +565,6 @@ export function LegacyHeader(props: {
     return lnk;
   });
 
-  // fallback links if config not providing good titles
   const direct = (props.galleryLinks ?? []).slice(
     0,
     Math.max(0, maxDirectLinks || 0)
@@ -540,7 +590,6 @@ export function LegacyHeader(props: {
   const inlineLinks = linksAll.slice(0, MAX_INLINE);
   const overflowLinks = linksAll.slice(MAX_INLINE);
 
-  // ✅ V2030 Option 1: Plus label becomes the active overflow label
   const overflowActiveLink = overflowLinks.find((x) => x.href === activeHref);
   const overflowLabel = overflowActiveLink ? overflowActiveLink.label : "Plus";
   const overflowActive = Boolean(overflowActiveLink);
@@ -551,50 +600,16 @@ export function LegacyHeader(props: {
     <div aria-hidden="true" style={{ height: "var(--header-h, 0px)" }} />
   );
 
-  /* ============================================================
-     CANVAS STYLE (header + menus)
-     - Header = basé sur --te-canvas (fond page)
-     - Menu = basé sur --te-surface-2 (surface flottante)
-     ============================================================ */
+  // CANVAS
+  const canvasVar = pickCanvasVar(theme, props.canvasVar);
+  const hasCanvas = hasCanvasVars(canvasVar);
 
-  // ✅ SINGLE source-of-truth canvas vars
-  const canvasVar = ((props as any)?.canvasVar ??
-    (theme as any)?.canvasVar ??
-    {}) as React.CSSProperties;
-
-  const hasCanvas =
-    !!(canvasVar as any)?.["--te-canvas"] ||
-    !!(canvasVar as any)?.["--te-surface"] ||
-    !!(canvasVar as any)?.["--te-surface-2"] ||
-    !!(canvasVar as any)?.["--te-surface-border"];
-
-  // ✅ Header: match le FOND (canvas), pas la surface
   const headerStyle: React.CSSProperties | undefined = hasCanvas
-    ? {
-        ...canvasVar,
-        backgroundColor: isScrolled
-          ? "color-mix(in srgb, var(--te-canvas, #020617) 92%, transparent)"
-          : "color-mix(in srgb, var(--te-canvas, #020617) 86%, transparent)",
-        borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-        boxShadow: isScrolled
-          ? "0 10px 34px rgba(0,0,0,0.32)"
-          : "0 6px 22px rgba(0,0,0,0.22)",
-      }
+    ? headerGlassStyle(theme, canvasVar, isScrolled)
     : undefined;
 
-  // ✅ Menu dropdown: surface (doit “flotter” au-dessus)
   const menuStyle: React.CSSProperties | undefined = hasCanvas
-    ? {
-        ...canvasVar,
-        backgroundColor:
-          "color-mix(in srgb, var(--te-surface-2, rgba(18,18,22,0.78)) 88%, transparent)",
-        borderColor: "var(--te-surface-border, rgba(255,255,255,0.10))",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-        boxShadow: "0 18px 55px rgba(0,0,0,0.28)",
-      }
+    ? menuGlassStyle(theme, canvasVar)
     : undefined;
 
   const headerClassBase = cx(
@@ -627,10 +642,6 @@ export function LegacyHeader(props: {
       {Spacer}
     </>
   );
-
-  /* ============================================================
-     NAV TOKENS (canvas-first)
-     ============================================================ */
 
   const navTextClass = hasCanvas
     ? "text-inherit"
@@ -668,10 +679,6 @@ export function LegacyHeader(props: {
     : theme.isDark
     ? "text-white/80 hover:text-white hover:bg-white/10"
     : "text-slate-900/90 hover:text-slate-950 hover:bg-white/70 hover:shadow-sm";
-
-  /* ============================================================
-     NAV Variants
-     ============================================================ */
 
   const NavA = () => (
     <nav
@@ -830,10 +837,6 @@ export function LegacyHeader(props: {
     </nav>
   );
 
-  /* ============================================================
-     RENDER D
-     ============================================================ */
-
   const RenderD = () => {
     const phone = contact?.phone ?? "";
     const email = contact?.email ?? "";
@@ -951,10 +954,6 @@ export function LegacyHeader(props: {
       </>
     );
   };
-
-  /* ============================================================
-     RENDER A/B/C
-     ============================================================ */
 
   const RenderA = () =>
     HeaderShell(
@@ -1173,7 +1172,7 @@ export function LegacyHero({
                 style={radiusStyle(l.radius)}
                 className={cx(
                   "relative overflow-hidden border",
-                  theme.surfaceBorder
+                  theme.isDark ? "border-white/10" : "border-slate-200"
                 )}
               >
                 <div className="relative aspect-[16/7]">
@@ -1364,7 +1363,7 @@ export function LegacySplit(props: any) {
 }
 
 /* ============================================================
-   BLOC 5 — SERVICES (A/B/C/D/E)
+   BLOC 5 — SERVICES
    ============================================================ */
 
 export function LegacyServices(props: any) {
@@ -1474,7 +1473,7 @@ export function LegacyServices(props: any) {
 }
 
 /* ============================================================
-   BLOC 6 — TEAM (A/B/C)
+   BLOC 6 — TEAM
    ============================================================ */
 
 export function LegacyTeam(props: any) {
@@ -1557,7 +1556,7 @@ export function LegacyTeam(props: any) {
 }
 
 /* ============================================================
-   BLOC 7 — GALLERIES (stack / twoCol / threeCol + pro* aliases)
+   BLOC 7 — GALLERIES
    ============================================================ */
 
 export function LegacyGalleries(props: any) {
@@ -1574,11 +1573,9 @@ export function LegacyGalleries(props: any) {
 
   const l = resolveLayout(layout, globalLayout);
 
-  // normalize variant (supports pro* names safely)
   const rawV = String(variant ?? "twoCol")
     .trim()
     .toLowerCase();
-
   const v =
     rawV.includes("three") || rawV.includes("3col")
       ? "threeCol"
@@ -1732,7 +1729,7 @@ export function LegacyGalleries(props: any) {
 }
 
 /* ============================================================
-   BLOC 8 — CONTACT (A/B) + socials en bas ✅
+   BLOC 8 — CONTACT
    ============================================================ */
 
 export function LegacyContact(props: any) {
