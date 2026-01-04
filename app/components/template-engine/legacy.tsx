@@ -424,7 +424,9 @@ export function LegacyHeader(props: {
   const logoScale = lerp(1, 0.92);
 
   const showCta = !["J"].includes(String(variant));
-  const includeContactInNav = !showCta;
+  // IMPORTANT: si tu veux que "Contact" puisse devenir actif dans la nav,
+  // il doit exister dans linksAll.
+  const includeContactInNav = true;
 
   const navBase =
     "text-[12px] font-semibold uppercase tracking-[0.14em] leading-none";
@@ -539,126 +541,205 @@ export function LegacyHeader(props: {
     | SocialConfig
     | undefined;
 
-  // sections → nav links
+  // sections
   const secs = Array.isArray((props as any).sections)
     ? (props as any).sections
     : [];
 
+  // active href handling (Accueil)
   const firstSectionId =
     secs.find(
       (sec: any) =>
         sec?.enabled !== false && sec?.type !== "header" && sec?.type !== "top"
     )?.id ?? "";
 
-  // active href handling
   const rawActiveHref = props.activeHref ?? "#top";
   const activeHref =
     firstSectionId && rawActiveHref === `#${firstSectionId}`
       ? "#top"
       : rawActiveHref;
 
-  const orderedLinksRaw = secs
-    .filter((sec: any) => sec?.enabled !== false)
-    .map((sec: any) => {
-      if (!sec?.type || sec.type === "header" || sec.type === "top")
-        return null;
-      const href = `#${sec.id}`;
-      const label = sec.navLabel ?? sec.title ?? sec.id;
-      return { href, label };
-    })
-    .filter(Boolean) as { href: string; label: string }[];
+  // ============================================================
+  // ✅ LINKS (href = DOM id réel)
+  // ============================================================
 
   const homeLabel = String(props.content?.nav?.homeLabel ?? "Accueil");
 
-  const orderedLinks = orderedLinksRaw.map((lnk, idx) => {
-    if (idx === 0 && firstSectionId && lnk.href === `#${firstSectionId}`) {
-      return { href: "#top", label: homeLabel };
-    }
-    return lnk;
+  const enabledSecs = Array.isArray(secs)
+    ? secs.filter(
+        (sec: any) =>
+          sec?.enabled !== false &&
+          sec?.type !== "header" &&
+          sec?.type !== "top"
+      )
+    : [];
+
+  let orderedLinks: { href: string; label: string }[] = enabledSecs
+    .map((sec: any) => {
+      const domId = String(sec?.id ?? "").trim();
+      if (!domId) return null;
+
+      let label = sec.navLabel ?? sec.title ?? domId;
+
+      const tt = String(sec.type ?? "").toLowerCase();
+      if (tt === "galleries" || tt === "gallery") {
+        const gs = Array.isArray(props.content?.galleries)
+          ? props.content.galleries
+          : [];
+        const gg = gs.find((x: any) => String(x?.id) === domId);
+        if (gg?.title) label = gg.title;
+      }
+
+      return { href: `#${domId}`, label };
+    })
+    .filter(Boolean) as { href: string; label: string }[];
+
+  if (orderedLinks.length) {
+    orderedLinks[0] = { href: "#top", label: homeLabel };
+  }
+
+  const fallbackLinks = [
+    { href: "#top", label: homeLabel },
+    { href: "#approche", label: "Approche" },
+    ...(showTeam ? [{ href: "#team", label: "Équipe" }] : []),
+    ...(includeContactInNav ? [{ href: "#contact", label: "Contact" }] : []),
+  ];
+
+  let linksAll: { href: string; label: string }[] =
+    orderedLinks.length > 0 ? [...orderedLinks] : [...fallbackLinks];
+
+  const forceIfExists = (id: string, label: string) => {
+    const exists = enabledSecs.some((s: any) => String(s?.id ?? "") === id);
+    if (!exists) return;
+    const href = `#${id}`;
+    if (!linksAll.some((l) => l.href === href)) linksAll.push({ href, label });
+  };
+
+  forceIfExists("approche", "Approche");
+  forceIfExists("contact", "Contact");
+
+  const seen = new Set<string>();
+  linksAll = linksAll.filter((l) => {
+    if (seen.has(l.href)) return false;
+    seen.add(l.href);
+    return true;
   });
 
-  // ✅ lecture simple + priorité props -> content
+  // ============================================================
+  // ✅ SCROLL-SPY LOCAL (FIABLE JUSQU’EN BAS)
+  // ============================================================
+
+  const [activeHrefLocal, setActiveHrefLocal] = React.useState<string>("#top");
+
+  const getHeaderOffsetPx = React.useCallback(() => {
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue("--header-offset")
+      .trim();
+    const n = Number(v.replace("px", ""));
+    return Number.isFinite(n) && n > 0 ? n : 84;
+  }, []);
+
+  const computeActiveHref = React.useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    const headerOffset = getHeaderOffsetPx();
+    const y = headerOffset + 8;
+
+    let best: { href: string; top: number } | null = null;
+
+    for (const lnk of linksAll) {
+      if (!lnk.href || lnk.href === "#top") continue;
+
+      const id = lnk.href.slice(1);
+      const el = document.getElementById(id);
+      if (!el) continue;
+
+      const top = el.getBoundingClientRect().top;
+      if (top <= y) {
+        if (!best || top > best.top) best = { href: lnk.href, top };
+      }
+    }
+
+    const scrollH = Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight
+    );
+    const atBottom = window.innerHeight + window.scrollY >= scrollH - 4;
+
+    if (atBottom && linksAll.some((l) => l.href === "#contact")) {
+      setActiveHrefLocal("#contact");
+    } else {
+      setActiveHrefLocal(best?.href ?? "#top");
+    }
+  }, [linksAll, getHeaderOffsetPx]);
+
+  React.useEffect(() => {
+    computeActiveHref();
+
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(computeActiveHref);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll as any);
+      window.removeEventListener("resize", onScroll as any);
+    };
+  }, [computeActiveHref]);
+
+  const activeHrefEffective = activeHrefLocal || activeHref;
+
+  // ============================================================
+  // ✅ AUTO-FIT RESPONSIVE (UTILISÉ POUR DE VRAI)
+  // ============================================================
+
+  const wrapRef = React.useRef<HTMLDivElement | null>(null);
+  const leftRef = React.useRef<HTMLDivElement | null>(null);
+  const rightRef = React.useRef<HTMLDivElement | null>(null);
+  const measureRef = React.useRef<HTMLDivElement | null>(null);
+
   const maxDirectLinks = Number(
-    (props as any).maxDirectLinksInMenu ??
-      (props as any).maxDirectLinks ??
+    props.maxDirectLinksInMenu ??
+      props.maxDirectLinks ??
       props.content?.nav?.maxDirectLinksInMenu ??
       props.content?.nav?.maxDirectLinks ??
       4
   );
 
   const MAX_INLINE = Math.max(
-    0,
+    1,
     Math.min(12, Number.isFinite(maxDirectLinks) ? maxDirectLinks : 4)
   );
 
-  // direct links (from galleries)
-  const direct = Array.isArray(props.galleryLinks)
-    ? props.galleryLinks.slice(0, MAX_INLINE)
-    : [];
-
-  const fallbackLinks = [
-    { href: "#top", label: homeLabel },
-    { href: "#services", label: "Services" },
-    ...(showTeam ? [{ href: "#team", label: "Équipe" }] : []),
-    ...direct.map((g) => ({ href: `#${g.id}`, label: g.title })),
-    ...(includeContactInNav ? [{ href: "#contact", label: "Contact" }] : []),
-  ];
-
-  const seen = new Set<string>();
-  const linksAll = (orderedLinks.length ? orderedLinks : fallbackLinks).filter(
-    (x) => {
-      if (seen.has(x.href)) return false;
-      seen.add(x.href);
-      return true;
-    }
-  );
-
-  // ============================================================
-  // ✅ AUTO-FIT RESPONSIVE (évite chevauchement left/right)
-  // ============================================================
-
-  // ✅ wrapRef doit mesurer la LARGEUR dispo du centre (pas le contenu shrink)
-  const wrapRef = React.useRef<HTMLDivElement | null>(null);
-  const leftRef = React.useRef<HTMLDivElement | null>(null);
-  const rightRef = React.useRef<HTMLDivElement | null>(null);
-  const measureRef = React.useRef<HTMLDivElement | null>(null);
-
-  // ✅ MAX_INLINE = nb de liens inline TOTAL (Accueil inclus)
-  const cap = Math.max(1, MAX_INLINE);
-
   const [inlineCount, setInlineCount] = React.useState<number>(() =>
-    Math.min(cap, linksAll.length || 1)
+    Math.min(MAX_INLINE, Math.max(1, linksAll.length))
   );
 
-  // ✅ IMPORTANT: label dropdown calculé ici (measurer a besoin)
   const dummyOverflowLabel = "Plus";
 
   const recalcFit = React.useCallback(() => {
     const wrap = wrapRef.current;
-    const left = leftRef.current;
-    const right = rightRef.current;
     const meas = measureRef.current;
-    if (!wrap || !left || !right || !meas) return;
+    if (!wrap || !meas) return;
 
-    // wrap = cellule centrale (w-full) => vraie largeur dispo
     const wrapW = wrap.getBoundingClientRect().width;
-    const leftW = left.getBoundingClientRect().width;
-    const rightW = right.getBoundingClientRect().width;
-
-    // petite marge
     const safety = 32;
     const available = Math.max(160, wrapW - safety);
 
     const children = Array.from(meas.children) as HTMLElement[];
     if (!children.length) return;
 
-    // derniers éléments du meas : [links..., overflowBtn]
+    // dernier = mesure du bouton overflow
     const overflowBtn = children[children.length - 1];
     const overflowW = overflowBtn.getBoundingClientRect().width;
 
     const linkEls = children.slice(0, children.length - 1);
-
-    const gap = 28; // doit matcher gap-7 visuel
+    const gap = 28; // gap-7
 
     let used = 0;
     let fit = 0;
@@ -678,10 +759,9 @@ export function LegacyHeader(props: {
       }
     }
 
-    fit = Math.max(1, Math.min(fit, linksAll.length));
-    fit = Math.min(fit, cap);
+    fit = Math.max(1, Math.min(fit, linksAll.length, MAX_INLINE));
     setInlineCount(fit);
-  }, [linksAll.length, cap]);
+  }, [linksAll.length, MAX_INLINE]);
 
   React.useLayoutEffect(() => {
     recalcFit();
@@ -696,18 +776,27 @@ export function LegacyHeader(props: {
   }, [recalcFit]);
 
   React.useEffect(() => {
-    setInlineCount((c) => Math.max(1, Math.min(c, cap, linksAll.length)));
-  }, [cap, linksAll.length]);
+    setInlineCount((c) =>
+      Math.max(1, Math.min(c, MAX_INLINE, linksAll.length))
+    );
+  }, [MAX_INLINE, linksAll.length]);
 
-  const effectiveInline = Math.min(linksAll.length, Math.max(1, cap || 1));
+  const effectiveInline = Math.max(
+    1,
+    Math.min(inlineCount, linksAll.length, MAX_INLINE)
+  );
 
   const inlineLinks = linksAll.slice(0, effectiveInline);
   const overflowLinks = linksAll.slice(effectiveInline);
 
-  const overflowActiveLink = overflowLinks.find((x) => x.href === activeHref);
+  const overflowActiveLink = overflowLinks.find(
+    (x) => x.href === activeHrefEffective
+  );
+
   const overflowLabel = overflowActiveLink
     ? overflowActiveLink.label
     : dummyOverflowLabel;
+
   const overflowActive = Boolean(overflowActiveLink);
 
   // ============================================================
@@ -720,7 +809,6 @@ export function LegacyHeader(props: {
     <div aria-hidden="true" style={{ height: "var(--header-h, 0px)" }} />
   );
 
-  // CANVAS
   const canvasVar = pickCanvasVar(theme, props.canvasVar);
   const hasCanvas = hasCanvasVars(canvasVar);
 
@@ -768,6 +856,7 @@ export function LegacyHeader(props: {
     : theme.isDark
     ? "text-white/80"
     : "text-slate-700";
+
   const navHoverTextClass = hasCanvas
     ? "text-inherit"
     : theme.isDark
@@ -810,7 +899,7 @@ export function LegacyHeader(props: {
       )}
     >
       {inlineLinks.map((lnk) => {
-        const active = lnk.href === activeHref;
+        const active = lnk.href === activeHrefEffective;
         return (
           <a
             key={lnk.href}
@@ -838,8 +927,8 @@ export function LegacyHeader(props: {
       })}
 
       {overflowLinks.length ? (
-        <div className="relative inline-flex">
-          <div className="group relative inline-flex">
+        <div className="relative inline-flex w-fit">
+          <div className="group relative inline-flex w-fit">
             <DesktopOverflowMenu
               theme={theme}
               label={overflowLabel}
@@ -847,12 +936,12 @@ export function LegacyHeader(props: {
               menuStyle={menuStyle}
               hasCanvas={hasCanvas}
               active={overflowActive}
-              activeHref={activeHref}
+              activeHref={activeHrefEffective}
               navBaseClass={navBase}
             />
             <span
               className={cx(
-                "pointer-events-none absolute left-1/2 -translate-x-1/2 -bottom-2 h-[2px] w-10 bg-gradient-to-r transition-opacity",
+                "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
                 theme.accentFrom,
                 theme.accentTo,
                 overflowActive
@@ -869,7 +958,7 @@ export function LegacyHeader(props: {
   const NavB = () => (
     <nav className={navShellClass}>
       {inlineLinks.map((lnk) => {
-        const active = lnk.href === activeHref;
+        const active = lnk.href === activeHrefEffective;
         return (
           <a
             key={lnk.href}
@@ -890,7 +979,7 @@ export function LegacyHeader(props: {
             menuStyle={menuStyle}
             hasCanvas={hasCanvas}
             active={overflowActive}
-            activeHref={activeHref}
+            activeHref={activeHrefEffective}
             navBaseClass={navBase}
             buttonClassName={cx(
               pillBase,
@@ -912,7 +1001,7 @@ export function LegacyHeader(props: {
       )}
     >
       {inlineLinks.map((lnk) => {
-        const active = lnk.href === activeHref;
+        const active = lnk.href === activeHrefEffective;
         return (
           <a
             key={lnk.href}
@@ -929,7 +1018,7 @@ export function LegacyHeader(props: {
             <span className="whitespace-nowrap">{lnk.label}</span>
             <span
               className={cx(
-                "pointer-events-none absolute left-1/2 -translate-x-1/2 -bottom-2 h-[2px] w-10 bg-gradient-to-r transition-opacity",
+                "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
                 theme.accentFrom,
                 theme.accentTo,
                 active ? "opacity-100" : "opacity-0 group-hover:opacity-100"
@@ -940,7 +1029,7 @@ export function LegacyHeader(props: {
       })}
 
       {overflowLinks.length ? (
-        <div className="group relative inline-flex">
+        <div className="group relative inline-flex w-fit">
           <DesktopOverflowMenu
             theme={theme}
             label={overflowLabel}
@@ -948,12 +1037,12 @@ export function LegacyHeader(props: {
             menuStyle={menuStyle}
             hasCanvas={hasCanvas}
             active={overflowActive}
-            activeHref={activeHref}
+            activeHref={activeHrefEffective}
             navBaseClass={navBase}
           />
           <span
             className={cx(
-              "pointer-events-none absolute left-1/2 -translate-x-1/2 -bottom-2 h-[2px] w-10 bg-gradient-to-r transition-opacity",
+              "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
               theme.accentFrom,
               theme.accentTo,
               overflowActive
@@ -1085,7 +1174,6 @@ export function LegacyHeader(props: {
     );
   };
 
-  // ✅ A/B/C : grille + auto-fit -> plus de chevauchement
   const GridHeaderRow = ({ nav }: { nav: React.ReactNode }) => (
     <Wrap
       layout={props.layout}
@@ -1118,12 +1206,10 @@ export function LegacyHeader(props: {
         )}
       </div>
 
-      {/* ✅ wrapRef ici = largeur réelle de la cellule centrale */}
       <div ref={wrapRef} className="justify-self-center min-w-0 w-full">
         <div className="relative flex justify-center">
           {nav}
 
-          {/* ✅ Measurer invisible (mêmes classes) */}
           <div
             ref={measureRef}
             className={cx(
@@ -1138,7 +1224,7 @@ export function LegacyHeader(props: {
                 {lnk.label}
               </span>
             ))}
-            <span className="inline-flex">{overflowLabel} ▾</span>
+            <span className="inline-flex">{dummyOverflowLabel} ▾</span>
           </div>
         </div>
       </div>
@@ -1655,7 +1741,7 @@ export function LegacyTeam(props: any) {
 }
 
 /* ============================================================
-   BLOC 7 — GALLERIES
+   BLOC 7 — GALLERIES (NO DUPLICATE IDs)
    ============================================================ */
 
 export function LegacyGalleries(props: any) {
@@ -1664,7 +1750,7 @@ export function LegacyGalleries(props: any) {
     content,
     layout,
     globalLayout,
-    sectionId,
+    sectionId, // ⚠️ on l’utilise pour choisir la galerie, PAS pour mettre un id DOM ici
     onOpen,
     enableLightbox,
     variant,
@@ -1694,7 +1780,12 @@ export function LegacyGalleries(props: any) {
   const aspect = v === "stack" ? "aspect-[16/7]" : "aspect-[16/11]";
 
   const galleries = Array.isArray(content?.galleries) ? content.galleries : [];
-  const g = galleries.find((x: any) => x?.id === sectionId) ?? galleries[0];
+
+  // on sélectionne la galerie correspondant à sectionId (si c’est bien un id de galerie),
+  // sinon fallback sur la première
+  const g =
+    galleries.find((x: any) => String(x?.id) === String(sectionId)) ??
+    galleries[0];
 
   const title = g?.title ?? "Galeries";
   const desc = g?.description ?? "";
@@ -1702,10 +1793,8 @@ export function LegacyGalleries(props: any) {
 
   if (!images.length) {
     return (
-      <section
-        id={sectionId ?? "realisations"}
-        className={cx(sectionPadY(l.density))}
-      >
+      // ✅ PAS D’ID ICI (le wrapper parent a déjà id=sec.id)
+      <section className={cx(sectionPadY(l.density))}>
         <Wrap layout={layout} globalLayout={globalLayout}>
           <div className="mb-8">
             <div
@@ -1739,10 +1828,8 @@ export function LegacyGalleries(props: any) {
   }
 
   return (
-    <section
-      id={sectionId ?? "realisations"}
-      className={cx(sectionPadY(l.density))}
-    >
+    // ✅ PAS D’ID ICI (le wrapper parent a déjà id=sec.id)
+    <section className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
         <div className="mb-8">
           <div
