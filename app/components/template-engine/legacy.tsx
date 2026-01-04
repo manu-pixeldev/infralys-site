@@ -29,6 +29,37 @@ function hasText(v: any) {
   return typeof v === "string" && v.trim().length > 0;
 }
 
+/** nettoie les labels (enlève les "+" accidentels en début/fin, espaces, etc.) */
+function cleanNavLabel(v: any) {
+  const s = String(v ?? "");
+  return s
+    .replace(/^\s*\+\s*/, "")
+    .replace(/\s*\+\s*$/, "")
+    .trim();
+}
+
+/**
+ * Génère un id DOM unique pour des sections répétées (split, split-2, split-3...)
+ * IMPORTANT: nécessite un reset global une fois par page (dans LegacyHeader).
+ */
+function useUniqueDomId(sectionId?: string) {
+  return React.useMemo(() => {
+    const raw = String(sectionId ?? "").trim();
+    if (!raw) return "";
+
+    if (typeof window === "undefined") return raw;
+
+    const w = window as any;
+    w.__te_ids = w.__te_ids || new Map<string, number>();
+
+    const m: Map<string, number> = w.__te_ids;
+    const n = (m.get(raw) ?? 0) + 1;
+    m.set(raw, n);
+
+    return n === 1 ? raw : `${raw}-${n}`;
+  }, [sectionId]);
+}
+
 /* ============================================================
    BLOC 0B — GLASS HELPERS (1 source de vérité, anti “miroir”)
    ============================================================ */
@@ -406,6 +437,12 @@ export function LegacyHeader(props: {
 }) {
   const { theme, brand, headerVariant, headerRef, showTeam, contact } = props;
 
+  // ✅ RESET global ids map 1x par page (sinon tu gardes split-999 en hot reload)
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    (window as any).__te_ids = new Map<string, number>();
+  }, []);
+
   const variant = (headerVariant ?? "A") as HeaderVariantX;
   const l = resolveLayout(props.layout, props.globalLayout);
 
@@ -424,8 +461,6 @@ export function LegacyHeader(props: {
   const logoScale = lerp(1, 0.92);
 
   const showCta = !["J"].includes(String(variant));
-  // IMPORTANT: si tu veux que "Contact" puisse devenir actif dans la nav,
-  // il doit exister dans linksAll.
   const includeContactInNav = true;
 
   const navBase =
@@ -560,7 +595,7 @@ export function LegacyHeader(props: {
       : rawActiveHref;
 
   // ============================================================
-  // ✅ LINKS (href = DOM id réel)
+  // ✅ LINKS (href = DOM id unique)
   // ============================================================
 
   const homeLabel = String(props.content?.nav?.homeLabel ?? "Accueil");
@@ -574,21 +609,30 @@ export function LegacyHeader(props: {
       )
     : [];
 
+  const usedIds = new Map<string, number>();
+
   let orderedLinks: { href: string; label: string }[] = enabledSecs
     .map((sec: any) => {
-      const domId = String(sec?.id ?? "").trim();
-      if (!domId) return null;
+      const rawId = String(sec?.id ?? "").trim();
+      if (!rawId) return null;
 
-      let label = sec.navLabel ?? sec.title ?? domId;
+      // ✅ id unique (split, split-2, split-3…)
+      const n = (usedIds.get(rawId) ?? 0) + 1;
+      usedIds.set(rawId, n);
+      const domId = n === 1 ? rawId : `${rawId}-${n}`;
+
+      let label = sec.navLabel ?? sec.title ?? rawId;
 
       const tt = String(sec.type ?? "").toLowerCase();
       if (tt === "galleries" || tt === "gallery") {
         const gs = Array.isArray(props.content?.galleries)
           ? props.content.galleries
           : [];
-        const gg = gs.find((x: any) => String(x?.id) === domId);
+        const gg = gs.find((x: any) => String(x?.id) === rawId);
         if (gg?.title) label = gg.title;
       }
+
+      label = cleanNavLabel(label);
 
       return { href: `#${domId}`, label };
     })
@@ -620,7 +664,7 @@ export function LegacyHeader(props: {
   forceIfExists("approche", "Approche");
   forceIfExists("contact", "Contact");
 
-  // dédoublonnage
+  // dédoublonnage href
   const seen = new Set<string>();
   linksAll = linksAll.filter((l) => {
     if (seen.has(l.href)) return false;
@@ -646,9 +690,11 @@ export function LegacyHeader(props: {
     if (typeof window === "undefined") return;
 
     const headerOffset = getHeaderOffsetPx();
-    const y = headerOffset + 8;
+    const y = window.scrollY + headerOffset + 8;
 
-    let best: { href: string; top: number } | null = null;
+    // 🔒 stratégie fiable : dernière section atteinte
+    let bestHref: string = "#top";
+    let bestTop = -Infinity;
 
     for (const lnk of linksAll) {
       if (!lnk.href || lnk.href === "#top") continue;
@@ -657,13 +703,15 @@ export function LegacyHeader(props: {
       const el = document.getElementById(id);
       if (!el) continue;
 
-      const top = el.getBoundingClientRect().top;
-      if (top <= y) {
-        if (!best || top > best.top) best = { href: lnk.href, top };
+      const topAbs = el.getBoundingClientRect().top + window.scrollY;
+
+      if (topAbs <= y && topAbs > bestTop) {
+        bestTop = topAbs;
+        bestHref = lnk.href;
       }
     }
 
-    // ✅ bottom detection fiable
+    // 🔒 force Contact en bas de page
     const scrollH = Math.max(
       document.documentElement.scrollHeight,
       document.body.scrollHeight
@@ -673,7 +721,7 @@ export function LegacyHeader(props: {
     if (atBottom && linksAll.some((l) => l.href === "#contact")) {
       setActiveHrefLocal("#contact");
     } else {
-      setActiveHrefLocal(best?.href ?? "#top");
+      setActiveHrefLocal(bestHref);
     }
   }, [linksAll, getHeaderOffsetPx]);
 
@@ -696,7 +744,6 @@ export function LegacyHeader(props: {
     };
   }, [computeActiveHref]);
 
-  // ✅ une seule “source active” utilisée par la nav
   const activeHrefEffective = activeHrefLocal || activeHref;
 
   // ============================================================
@@ -708,7 +755,6 @@ export function LegacyHeader(props: {
   const rightRef = React.useRef<HTMLDivElement | null>(null);
   const measureRef = React.useRef<HTMLDivElement | null>(null);
 
-  // ✅ plafond (StudioPanel -> props -> content)
   const maxDirectLinks = Number(
     (props as any)?.options?.nav?.maxDirectLinksInMenu ??
       (props as any)?.options?.maxDirectLinksInMenu ??
@@ -719,21 +765,10 @@ export function LegacyHeader(props: {
       props.content?.nav?.maxDirectLinks ??
       4
   );
-  console.log(
-    "maxDirectLinks(header)=",
-    maxDirectLinks,
-    (props as any)?.options?.nav
-  );
 
   const MAX_INLINE = Math.max(
     1,
     Math.min(12, Number.isFinite(maxDirectLinks) ? maxDirectLinks : 4)
-  );
-  console.log(
-    "[HDR] maxDirectLinks=",
-    maxDirectLinks,
-    "MAX_INLINE=",
-    MAX_INLINE
   );
 
   const [inlineCount, setInlineCount] = React.useState<number>(() =>
@@ -751,22 +786,19 @@ export function LegacyHeader(props: {
     const kids = Array.from(meas.children) as HTMLElement[];
     if (!kids.length) return;
 
-    // kids = liens + bouton overflow (dernier)
     const overflowBtn = kids[kids.length - 1];
     const overflowW = overflowBtn.getBoundingClientRect().width;
 
     const linkEls = kids.slice(0, kids.length - 1);
-    const gap = 28; // doit matcher gap-7
+    const gap = 28; // gap-7
 
     let used = 0;
     let fit = 0;
 
-    // ✅ ne dépasse jamais MAX_INLINE (panel)
     for (let i = 0; i < linkEls.length && i < MAX_INLINE; i++) {
       const w = linkEls[i].getBoundingClientRect().width;
       const next = fit === 0 ? w : used + gap + w;
 
-      // si il reste encore des liens après -> on réserve l’overflow
       const needsOverflow = i < Math.min(linkEls.length, MAX_INLINE) - 1;
       const reserve = needsOverflow ? gap + overflowW : 0;
 
@@ -797,12 +829,10 @@ export function LegacyHeader(props: {
   React.useEffect(() => {
     setInlineCount((c) => {
       const limit = Math.max(1, Math.min(MAX_INLINE, linksAll.length));
-      // ✅ on clamp seulement si on dépasse, mais on ne bloque pas la remontée
       return c > limit ? limit : c;
     });
   }, [MAX_INLINE, linksAll.length]);
 
-  // ✅ on découpe avec inlineCount (PAS d’autre calcul derrière)
   const inlineLinks = linksAll.slice(0, inlineCount);
   const overflowLinks = linksAll.slice(inlineCount);
 
@@ -930,7 +960,9 @@ export function LegacyHeader(props: {
                 (theme.isDark ? "text-white" : "text-slate-950")
             )}
           >
-            <span className="whitespace-nowrap">{lnk.label}</span>
+            <span className="whitespace-nowrap">
+              {cleanNavLabel(lnk.label)}
+            </span>
             <span
               className={cx(
                 "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
@@ -948,8 +980,11 @@ export function LegacyHeader(props: {
           <div className="group relative inline-flex w-fit">
             <DesktopOverflowMenu
               theme={theme}
-              label={overflowLabel}
-              items={overflowLinks}
+              label={cleanNavLabel(overflowLabel)}
+              items={overflowLinks.map((x) => ({
+                ...x,
+                label: cleanNavLabel(x.label),
+              }))}
               menuStyle={menuStyle}
               hasCanvas={hasCanvas}
               active={overflowActive}
@@ -982,7 +1017,7 @@ export function LegacyHeader(props: {
             href={lnk.href}
             className={cx(pillBase, active ? pillActive : pillIdle)}
           >
-            {lnk.label}
+            {cleanNavLabel(lnk.label)}
           </a>
         );
       })}
@@ -991,8 +1026,11 @@ export function LegacyHeader(props: {
         <div className="hidden md:block">
           <DesktopOverflowMenu
             theme={theme}
-            label={overflowLabel}
-            items={overflowLinks}
+            label={cleanNavLabel(overflowLabel)}
+            items={overflowLinks.map((x) => ({
+              ...x,
+              label: cleanNavLabel(x.label),
+            }))}
             menuStyle={menuStyle}
             hasCanvas={hasCanvas}
             active={overflowActive}
@@ -1008,6 +1046,7 @@ export function LegacyHeader(props: {
     </nav>
   );
 
+  // ✅ underline EXACTEMENT sous le texte (et pas full width d’un wrapper)
   const NavC = () => (
     <nav
       className={cx(
@@ -1024,7 +1063,7 @@ export function LegacyHeader(props: {
             key={lnk.href}
             href={lnk.href}
             className={cx(
-              "group relative inline-flex transition-colors",
+              "group inline-flex transition-colors",
               navHoverTextClass,
               hasCanvas && !active && "opacity-80 hover:opacity-100",
               active &&
@@ -1032,15 +1071,19 @@ export function LegacyHeader(props: {
                 (theme.isDark ? "text-white" : "text-slate-950")
             )}
           >
-            <span className="whitespace-nowrap">{lnk.label}</span>
-            <span
-              className={cx(
-                "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
-                theme.accentFrom,
-                theme.accentTo,
-                active ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-              )}
-            />
+            <span className="relative inline-block">
+              <span className="whitespace-nowrap">
+                {cleanNavLabel(lnk.label)}
+              </span>
+              <span
+                className={cx(
+                  "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
+                  theme.accentFrom,
+                  theme.accentTo,
+                  active ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                )}
+              />
+            </span>
           </a>
         );
       })}
@@ -1049,8 +1092,11 @@ export function LegacyHeader(props: {
         <div className="group relative inline-flex w-fit">
           <DesktopOverflowMenu
             theme={theme}
-            label={overflowLabel}
-            items={overflowLinks}
+            label={cleanNavLabel(overflowLabel)}
+            items={overflowLinks.map((x) => ({
+              ...x,
+              label: cleanNavLabel(x.label),
+            }))}
             menuStyle={menuStyle}
             hasCanvas={hasCanvas}
             active={overflowActive}
@@ -1227,6 +1273,7 @@ export function LegacyHeader(props: {
         <div className="relative flex justify-center">
           {nav}
 
+          {/* mesure invisible (labels + overflow) */}
           <div
             ref={measureRef}
             className={cx(
@@ -1238,7 +1285,7 @@ export function LegacyHeader(props: {
           >
             {linksAll.map((lnk) => (
               <span key={lnk.href} className="inline-flex">
-                {lnk.label}
+                {cleanNavLabel(lnk.label)}
               </span>
             ))}
             <span className="inline-flex">{dummyOverflowLabel} ▾</span>
@@ -1279,6 +1326,10 @@ export function LegacyHero({
   variant,
 }: any) {
   const l = resolveLayout(layout, globalLayout);
+  const v = String(variant ?? "A");
+
+  // ✅ id DOM unique
+  const domId = useUniqueDomId(sectionId ?? "hero");
 
   const kicker = content?.heroKicker ?? "Sous-titre et/ou slogan";
   const title = content?.heroTitle ?? "Titre de la section HERO";
@@ -1291,8 +1342,6 @@ export function LegacyHero({
 
   const cta1 = content?.cta?.heroPrimary ?? "Me contacter";
   const cta2 = content?.cta?.heroSecondary ?? "Voir nos services";
-
-  const v = String(variant ?? "A");
 
   const PrimaryBtn = (
     <a
@@ -1325,7 +1374,7 @@ export function LegacyHero({
 
   if (v === "B") {
     return (
-      <section id={sectionId ?? "hero"} className={cx(heroPadY(l.density))}>
+      <section id={domId} className={cx(heroPadY(l.density))}>
         <Wrap layout={layout} globalLayout={globalLayout}>
           <Surface
             theme={theme}
@@ -1395,7 +1444,7 @@ export function LegacyHero({
   }
 
   return (
-    <section id={sectionId ?? "hero"} className={cx(heroPadY(l.density))}>
+    <section id={domId} className={cx(heroPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
         <Surface
           theme={theme}
@@ -1472,6 +1521,9 @@ export function LegacySplit(props: any) {
   const l = resolveLayout(layout, globalLayout);
   const v = String(variant ?? "A");
 
+  // ✅ id DOM unique (split, split-2...)
+  const domId = useUniqueDomId(sectionId ?? "split");
+
   const title =
     content?.split?.title ??
     content?.splitTitle ??
@@ -1494,7 +1546,7 @@ export function LegacySplit(props: any) {
   const reverse = v === "B" ? true : !!content?.split?.reverse;
 
   return (
-    <section id={sectionId ?? "split"} className={cx(sectionPadY(l.density))}>
+    <section id={domId} className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
         <Surface
           theme={theme}
@@ -1573,6 +1625,8 @@ export function LegacyServices(props: any) {
   const l = resolveLayout(layout, globalLayout);
   const v = String(variant ?? "A");
 
+  const domId = useUniqueDomId(sectionId ?? "services");
+
   const title = content?.servicesTitle ?? "Nos services";
   const text =
     content?.servicesText ??
@@ -1628,10 +1682,7 @@ export function LegacyServices(props: any) {
       : "md:grid-cols-3";
 
   return (
-    <section
-      id={sectionId ?? "services"}
-      className={cx(sectionPadY(l.density))}
-    >
+    <section id={domId} className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
         <div className="mb-8">
           <div
@@ -1683,6 +1734,8 @@ export function LegacyTeam(props: any) {
   const l = resolveLayout(layout, globalLayout);
   const v = String(variant ?? "A");
 
+  const domId = useUniqueDomId(sectionId ?? "team");
+
   const title = content?.teamTitle ?? "Qui sommes-nous";
   const text = content?.teamText ?? "Une équipe terrain orientée qualité.";
   const cards = Array.isArray(content?.teamCards) ? content.teamCards : [];
@@ -1695,7 +1748,7 @@ export function LegacyTeam(props: any) {
       : "md:grid-cols-3";
 
   return (
-    <section id={sectionId ?? "team"} className={cx(sectionPadY(l.density))}>
+    <section id={domId} className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
         <div className="mb-8">
           <div
@@ -1767,7 +1820,7 @@ export function LegacyGalleries(props: any) {
     content,
     layout,
     globalLayout,
-    sectionId, // ⚠️ on l’utilise pour choisir la galerie, PAS pour mettre un id DOM ici
+    sectionId, // ⚠️ utilisé pour choisir la galerie, PAS pour mettre un id DOM ici
     onOpen,
     enableLightbox,
     variant,
@@ -1798,8 +1851,6 @@ export function LegacyGalleries(props: any) {
 
   const galleries = Array.isArray(content?.galleries) ? content.galleries : [];
 
-  // on sélectionne la galerie correspondant à sectionId (si c’est bien un id de galerie),
-  // sinon fallback sur la première
   const g =
     galleries.find((x: any) => String(x?.id) === String(sectionId)) ??
     galleries[0];
@@ -1810,7 +1861,6 @@ export function LegacyGalleries(props: any) {
 
   if (!images.length) {
     return (
-      // ✅ PAS D’ID ICI (le wrapper parent a déjà id=sec.id)
       <section className={cx(sectionPadY(l.density))}>
         <Wrap layout={layout} globalLayout={globalLayout}>
           <div className="mb-8">
@@ -1845,7 +1895,6 @@ export function LegacyGalleries(props: any) {
   }
 
   return (
-    // ✅ PAS D’ID ICI (le wrapper parent a déjà id=sec.id)
     <section className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
         <div className="mb-8">
@@ -1941,6 +1990,9 @@ export function LegacyContact(props: any) {
 
   const v = String(variant ?? "A");
 
+  // ✅ id DOM unique
+  const domId = useUniqueDomId(sectionId ?? "contact");
+
   const kicker = content?.contactKicker ?? "Contact";
   const title = content?.contactTitle ?? "Contact";
   const text =
@@ -1983,7 +2035,7 @@ export function LegacyContact(props: any) {
   ) : null;
 
   const RenderA = () => (
-    <section id={sectionId ?? "contact"} className={cx(sectionPadY(l.density))}>
+    <section id={domId} className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
         <div className="grid gap-8 md:grid-cols-2">
           <div>
@@ -2149,7 +2201,7 @@ export function LegacyContact(props: any) {
   );
 
   const RenderB = () => (
-    <section id={sectionId ?? "contact"} className={cx(sectionPadY(l.density))}>
+    <section id={domId} className={cx(sectionPadY(l.density))}>
       <Wrap layout={layout} globalLayout={globalLayout}>
         <Surface
           theme={theme}
