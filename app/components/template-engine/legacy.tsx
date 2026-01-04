@@ -594,6 +594,7 @@ export function LegacyHeader(props: {
     })
     .filter(Boolean) as { href: string; label: string }[];
 
+  // remplace la 1ère section par Accueil
   if (orderedLinks.length) {
     orderedLinks[0] = { href: "#top", label: homeLabel };
   }
@@ -608,6 +609,7 @@ export function LegacyHeader(props: {
   let linksAll: { href: string; label: string }[] =
     orderedLinks.length > 0 ? [...orderedLinks] : [...fallbackLinks];
 
+  // force approche/contact si la section existe vraiment
   const forceIfExists = (id: string, label: string) => {
     const exists = enabledSecs.some((s: any) => String(s?.id ?? "") === id);
     if (!exists) return;
@@ -618,6 +620,7 @@ export function LegacyHeader(props: {
   forceIfExists("approche", "Approche");
   forceIfExists("contact", "Contact");
 
+  // dédoublonnage
   const seen = new Set<string>();
   linksAll = linksAll.filter((l) => {
     if (seen.has(l.href)) return false;
@@ -635,7 +638,7 @@ export function LegacyHeader(props: {
     const v = getComputedStyle(document.documentElement)
       .getPropertyValue("--header-offset")
       .trim();
-    const n = Number(v.replace("px", ""));
+    const n = Number(String(v).replace("px", ""));
     return Number.isFinite(n) && n > 0 ? n : 84;
   }, []);
 
@@ -660,6 +663,7 @@ export function LegacyHeader(props: {
       }
     }
 
+    // ✅ bottom detection fiable
     const scrollH = Math.max(
       document.documentElement.scrollHeight,
       document.body.scrollHeight
@@ -692,6 +696,7 @@ export function LegacyHeader(props: {
     };
   }, [computeActiveHref]);
 
+  // ✅ une seule “source active” utilisée par la nav
   const activeHrefEffective = activeHrefLocal || activeHref;
 
   // ============================================================
@@ -703,21 +708,36 @@ export function LegacyHeader(props: {
   const rightRef = React.useRef<HTMLDivElement | null>(null);
   const measureRef = React.useRef<HTMLDivElement | null>(null);
 
+  // ✅ plafond (StudioPanel -> props -> content)
   const maxDirectLinks = Number(
-    props.maxDirectLinksInMenu ??
+    (props as any)?.options?.nav?.maxDirectLinksInMenu ??
+      (props as any)?.options?.maxDirectLinksInMenu ??
+      (props as any)?.options?.maxDirectLinks ??
+      props.maxDirectLinksInMenu ??
       props.maxDirectLinks ??
       props.content?.nav?.maxDirectLinksInMenu ??
       props.content?.nav?.maxDirectLinks ??
       4
+  );
+  console.log(
+    "maxDirectLinks(header)=",
+    maxDirectLinks,
+    (props as any)?.options?.nav
   );
 
   const MAX_INLINE = Math.max(
     1,
     Math.min(12, Number.isFinite(maxDirectLinks) ? maxDirectLinks : 4)
   );
+  console.log(
+    "[HDR] maxDirectLinks=",
+    maxDirectLinks,
+    "MAX_INLINE=",
+    MAX_INLINE
+  );
 
   const [inlineCount, setInlineCount] = React.useState<number>(() =>
-    Math.min(MAX_INLINE, Math.max(1, linksAll.length))
+    Math.min(MAX_INLINE, Math.max(1, linksAll.length || 1))
   );
 
   const dummyOverflowLabel = "Plus";
@@ -727,28 +747,27 @@ export function LegacyHeader(props: {
     const meas = measureRef.current;
     if (!wrap || !meas) return;
 
-    const wrapW = wrap.getBoundingClientRect().width;
-    const safety = 32;
-    const available = Math.max(160, wrapW - safety);
+    const available = Math.max(160, wrap.getBoundingClientRect().width - 32);
+    const kids = Array.from(meas.children) as HTMLElement[];
+    if (!kids.length) return;
 
-    const children = Array.from(meas.children) as HTMLElement[];
-    if (!children.length) return;
-
-    // dernier = mesure du bouton overflow
-    const overflowBtn = children[children.length - 1];
+    // kids = liens + bouton overflow (dernier)
+    const overflowBtn = kids[kids.length - 1];
     const overflowW = overflowBtn.getBoundingClientRect().width;
 
-    const linkEls = children.slice(0, children.length - 1);
-    const gap = 28; // gap-7
+    const linkEls = kids.slice(0, kids.length - 1);
+    const gap = 28; // doit matcher gap-7
 
     let used = 0;
     let fit = 0;
 
-    for (let i = 0; i < linkEls.length; i++) {
+    // ✅ ne dépasse jamais MAX_INLINE (panel)
+    for (let i = 0; i < linkEls.length && i < MAX_INLINE; i++) {
       const w = linkEls[i].getBoundingClientRect().width;
       const next = fit === 0 ? w : used + gap + w;
 
-      const needsOverflow = i < linkEls.length - 1;
+      // si il reste encore des liens après -> on réserve l’overflow
+      const needsOverflow = i < Math.min(linkEls.length, MAX_INLINE) - 1;
       const reserve = needsOverflow ? gap + overflowW : 0;
 
       if (next + reserve <= available) {
@@ -759,9 +778,9 @@ export function LegacyHeader(props: {
       }
     }
 
-    fit = Math.max(1, Math.min(fit, linksAll.length, MAX_INLINE));
+    fit = Math.max(1, Math.min(fit, MAX_INLINE, linksAll.length));
     setInlineCount(fit);
-  }, [linksAll.length, MAX_INLINE]);
+  }, [linksAll, MAX_INLINE]);
 
   React.useLayoutEffect(() => {
     recalcFit();
@@ -776,18 +795,16 @@ export function LegacyHeader(props: {
   }, [recalcFit]);
 
   React.useEffect(() => {
-    setInlineCount((c) =>
-      Math.max(1, Math.min(c, MAX_INLINE, linksAll.length))
-    );
+    setInlineCount((c) => {
+      const limit = Math.max(1, Math.min(MAX_INLINE, linksAll.length));
+      // ✅ on clamp seulement si on dépasse, mais on ne bloque pas la remontée
+      return c > limit ? limit : c;
+    });
   }, [MAX_INLINE, linksAll.length]);
 
-  const effectiveInline = Math.max(
-    1,
-    Math.min(inlineCount, linksAll.length, MAX_INLINE)
-  );
-
-  const inlineLinks = linksAll.slice(0, effectiveInline);
-  const overflowLinks = linksAll.slice(effectiveInline);
+  // ✅ on découpe avec inlineCount (PAS d’autre calcul derrière)
+  const inlineLinks = linksAll.slice(0, inlineCount);
+  const overflowLinks = linksAll.slice(inlineCount);
 
   const overflowActiveLink = overflowLinks.find(
     (x) => x.href === activeHrefEffective
@@ -1180,7 +1197,7 @@ export function LegacyHeader(props: {
       globalLayout={props.globalLayout}
       className={cx(
         "grid items-center gap-4",
-        "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]"
+        "grid-cols-[auto_minmax(0,1fr)_auto]"
       )}
       style={{ paddingTop: padY, paddingBottom: padY }}
     >

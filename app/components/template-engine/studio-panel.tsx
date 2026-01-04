@@ -740,7 +740,7 @@ export function StudioPanel({
   }, [logoSrc, autoAccentMode, canvas, accent]);
 
   // ---------------------------
-  // NAV (max direct links)
+  // ✅ NAV (max direct links) — read + write (single source of truth)
   // ---------------------------
   const maxDirect = Number(
     (config as any)?.options?.nav?.maxDirectLinksInMenu ??
@@ -760,7 +760,7 @@ export function StudioPanel({
       d.content = d.content ?? {};
       d.content.nav = d.content.nav ?? {};
 
-      // ✅ source "propre" (future)
+      // ✅ source propre (future)
       d.options.nav.maxDirectLinksInMenu = v;
 
       // ✅ compat legacy / fallbacks existants
@@ -772,7 +772,7 @@ export function StudioPanel({
       return d;
     });
 
-  // ✅ Draft string pour éviter les masks/formatages bizarres + strip 0
+  // ✅ Draft string (allow empty while typing + strip leading zeros)
   const [maxDirectDraft, setMaxDirectDraft] = React.useState<string>(
     String(maxDirect)
   );
@@ -781,10 +781,15 @@ export function StudioPanel({
     setMaxDirectDraft(String(maxDirect));
   }, [maxDirect]);
 
+  // ---------------------------
+  // ✅ LAYOUT tokens
+  // ---------------------------
   const currentContainer = ((config as any)?.options?.layout?.container ??
     "7xl") as (typeof CONTAINERS)[number];
+
   const currentDensity = ((config as any)?.options?.layout?.density ??
     "normal") as (typeof DENSITIES)[number];
+
   const currentRadius = Number(
     (config as any)?.options?.layout?.radius ?? 24
   ) as (typeof RADII)[number] | number;
@@ -799,8 +804,12 @@ export function StudioPanel({
       return d;
     });
 
+  // ---------------------------
+  // ✅ BRAND
+  // ---------------------------
   const currentLogoMode = ((config as any)?.brand?.logo?.mode ??
-    "logoPlusText") as any as (typeof LOGO_MODES)[number];
+    "logoPlusText") as (typeof LOGO_MODES)[number];
+
   const setLogoMode = (mode: (typeof LOGO_MODES)[number]) =>
     update((d) => {
       d.brand = d.brand ?? {};
@@ -855,6 +864,9 @@ export function StudioPanel({
       return d;
     });
 
+  // ---------------------------
+  // ✅ FX
+  // ---------------------------
   const setFx = (key: string, value: boolean) =>
     update((d) => {
       d.options = d.options ?? {};
@@ -1150,11 +1162,11 @@ export function StudioPanel({
       const pick = <T,>(arr: readonly T[]) =>
         arr[Math.floor(Math.random() * arr.length)];
 
-      const accent = pick(ACCENTS);
-      const canvas = pick(CANVAS);
+      const a = pick(ACCENTS);
+      const c = pick(CANVAS);
       const style: CanvasStyle = Math.random() < 0.55 ? "immersive" : "classic";
 
-      d.options.themeVariant = joinThemeVariant(String(accent), String(canvas));
+      d.options.themeVariant = joinThemeVariant(String(a), String(c));
       d.options.canvasStyle = style;
 
       const fxOn = Math.random() < 0.85;
@@ -1804,6 +1816,7 @@ export function StudioPanel({
                 const norm = normalizeDigitString(e.target.value);
                 setMaxDirectDraft(norm);
 
+                // live commit if not empty
                 if (norm === "") return;
                 const n = Math.max(0, Math.min(12, parseInt(norm, 10)));
                 setMaxDirect(n);
