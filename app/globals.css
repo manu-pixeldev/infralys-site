@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
+/* tes styles après */
+
 /* ============================================================
-   ROOT / THEME
+   ROOT / BASE
    ============================================================ */
 
 :root {
@@ -13,23 +15,12 @@
   --header-offset: 0px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
 }
-
-/* ============================================================
-   BASE RESET
-   ============================================================ */
 
 html,
 body {
@@ -52,14 +43,12 @@ body {
 
 /* ============================================================
    FX AMBIENT — FIX PROPRE (stacking context isolé)
-   - ::before derrière (z-index:-1) mais dans un contexte isolé
-   - n’influence pas le header fixed
    ============================================================ */
 
 .fx-ambient {
   position: relative;
-  isolation: isolate; /* ✅ la clé */
-  overflow: hidden;   /* garde si tu veux éviter tout débordement visuel */
+  isolation: isolate;
+  overflow: hidden;
 }
 
 .fx-ambient::before {
@@ -67,40 +56,89 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: -1; /* ✅ derrière le contenu du main (dans le stacking isolé) */
+  z-index: -1;
 
-  /* ✅ ambient plus “pro” (marche en clair + sombre) */
-  background:
-    radial-gradient(1200px 420px at 50% -220px, rgba(0, 0, 0, 0.08), transparent 70%),
-    radial-gradient(900px 380px at 15% 15%, rgba(0, 0, 0, 0.04), transparent 60%),
-    radial-gradient(900px 380px at 85% 10%, rgba(0, 0, 0, 0.035), transparent 65%);
+  background: radial-gradient(
+      1200px 420px at 50% -220px,
+      rgba(0, 0, 0, 0.08),
+      transparent 70%
+    ),
+    radial-gradient(
+      900px 380px at 15% 15%,
+      rgba(0, 0, 0, 0.04),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 380px at 85% 10%,
+      rgba(0, 0, 0, 0.035),
+      transparent 65%
+    );
 }
 
-/* Dark mode: on inverse un peu l’intensité (sinon quasi invisible) */
 @media (prefers-color-scheme: dark) {
   .fx-ambient::before {
-    background:
-      radial-gradient(1200px 420px at 50% -220px, rgba(255, 255, 255, 0.06), transparent 70%),
-      radial-gradient(900px 380px at 15% 15%, rgba(255, 255, 255, 0.035), transparent 60%),
-      radial-gradient(900px 380px at 85% 10%, rgba(255, 255, 255, 0.03), transparent 65%);
+    background: radial-gradient(
+        1200px 420px at 50% -220px,
+        rgba(255, 255, 255, 0.06),
+        transparent 70%
+      ),
+      radial-gradient(
+        900px 380px at 15% 15%,
+        rgba(255, 255, 255, 0.035),
+        transparent 60%
+      ),
+      radial-gradient(
+        900px 380px at 85% 10%,
+        rgba(255, 255, 255, 0.03),
+        transparent 65%
+      );
   }
 }
 
 /* ============================================================
-   HEADER / MAIN helpers
+   CTA FX — shimmer premium (VISIBLE + discret)
    ============================================================ */
 
-header {
-  margin: 0; /* évite tout margin collapse chelou */
+.fx-cta {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
 }
 
-main {
-  display: block;
+.fx-cta::after {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  pointer-events: none;
+
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.22),
+    transparent 65%
+  );
+
+  transform: translateX(-140%) rotate(0.001deg);
+  animation: te-shimmer 4.8s ease-in-out infinite;
+  mix-blend-mode: soft-light;
+  opacity: 0.42;
 }
 
-/* ============================================================
-   DEBUG
-   ============================================================ */
-/*
-section { outline: 1px dashed red; }
-*/
+@keyframes te-shimmer {
+  0% {
+    transform: translateX(-140%) rotate(0.001deg);
+  }
+  55% {
+    transform: translateX(140%) rotate(0.001deg);
+  }
+  100% {
+    transform: translateX(140%) rotate(0.001deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-cta::after {
+    animation: none;
+    opacity: 0;
+  }
+}

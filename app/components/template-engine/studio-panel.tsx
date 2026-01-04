@@ -162,6 +162,14 @@ function isTypingTarget(el: any) {
   );
 }
 
+/** ✅ Digits only + strip leading zeros (so "03" -> "3") */
+function normalizeDigitString(v: string) {
+  const raw = String(v ?? "").replace(/[^\d]/g, "");
+  if (!raw) return "";
+  // keep single "0", but remove leading zeros otherwise
+  return raw.replace(/^0+(?=\d)/, "");
+}
+
 /**
  * ✅ Robust variants resolver:
  * - Prefer VARIANTS_BY_TYPE (explicit ordering)
@@ -207,7 +215,6 @@ function getVariantOptions(type: string): readonly string[] | null {
     return keys;
   }
 
-  // default: alpha (stable enough)
   keys.sort((a, b) => String(a).localeCompare(String(b)));
   return keys;
 }
@@ -373,7 +380,6 @@ function Badge({ children }: { children: React.ReactNode }) {
 }
 
 function allSocialKinds(): SocialKind[] {
-  // robust: order stable, includes everything
   return Object.keys(SOCIAL_DEFS) as SocialKind[];
 }
 
@@ -733,16 +739,47 @@ export function StudioPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logoSrc, autoAccentMode, canvas, accent]);
 
-  const maxDirect = Number((config as any)?.options?.maxDirectLinksInMenu ?? 4);
+  // ---------------------------
+  // NAV (max direct links)
+  // ---------------------------
+  const maxDirect = Number(
+    (config as any)?.options?.nav?.maxDirectLinksInMenu ??
+      (config as any)?.options?.maxDirectLinksInMenu ??
+      (config as any)?.options?.maxDirectLinks ??
+      (config as any)?.content?.nav?.maxDirectLinksInMenu ??
+      (config as any)?.content?.nav?.maxDirectLinks ??
+      4
+  );
+
   const setMaxDirect = (n: number) =>
     update((d) => {
+      const v = Math.max(0, Math.min(12, Number.isFinite(n) ? n : 4));
+
       d.options = d.options ?? {};
-      d.options.maxDirectLinksInMenu = Math.max(
-        0,
-        Math.min(12, Number.isFinite(n) ? n : 4)
-      );
+      d.options.nav = d.options.nav ?? {};
+      d.content = d.content ?? {};
+      d.content.nav = d.content.nav ?? {};
+
+      // ✅ source "propre" (future)
+      d.options.nav.maxDirectLinksInMenu = v;
+
+      // ✅ compat legacy / fallbacks existants
+      d.options.maxDirectLinksInMenu = v;
+      d.options.maxDirectLinks = v;
+      d.content.nav.maxDirectLinksInMenu = v;
+      d.content.nav.maxDirectLinks = v;
+
       return d;
     });
+
+  // ✅ Draft string pour éviter les masks/formatages bizarres + strip 0
+  const [maxDirectDraft, setMaxDirectDraft] = React.useState<string>(
+    String(maxDirect)
+  );
+
+  React.useEffect(() => {
+    setMaxDirectDraft(String(maxDirect));
+  }, [maxDirect]);
 
   const currentContainer = ((config as any)?.options?.layout?.container ??
     "7xl") as (typeof CONTAINERS)[number];
@@ -841,7 +878,6 @@ export function StudioPanel({
       : [];
   };
 
-  // ✅ keep enabled list consistent with both "enabled map" and "order"
   const enabledSocials: SocialKind[] = React.useMemo(() => {
     const enabledMap = (socialsCfg.enabled ?? {}) as any;
     const order: SocialKind[] =
@@ -852,7 +888,6 @@ export function StudioPanel({
     return order.filter((k) => enabledMap[k] !== false);
   }, [socialsCfg.enabled, socialsCfg.order, socialKinds]);
 
-  // ✅ FIX: dropdown should show socials that are not currently active in BOTH order+enabled
   const disabledSocials: SocialKind[] = React.useMemo(() => {
     const enabledMap = (socialsCfg.enabled ?? {}) as any;
     const order: SocialKind[] = Array.isArray(socialsCfg.order)
@@ -878,13 +913,11 @@ export function StudioPanel({
       if (enabled) {
         if (!o.includes(kind)) o.push(kind);
       } else {
-        // when disabling, keep in order optional — but remove from order so "Add" finds it again
         d.content.socials.order = o.filter((x) => x !== kind);
       }
 
       if (!enabled) {
         const links = d.content.socials.links ?? {};
-        // keep link if user wants to re-enable quickly; do not delete
         d.content.socials.links = links;
       }
 
@@ -1313,7 +1346,6 @@ export function StudioPanel({
               THÈME
             </div>
 
-            {/* row: canvas style + auto accent */}
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-3xl border border-slate-200 bg-white p-3">
                 <div className="flex items-center justify-between gap-3">
@@ -1377,7 +1409,6 @@ export function StudioPanel({
               </div>
             </div>
 
-            {/* presets */}
             <div className="mt-3 rounded-3xl border border-slate-200 bg-white p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -1418,7 +1449,6 @@ export function StudioPanel({
               </div>
             </div>
 
-            {/* Accent */}
             <div
               className="mt-4"
               data-scope="accent"
@@ -1464,7 +1494,6 @@ export function StudioPanel({
               </div>
             </div>
 
-            {/* Canvas */}
             <div
               className="mt-4"
               data-scope="canvas"
@@ -1756,22 +1785,42 @@ export function StudioPanel({
             </div>
           </div>
 
-          {/* NAV */}
+          {/* NAV (single source of truth ✅) */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">
               NAV
             </div>
+
             <label className="mb-2 block text-xs font-semibold text-slate-700">
               Max direct links (menu)
             </label>
+
             <input
-              type="number"
-              min={0}
-              max={12}
-              value={maxDirect}
-              onChange={(e) =>
-                setMaxDirect(parseInt(e.target.value || "0", 10))
-              }
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={maxDirectDraft}
+              onChange={(e) => {
+                const norm = normalizeDigitString(e.target.value);
+                setMaxDirectDraft(norm);
+
+                if (norm === "") return;
+                const n = Math.max(0, Math.min(12, parseInt(norm, 10)));
+                setMaxDirect(n);
+              }}
+              onBlur={() => {
+                const norm = normalizeDigitString(maxDirectDraft);
+                const n =
+                  norm === ""
+                    ? Math.max(
+                        0,
+                        Math.min(12, Number.isFinite(maxDirect) ? maxDirect : 4)
+                      )
+                    : Math.max(0, Math.min(12, parseInt(norm, 10)));
+
+                setMaxDirectDraft(String(n));
+                setMaxDirect(n);
+              }}
               className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
             />
           </div>

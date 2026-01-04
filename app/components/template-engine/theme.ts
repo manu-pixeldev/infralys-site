@@ -23,6 +23,7 @@ export type ThemeLike = {
   accentTo: string;
 
   surfaceBg: string;
+  surfaceElevated: string;
   surfaceBorder: string;
 
   isDark: boolean;
@@ -283,7 +284,7 @@ const CANVAS: Record<string, CanvasDef> = {
     immersiveSurfaceBg: "bg-white/7",
     immersiveSurfaceBorder: "border-white/14",
     immersiveBgExtra:
-      "bg-[radial-gradient(900px_700px_at_18%_0%,rgba(34,211,238,0.22),transparent_58%),radial-gradient(900px_700px_at_82%_18%,rgba(232,121,249,0.22),transparent_58%),radial-gradient(1200px_900px_at_50%_120%,rgba(99,102,241,0.12),transparent_60%)]",
+      "bg-[radial-gradient(900px_700px_at_18%_0%,rgba(34,211,238,0.10),transparent_62%),radial-gradient(900px_700px_at_82%_18%,rgba(232,121,249,0.10),transparent_62%),radial-gradient(1200px_900px_at_50%_120%,rgba(99,102,241,0.06),transparent_65%)]",
     canvasHex: "#05050A",
   },
 
@@ -398,7 +399,7 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
     ["--te-surface" as any]: isDark
       ? immersive
         ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 88%, white 12%)"
-        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 90%, white 10%)"
+        : "color-mix(in srgb, var(--te-canvas, #0b0b0c) 96%, white 4%)"
       : immersive
       ? "color-mix(in srgb, var(--te-canvas, #ffffff) 66%, white 34%)"
       : "color-mix(in srgb, var(--te-canvas, #ffffff) 72%, white 28%)",
@@ -411,16 +412,16 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
       ? "color-mix(in srgb, var(--te-canvas, #ffffff) 58%, white 42%)"
       : "color-mix(in srgb, var(--te-canvas, #ffffff) 64%, white 36%)",
 
-["--te-surface-border" as any]: isDark
-  ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 94%, white 6%)"
-  : immersive
-  ? "color-mix(in srgb, var(--te-canvas, #ffffff) 92%, black 8%)"
-  : "color-mix(in srgb, var(--te-canvas, #ffffff) 94%, black 6%)",
-
+    ["--te-surface-border" as any]: isDark
+      ? "color-mix(in srgb, var(--te-canvas, #0b0b0c) 94%, white 6%)"
+      : immersive
+      ? "color-mix(in srgb, var(--te-canvas, #ffffff) 92%, black 8%)"
+      : "color-mix(in srgb, var(--te-canvas, #ffffff) 94%, black 6%)",
   } as React.CSSProperties;
 
-  // ✅ cards/modules (plus de contraste)
-  const surfaceBg = "bg-[color:var(--te-surface-2)]";
+  // ✅ surfaces
+  const surfaceBg = "bg-[color:var(--te-surface)]"; // sections + gros modules (moins clair)
+  const surfaceElevated = "bg-[color:var(--te-surface-2)]"; // dropdown / popovers / petits modules
   const surfaceBorder = "border-[color:var(--te-surface-border)]";
 
   return {
@@ -429,6 +430,7 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
     accentFrom: accent.accentFrom,
     accentTo: accent.accentTo,
     surfaceBg,
+    surfaceElevated, // ✅ NEW
     surfaceBorder,
     isDark,
     canvasStyle: immersive ? "immersive" : "classic",
@@ -440,7 +442,10 @@ export function getTheme(arg?: GetThemeArg): ThemeLike {
    LAYOUT TOKENS
    ============================================================ */
 
-export function resolveLayout(layout?: LayoutTokens, globalLayout?: LayoutTokens) {
+export function resolveLayout(
+  layout?: LayoutTokens,
+  globalLayout?: LayoutTokens
+) {
   const merged = { ...(globalLayout ?? {}), ...(layout ?? {}) } as LayoutTokens;
 
   return {

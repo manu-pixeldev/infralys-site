@@ -1,4 +1,3 @@
-// app/components/template-engine/legacy.tsx
 "use client";
 
 import React from "react";
@@ -60,7 +59,6 @@ function headerGlassStyle(
 ): React.CSSProperties {
   const dark = theme.isDark;
 
-  // Top = plus dense (moins de miroir), Scroll = un peu plus transparent (premium)
   const mixTop = dark
     ? "color-mix(in srgb, var(--te-canvas, #020617) 94%, transparent)"
     : "color-mix(in srgb, var(--te-canvas, #ffffff) 92%, transparent)";
@@ -93,12 +91,10 @@ function menuGlassStyle(
 ): React.CSSProperties {
   const dark = theme.isDark;
 
-  // Dense -> tu vois un peu derrière, mais pas au point de lire l’image.
   const base = dark
     ? "color-mix(in srgb, var(--te-canvas, #020617) 92%, transparent)"
     : "color-mix(in srgb, var(--te-canvas, #ffffff) 90%, transparent)";
 
-  // Sheen léger (premium) + smoke (stabilise la lisibilité)
   const sheen = dark
     ? "linear-gradient(to bottom, rgba(255,255,255,0.08), rgba(255,255,255,0.02))"
     : "linear-gradient(to bottom, rgba(255,255,255,0.70), rgba(255,255,255,0.25))";
@@ -180,7 +176,7 @@ function Surface({
       className={cx(
         "border backdrop-blur-xl",
         hasCanvas
-          ? "bg-[color:var(--te-surface)]"
+          ? "bg-[color:color-mix(in_srgb,var(--te-canvas)_82%,var(--te-surface-2)_18%)]"
           : theme.surfaceBg || fallbackBg,
         hasCanvas
           ? "border-[color:var(--te-surface-border)]"
@@ -253,6 +249,7 @@ function DesktopOverflowMenu({
   buttonClassName,
   showCaret = true,
   activeHref,
+  navBaseClass,
 }: {
   theme: ThemeLike;
   label?: string;
@@ -263,6 +260,7 @@ function DesktopOverflowMenu({
   buttonClassName?: string;
   showCaret?: boolean;
   activeHref?: string;
+  navBaseClass?: string; // ✅ pour matcher la typo du header
 }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -288,7 +286,6 @@ function DesktopOverflowMenu({
 
   if (!items?.length) return null;
 
-  // fallback “glass” si jamais menuStyle n’est pas fourni
   const canvasFallbackStyle: React.CSSProperties = {
     background: theme.isDark
       ? "linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(255,255,255,0.02)), color-mix(in srgb, var(--te-canvas, #020617) 92%, transparent)"
@@ -304,13 +301,14 @@ function DesktopOverflowMenu({
   const useCanvasLike = Boolean(menuStyle) || Boolean(hasCanvas);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative inline-block">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={cx(
-          "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition text-inherit",
+          "inline-flex items-center gap-2 rounded-full px-4 py-2 font-semibold transition text-inherit",
+          navBaseClass ?? "",
           buttonClassName
             ? buttonClassName
             : cx(
@@ -319,7 +317,7 @@ function DesktopOverflowMenu({
               )
         )}
       >
-        {label}
+        <span className="whitespace-nowrap">{label}</span>
         {showCaret ? (
           <span className={cx("transition", open ? "rotate-180" : "")}>▾</span>
         ) : null}
@@ -347,7 +345,8 @@ function DesktopOverflowMenu({
                 role="menuitem"
                 onClick={() => setOpen(false)}
                 className={cx(
-                  "block px-4 py-3 text-sm font-semibold transition",
+                  "relative block px-4 py-3 font-semibold transition",
+                  navBaseClass ?? "text-sm",
                   rowActive
                     ? theme.isDark
                       ? "bg-white/10"
@@ -356,7 +355,19 @@ function DesktopOverflowMenu({
                   theme.isDark ? "hover:bg-white/10" : "hover:bg-black/5"
                 )}
               >
-                {it.label}
+                {rowActive ? (
+                  <span
+                    aria-hidden="true"
+                    className={cx(
+                      "absolute left-0 top-0 h-full w-[3px] bg-gradient-to-b",
+                      theme.accentFrom,
+                      theme.accentTo
+                    )}
+                  />
+                ) : null}
+                <span className={cx("block", rowActive && "pl-2")}>
+                  {it.label}
+                </span>
               </a>
             );
           })}
@@ -395,10 +406,6 @@ export function LegacyHeader(props: {
 }) {
   const { theme, brand, headerVariant, headerRef, showTeam, contact } = props;
 
-  const maxDirectLinks = Number(
-    (props as any).maxDirectLinksInMenu ?? (props as any).maxDirectLinks ?? 4
-  );
-
   const variant = (headerVariant ?? "A") as HeaderVariantX;
   const l = resolveLayout(props.layout, props.globalLayout);
 
@@ -413,12 +420,14 @@ export function LegacyHeader(props: {
   const padY = lerp(16, 10);
   const padY2 = lerp(14, 9);
   const navPadY = lerp(10, 8);
-  const logoScale = lerp(1, 0.9);
+
+  const logoScale = lerp(1, 0.92);
 
   const showCta = !["J"].includes(String(variant));
   const includeContactInNav = !showCta;
 
-  const navBase = "text-[12px] font-semibold uppercase tracking-[0.14em]";
+  const navBase =
+    "text-[12px] font-semibold uppercase tracking-[0.14em] leading-none";
 
   // Logo
   const logoEnabled = (brand as any)?.logo?.enabled !== false;
@@ -426,15 +435,16 @@ export function LegacyHeader(props: {
     (((brand as any)?.logo?.mode ?? "logoPlusText") as LogoMode) ||
     "logoPlusText";
   const logoW = Math.max(32, Number((brand as any)?.logo?.width ?? 80));
-  const logoH = Math.max(32, Number((brand as any)?.logo?.height ?? 80));
+  const logoH = Math.max(28, Number((brand as any)?.logo?.height ?? 64));
   const logoSrc = (brand as any)?.logo?.src;
 
   const showLogo = logoEnabled && logoMode !== "textOnly" && !!logoSrc;
   const showTextBlock = logoMode !== "logoOnly";
+  const hasBrandLeft = Boolean(showLogo || showTextBlock);
 
   const LogoNode =
     logoMode === "textOnly" ? null : showLogo ? (
-      <div style={{ height: logoH }} className="flex items-center">
+      <div style={{ height: logoH }} className="flex items-center shrink-0">
         <NextImage
           src={logoSrc}
           alt="Logo"
@@ -448,7 +458,7 @@ export function LegacyHeader(props: {
     ) : (
       <div
         className={cx(
-          "rounded-2xl bg-gradient-to-br",
+          "rounded-2xl bg-gradient-to-br shrink-0",
           theme.accentFrom,
           theme.accentTo
         )}
@@ -516,7 +526,7 @@ export function LegacyHeader(props: {
       href="#contact"
       className={cx(
         radiusClass(l.radius),
-        "shrink-0 px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition will-change-transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+        "fx-cta shrink-0 px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition will-change-transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
         theme.accentFrom,
         theme.accentTo
       )}
@@ -529,7 +539,7 @@ export function LegacyHeader(props: {
     | SocialConfig
     | undefined;
 
-  // sections → nav links (prefer real config)
+  // sections → nav links
   const secs = Array.isArray((props as any).sections)
     ? (props as any).sections
     : [];
@@ -540,7 +550,7 @@ export function LegacyHeader(props: {
         sec?.enabled !== false && sec?.type !== "header" && sec?.type !== "top"
     )?.id ?? "";
 
-  // ✅ FIX Accueil pas souligné
+  // active href handling
   const rawActiveHref = props.activeHref ?? "#top";
   const activeHref =
     firstSectionId && rawActiveHref === `#${firstSectionId}`
@@ -553,24 +563,41 @@ export function LegacyHeader(props: {
       if (!sec?.type || sec.type === "header" || sec.type === "top")
         return null;
       const href = `#${sec.id}`;
-      const label = sec.title ?? sec.id;
+      const label = sec.navLabel ?? sec.title ?? sec.id;
       return { href, label };
     })
     .filter(Boolean) as { href: string; label: string }[];
 
+  const homeLabel = String(props.content?.nav?.homeLabel ?? "Accueil");
+
   const orderedLinks = orderedLinksRaw.map((lnk, idx) => {
     if (idx === 0 && firstSectionId && lnk.href === `#${firstSectionId}`) {
-      return { href: "#top", label: "Accueil" };
+      return { href: "#top", label: homeLabel };
     }
     return lnk;
   });
 
-  const direct = (props.galleryLinks ?? []).slice(
-    0,
-    Math.max(0, maxDirectLinks || 0)
+  // ✅ lecture simple + priorité props -> content
+  const maxDirectLinks = Number(
+    (props as any).maxDirectLinksInMenu ??
+      (props as any).maxDirectLinks ??
+      props.content?.nav?.maxDirectLinksInMenu ??
+      props.content?.nav?.maxDirectLinks ??
+      4
   );
+
+  const MAX_INLINE = Math.max(
+    0,
+    Math.min(12, Number.isFinite(maxDirectLinks) ? maxDirectLinks : 4)
+  );
+
+  // direct links (from galleries)
+  const direct = Array.isArray(props.galleryLinks)
+    ? props.galleryLinks.slice(0, MAX_INLINE)
+    : [];
+
   const fallbackLinks = [
-    { href: "#top", label: "Accueil" },
+    { href: "#top", label: homeLabel },
     { href: "#services", label: "Services" },
     ...(showTeam ? [{ href: "#team", label: "Équipe" }] : []),
     ...direct.map((g) => ({ href: `#${g.id}`, label: g.title })),
@@ -586,13 +613,106 @@ export function LegacyHeader(props: {
     }
   );
 
-  const MAX_INLINE = Math.max(0, Math.min(12, Number(maxDirectLinks ?? 6)));
-  const inlineLinks = linksAll.slice(0, MAX_INLINE);
-  const overflowLinks = linksAll.slice(MAX_INLINE);
+  // ============================================================
+  // ✅ AUTO-FIT RESPONSIVE (évite chevauchement left/right)
+  // ============================================================
+
+  // ✅ wrapRef doit mesurer la LARGEUR dispo du centre (pas le contenu shrink)
+  const wrapRef = React.useRef<HTMLDivElement | null>(null);
+  const leftRef = React.useRef<HTMLDivElement | null>(null);
+  const rightRef = React.useRef<HTMLDivElement | null>(null);
+  const measureRef = React.useRef<HTMLDivElement | null>(null);
+
+  // ✅ MAX_INLINE = nb de liens inline TOTAL (Accueil inclus)
+  const cap = Math.max(1, MAX_INLINE);
+
+  const [inlineCount, setInlineCount] = React.useState<number>(() =>
+    Math.min(cap, linksAll.length || 1)
+  );
+
+  // ✅ IMPORTANT: label dropdown calculé ici (measurer a besoin)
+  const dummyOverflowLabel = "Plus";
+
+  const recalcFit = React.useCallback(() => {
+    const wrap = wrapRef.current;
+    const left = leftRef.current;
+    const right = rightRef.current;
+    const meas = measureRef.current;
+    if (!wrap || !left || !right || !meas) return;
+
+    // wrap = cellule centrale (w-full) => vraie largeur dispo
+    const wrapW = wrap.getBoundingClientRect().width;
+    const leftW = left.getBoundingClientRect().width;
+    const rightW = right.getBoundingClientRect().width;
+
+    // petite marge
+    const safety = 32;
+    const available = Math.max(160, wrapW - safety);
+
+    const children = Array.from(meas.children) as HTMLElement[];
+    if (!children.length) return;
+
+    // derniers éléments du meas : [links..., overflowBtn]
+    const overflowBtn = children[children.length - 1];
+    const overflowW = overflowBtn.getBoundingClientRect().width;
+
+    const linkEls = children.slice(0, children.length - 1);
+
+    const gap = 28; // doit matcher gap-7 visuel
+
+    let used = 0;
+    let fit = 0;
+
+    for (let i = 0; i < linkEls.length; i++) {
+      const w = linkEls[i].getBoundingClientRect().width;
+      const next = fit === 0 ? w : used + gap + w;
+
+      const needsOverflow = i < linkEls.length - 1;
+      const reserve = needsOverflow ? gap + overflowW : 0;
+
+      if (next + reserve <= available) {
+        used = next;
+        fit = i + 1;
+      } else {
+        break;
+      }
+    }
+
+    fit = Math.max(1, Math.min(fit, linksAll.length));
+    fit = Math.min(fit, cap);
+    setInlineCount(fit);
+  }, [linksAll.length, cap]);
+
+  React.useLayoutEffect(() => {
+    recalcFit();
+  }, [recalcFit, theme.isDark, props.content, hasBrandLeft, showCta]);
+
+  React.useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const ro = new ResizeObserver(() => recalcFit());
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [recalcFit]);
+
+  React.useEffect(() => {
+    setInlineCount((c) => Math.max(1, Math.min(c, cap, linksAll.length)));
+  }, [cap, linksAll.length]);
+
+  const effectiveInline = Math.min(linksAll.length, Math.max(1, cap || 1));
+
+  const inlineLinks = linksAll.slice(0, effectiveInline);
+  const overflowLinks = linksAll.slice(effectiveInline);
 
   const overflowActiveLink = overflowLinks.find((x) => x.href === activeHref);
-  const overflowLabel = overflowActiveLink ? overflowActiveLink.label : "Plus";
+  const overflowLabel = overflowActiveLink
+    ? overflowActiveLink.label
+    : dummyOverflowLabel;
   const overflowActive = Boolean(overflowActiveLink);
+
+  // ============================================================
+  // header shell
+  // ============================================================
 
   const headerPos = "fixed left-0 right-0 top-0";
   const headerZ = "z-50";
@@ -682,7 +802,12 @@ export function LegacyHeader(props: {
 
   const NavA = () => (
     <nav
-      className={cx("hidden md:flex items-center gap-7", navBase, navTextClass)}
+      className={cx(
+        "hidden md:flex items-center gap-7",
+        navBase,
+        navTextClass,
+        "whitespace-nowrap"
+      )}
     >
       {inlineLinks.map((lnk) => {
         const active = lnk.href === activeHref;
@@ -691,7 +816,7 @@ export function LegacyHeader(props: {
             key={lnk.href}
             href={lnk.href}
             className={cx(
-              "group relative transition-colors",
+              "group relative inline-flex transition-colors",
               navHoverTextClass,
               hasCanvas && !active && "opacity-80 hover:opacity-100",
               active &&
@@ -699,7 +824,7 @@ export function LegacyHeader(props: {
                 (theme.isDark ? "text-white" : "text-slate-950")
             )}
           >
-            {lnk.label}
+            <span className="whitespace-nowrap">{lnk.label}</span>
             <span
               className={cx(
                 "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
@@ -713,8 +838,8 @@ export function LegacyHeader(props: {
       })}
 
       {overflowLinks.length ? (
-        <div className="relative">
-          <div className="group relative">
+        <div className="relative inline-flex">
+          <div className="group relative inline-flex">
             <DesktopOverflowMenu
               theme={theme}
               label={overflowLabel}
@@ -723,10 +848,11 @@ export function LegacyHeader(props: {
               hasCanvas={hasCanvas}
               active={overflowActive}
               activeHref={activeHref}
+              navBaseClass={navBase}
             />
             <span
               className={cx(
-                "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
+                "pointer-events-none absolute left-1/2 -translate-x-1/2 -bottom-2 h-[2px] w-10 bg-gradient-to-r transition-opacity",
                 theme.accentFrom,
                 theme.accentTo,
                 overflowActive
@@ -765,6 +891,7 @@ export function LegacyHeader(props: {
             hasCanvas={hasCanvas}
             active={overflowActive}
             activeHref={activeHref}
+            navBaseClass={navBase}
             buttonClassName={cx(
               pillBase,
               overflowActive ? pillActive : pillIdle
@@ -780,7 +907,8 @@ export function LegacyHeader(props: {
       className={cx(
         "hidden md:flex items-center justify-center gap-8",
         navBase,
-        navTextClass
+        navTextClass,
+        "whitespace-nowrap"
       )}
     >
       {inlineLinks.map((lnk) => {
@@ -790,7 +918,7 @@ export function LegacyHeader(props: {
             key={lnk.href}
             href={lnk.href}
             className={cx(
-              "group relative transition-colors",
+              "group relative inline-flex transition-colors",
               navHoverTextClass,
               hasCanvas && !active && "opacity-80 hover:opacity-100",
               active &&
@@ -798,7 +926,7 @@ export function LegacyHeader(props: {
                 (theme.isDark ? "text-white" : "text-slate-950")
             )}
           >
-            {lnk.label}
+            <span className="whitespace-nowrap">{lnk.label}</span>
             <span
               className={cx(
                 "pointer-events-none absolute left-1/2 -translate-x-1/2 -bottom-2 h-[2px] w-10 bg-gradient-to-r transition-opacity",
@@ -812,7 +940,7 @@ export function LegacyHeader(props: {
       })}
 
       {overflowLinks.length ? (
-        <div className="group relative">
+        <div className="group relative inline-flex">
           <DesktopOverflowMenu
             theme={theme}
             label={overflowLabel}
@@ -821,6 +949,7 @@ export function LegacyHeader(props: {
             hasCanvas={hasCanvas}
             active={overflowActive}
             activeHref={activeHref}
+            navBaseClass={navBase}
           />
           <span
             className={cx(
@@ -869,6 +998,7 @@ export function LegacyHeader(props: {
                   transform: `scale(${logoScale})`,
                   transformOrigin: "left center",
                 }}
+                className="shrink-0"
               >
                 {LogoNode}
               </div>
@@ -955,108 +1085,77 @@ export function LegacyHeader(props: {
     );
   };
 
-  const RenderA = () =>
-    HeaderShell(
-      <Wrap
-        layout={props.layout}
-        globalLayout={props.globalLayout}
-        className="flex items-center gap-4"
-        style={{ paddingTop: padY, paddingBottom: padY }}
-      >
-        <a
-          href="#top"
-          className="flex items-center gap-3 min-w-0 flex-[0_0_auto]"
-        >
-          <div
-            style={{
-              transform: `scale(${logoScale})`,
-              transformOrigin: "left center",
-            }}
-          >
-            {LogoNode}
-          </div>
-          <div className="min-w-[180px] max-w-[320px]">{BrandText}</div>
-        </a>
-
-        <div className="flex-1 flex items-center justify-center">{NavA()}</div>
-
-        <div className="flex-[0_0_auto] flex items-center gap-3">
-          <SocialRow
-            theme={theme}
-            cfg={socialsCfg}
-            className="hidden lg:flex"
-          />
-          {Cta}
-        </div>
-      </Wrap>
-    );
-
-  const RenderB = () =>
-    HeaderShell(
-      <Wrap
-        layout={props.layout}
-        globalLayout={props.globalLayout}
-        className="flex items-center gap-4"
-        style={{ paddingTop: padY, paddingBottom: padY }}
-      >
-        <a
-          href="#top"
-          className="flex items-center gap-3 min-w-0 flex-[0_0_auto]"
-        >
-          <div
-            style={{
-              transform: `scale(${logoScale})`,
-              transformOrigin: "left center",
-            }}
-          >
-            {LogoNode}
-          </div>
-          <div className="min-w-[180px] max-w-[320px]">{BrandText}</div>
-        </a>
-
-        <div className="flex-1 flex items-center justify-center">{NavB()}</div>
-
-        <div className="flex-[0_0_auto] flex items-center gap-3">
-          <SocialRow
-            theme={theme}
-            cfg={socialsCfg}
-            className="hidden lg:flex"
-          />
-          {Cta}
-        </div>
-      </Wrap>
-    );
-
-  const RenderC = () =>
-    HeaderShell(
-      <Wrap
-        layout={props.layout}
-        globalLayout={props.globalLayout}
-        className={cx("grid items-center gap-4", "grid-cols-[1fr_auto_1fr]")}
-        style={{ paddingTop: padY, paddingBottom: padY }}
-      >
-        <div className="justify-self-start">
+  // ✅ A/B/C : grille + auto-fit -> plus de chevauchement
+  const GridHeaderRow = ({ nav }: { nav: React.ReactNode }) => (
+    <Wrap
+      layout={props.layout}
+      globalLayout={props.globalLayout}
+      className={cx(
+        "grid items-center gap-4",
+        "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]"
+      )}
+      style={{ paddingTop: padY, paddingBottom: padY }}
+    >
+      <div ref={leftRef} className="justify-self-start min-w-0">
+        {hasBrandLeft ? (
           <a href="#top" className="flex items-center gap-3 min-w-0">
             <div
               style={{
                 transform: `scale(${logoScale})`,
                 transformOrigin: "left center",
               }}
+              className="shrink-0"
             >
               {LogoNode}
             </div>
-            <div className="min-w-[180px] max-w-[320px]">{BrandText}</div>
+
+            {BrandText ? (
+              <div className="min-w-0 max-w-[340px]">{BrandText}</div>
+            ) : null}
           </a>
-        </div>
+        ) : (
+          <div aria-hidden="true" className="h-10 w-10" />
+        )}
+      </div>
 
-        <div className="justify-self-center">{NavC()}</div>
+      {/* ✅ wrapRef ici = largeur réelle de la cellule centrale */}
+      <div ref={wrapRef} className="justify-self-center min-w-0 w-full">
+        <div className="relative flex justify-center">
+          {nav}
 
-        <div className="justify-self-end flex items-center gap-3">
-          <SocialRow theme={theme} cfg={socialsCfg} className="flex" />
-          {Cta}
+          {/* ✅ Measurer invisible (mêmes classes) */}
+          <div
+            ref={measureRef}
+            className={cx(
+              "pointer-events-none absolute left-0 top-0 opacity-0",
+              "hidden md:flex items-center gap-7",
+              navBase
+            )}
+            aria-hidden="true"
+          >
+            {linksAll.map((lnk) => (
+              <span key={lnk.href} className="inline-flex">
+                {lnk.label}
+              </span>
+            ))}
+            <span className="inline-flex">{overflowLabel} ▾</span>
+          </div>
         </div>
-      </Wrap>
-    );
+      </div>
+
+      <div
+        ref={rightRef}
+        className="justify-self-end flex items-center gap-3 min-w-0"
+      >
+        <SocialRow theme={theme} cfg={socialsCfg} className="hidden lg:flex" />
+        {Cta}
+      </div>
+    </Wrap>
+  );
+
+  const RenderA = () => HeaderShell(<GridHeaderRow nav={NavA()} />);
+  const RenderB = () => HeaderShell(<GridHeaderRow nav={NavB()} />);
+  const RenderC = () => HeaderShell(<GridHeaderRow nav={NavC()} />);
 
   if (variant === "D") return RenderD();
   if (variant === "B") return RenderB();
@@ -1097,7 +1196,7 @@ export function LegacyHero({
       href="#contact"
       className={cx(
         radiusClass(l.radius),
-        "px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+        "fx-cta px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
         theme.accentFrom,
         theme.accentTo
       )}
@@ -1329,7 +1428,7 @@ export function LegacySplit(props: any) {
                   href={ctaHref}
                   className={cx(
                     radiusClass(l.radius),
-                    "inline-flex px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+                    "fx-cta inline-flex px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
                     theme.accentFrom,
                     theme.accentTo
                   )}
@@ -1931,7 +2030,7 @@ export function LegacyContact(props: any) {
                 type="button"
                 className={cx(
                   radiusClass(l.radius),
-                  "mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+                  "fx-cta mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
                   theme.accentFrom,
                   theme.accentTo
                 )}
@@ -2057,7 +2156,7 @@ export function LegacyContact(props: any) {
                   theme.isDark ? "text-white/70" : "text-slate-600"
                 )}
               >
-                (Démo) Brancher ici ton vrai formulaire plus tard.
+                (shimmer ok) Brancher ici ton vrai formulaire plus tard.
               </div>
 
               <div className="mt-6 space-y-3">
@@ -2096,7 +2195,7 @@ export function LegacyContact(props: any) {
                   type="button"
                   className={cx(
                     radiusClass(l.radius),
-                    "mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+                    "fx-cta mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
                     theme.accentFrom,
                     theme.accentTo
                   )}
