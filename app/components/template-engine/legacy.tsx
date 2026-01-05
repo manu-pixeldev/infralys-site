@@ -1068,12 +1068,11 @@ export function LegacyHeader(props: {
       )}
     >
       {inlineLinks.map((lnk) => {
-        const isActive =
-          lnk.href === activeHrefEffective || lnk.sectionId === activeSectionId;
+        const isActive = lnk.href === activeHrefEffective;
 
         return (
           <a
-            key={lnk.id ?? lnk.href}
+            key={lnk.href}
             href={lnk.href}
             className={cx(
               "group relative inline-flex",
@@ -1086,11 +1085,10 @@ export function LegacyHeader(props: {
           >
             {/* TEXTE = référence de largeur */}
             <span className="relative inline-block">
-              {lnk.label}
+              {cleanNavLabel(lnk.label)}
               <span
                 className={cx(
-                  "pointer-events-none absolute left-0 -bottom-2 h-[2px]",
-                  "w-full bg-gradient-to-r transition-opacity",
+                  "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
                   theme.accentFrom,
                   theme.accentTo,
                   isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
@@ -1101,33 +1099,23 @@ export function LegacyHeader(props: {
         );
       })}
 
-      {overflowLinks.length > 0 && (
-        <div className="group relative inline-flex">
-          <DesktopOverflowMenu
-            theme={theme}
-            label={overflowLabel}
-            items={overflowLinks}
-            menuStyle={menuStyle}
-            hasCanvas={hasCanvas}
-            active={overflowActive}
-            activeHref={activeHrefEffective}
-            navBaseClass={navBase}
-          />
-
-          {/* underline DU TEXTE seulement */}
-          <span
-            className={cx(
-              "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full",
-              "bg-gradient-to-r transition-opacity",
-              theme.accentFrom,
-              theme.accentTo,
-              overflowActive
-                ? "opacity-100"
-                : "opacity-0 group-hover:opacity-100"
-            )}
-          />
-        </div>
-      )}
+      {overflowLinks.length > 0 ? (
+        <DesktopOverflowMenu
+          theme={theme}
+          label={cleanNavLabel(overflowLabel)}
+          items={overflowLinks.map((x) => ({
+            ...x,
+            label: cleanNavLabel(x.label),
+          }))}
+          menuStyle={menuStyle}
+          hasCanvas={hasCanvas}
+          active={overflowActive}
+          activeHref={activeHrefEffective}
+          navBaseClass={navBase}
+          underline
+          underlineActive={overflowActive}
+        />
+      ) : null}
     </nav>
   );
 
