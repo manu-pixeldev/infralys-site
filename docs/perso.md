@@ -1,15 +1,13 @@
 FX:
 
-Où tu changes les valeurs pour voir tout de suite (tests)
+Shimmer CTA (dans le fichier fx-styles.tsx)
 
-Shimmer CTA
+Le rythme du shimmer dépend uniquement des classes CSS :
 
-Intensité du “flash” : rgba(255, 255, 255, 0.55) → mets 0.95
+.fx-cta → shimmer normal (CTA principal standard)
 
-Vitesse : animation: shimmer 2.8s ... → mets 1.2s
+.fx-cta-lg → shimmer lent (gros / full-width)
 
-Border scan
+.fx-cta-3x → 3 passages puis stop (ultra luxe)
 
-Intensité : rgba(255, 255, 255, 0.55) → mets 0.95
-
-Vitesse : animation: scanBorder 4.2s ... → mets 1.6s
+.fx-cta-luxe → easing encore plus doux (optionnel)

@@ -10,9 +10,11 @@ export function FxStyles({
 }: {
   enabled: boolean;
   ambient: boolean;
-  shimmer?: boolean; // ✅ NEW: pilotage shimmer CTA
+  shimmer?: boolean; // ✅ pilotage shimmer CTA
 }) {
   if (!enabled) return null;
+
+  const shimmerOn = shimmer ? "1" : "0";
 
   return (
     <style jsx global>{`
@@ -40,7 +42,7 @@ export function FxStyles({
         border-radius: inherit;
         padding: 1px;
 
-        /* 🔧 TEST BORDER-SCAN: change the 0.55 (brightness) and 4.2s (speed) */
+        /* 🔧 TEST BORDER-SCAN: brightness + speed */
         background: linear-gradient(
             90deg,
             rgba(255, 255, 255, 0) 0%,
@@ -73,20 +75,35 @@ export function FxStyles({
       /* ============================================================
          SHIMMER CTA (OPT-IN ONLY)
          - Apply class .fx-cta on buttons/CTAs.
-         - We unify legacy aliases (.fx-shimmer-cta) to the SAME behavior.
+         - Legacy alias .fx-shimmer-cta is unified to same behavior.
+         - Global ON/OFF via [data-fx-shimmer="${shimmerOn}"].
          ============================================================ */
 
-      @keyframes shimmer {
+      /* pause + sweep + pause (premium) */
+      @keyframes fxCtaShimmer {
+        /* pause OFFSCREEN (longue) */
         0% {
           transform: translateX(-140%) skewX(-18deg);
           opacity: 0;
         }
-        18% {
+        28% {
+          transform: translateX(-140%) skewX(-18deg);
+          opacity: 0;
+        }
+
+        /* sweep (smooth) */
+        36% {
           opacity: 0.55;
         }
-        60% {
+        56% {
           opacity: 0.28;
         }
+        68% {
+          transform: translateX(140%) skewX(-18deg);
+          opacity: 0;
+        }
+
+        /* pause ON THE RIGHT (longue) */
         100% {
           transform: translateX(140%) skewX(-18deg);
           opacity: 0;
@@ -99,6 +116,23 @@ export function FxStyles({
         position: relative;
         overflow: hidden;
         isolation: isolate;
+
+        /* defaults (override per button with modifiers) */
+        --fx-cta-shimmer-dur: 5200ms; /* default premium */
+        --fx-cta-shimmer-ease: ease-in-out;
+
+        /* micro perf */
+        will-change: transform;
+      }
+
+      /* CTA large (full width / gros boutons) => plus lent */
+      .fx-cta-lg {
+        --fx-cta-shimmer-dur: 9800ms; /* 👈 luxe */
+      }
+
+      /* Ultra-luxe: un peu plus “soyeux” (optionnel) */
+      .fx-cta-luxe {
+        --fx-cta-shimmer-ease: cubic-bezier(0.25, 0.8, 0.25, 1);
       }
 
       .fx-cta::after,
@@ -106,55 +140,82 @@ export function FxStyles({
         content: "";
         position: absolute;
         top: -35%;
-        left: -55%;
-        width: 55%;
+        left: -70%;
+        width: 70%;
         height: 170%;
 
-        /* 🔧 TEST SHIMMER: change 0.55 (intensity) + 2.8s (speed) */
         background: linear-gradient(
-          90deg,
-          transparent,
-          rgba(255, 255, 255, 0.55),
-          transparent
+          110deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.18) 35%,
+          rgba(255, 255, 255, 0.55) 50%,
+          rgba(255, 255, 255, 0.18) 65%,
+          transparent 100%
         );
+
+        mix-blend-mode: screen; /* 🔑 lisible sur gradients */
+        filter: blur(0.4px);
 
         pointer-events: none;
         z-index: 2;
 
-        /* OFF by default -> ON only when data-fx-shimmer="1" */
+        /* OFF by default */
         opacity: 0;
         transform: translateX(-140%) skewX(-18deg);
+
+        /* perf */
+        will-change: transform, opacity;
       }
 
-      /* ✅ Shimmer ON switch (global) */
+      /* ✅ Shimmer ON (global switch) */
       [data-fx-shimmer="1"] .fx-cta::after,
       [data-fx-shimmer="1"] .fx-shimmer-cta::after {
-        /* 🔧 TEST SHIMMER SPEED: 2.8s -> 1.2s to be sure you see it */
-        animation: shimmer 2.8s ease-in-out infinite;
+        animation-name: fxCtaShimmer;
+        animation-duration: var(--fx-cta-shimmer-dur);
+        animation-timing-function: var(--fx-cta-shimmer-ease);
+        animation-iteration-count: infinite;
+
+        /* smoother & no “jump” */
+        animation-fill-mode: both;
       }
 
-      /* If you still want wrappers to shimmer sometimes */
+      /* ✅ Ultra luxe: 3 passes puis stop */
+      [data-fx-shimmer="1"] .fx-cta.fx-cta-3x::after,
+      [data-fx-shimmer="1"] .fx-shimmer-cta.fx-cta-3x::after {
+        animation-iteration-count: 3;
+      }
+
+      /* ============================================================
+         If you still want wrappers to shimmer sometimes
+         ============================================================ */
       .fx-shimmer {
         position: relative;
         overflow: hidden;
         isolation: isolate;
       }
+
       .fx-shimmer::after {
         content: "";
         position: absolute;
         top: -35%;
-        left: -55%;
-        width: 55%;
+        left: -70%;
+        width: 70%;
         height: 170%;
         background: linear-gradient(
-          90deg,
-          transparent,
-          rgba(255, 255, 255, 0.55),
-          transparent
+          110deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.35) 35%,
+          rgba(255, 255, 255, 0.55) 50%,
+          rgba(255, 255, 255, 0.35) 65%,
+          transparent 100%
         );
-        animation: shimmer 2.8s ease-in-out infinite;
+        mix-blend-mode: overlay;
+        filter: blur(0.4px);
+        animation: fxCtaShimmer 4200ms ease-in-out infinite;
+        animation-fill-mode: both;
         pointer-events: none;
         z-index: 2;
+        will-change: transform, opacity;
       }
 
       /* ============================================================

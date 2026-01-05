@@ -12,7 +12,17 @@
 export type GalleryStyle = "gridCards" | "masonry" | "carousel" | "split";
 export type HeroVariant = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H";
 export type HeaderVariant =
-  | "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K"
+  | "A"
+  | "B"
+  | "C"
+  | "D"
+  | "E"
+  | "F"
+  | "G"
+  | "H"
+  | "I"
+  | "J"
+  | "K"
   | "PRO";
 
 export type ContactVariant = "AUTO" | "A" | "B" | "C" | "D" | "E";
@@ -253,13 +263,31 @@ export const DEFAULT_CONTENT: Content = {
   servicesTitle: "Nos services",
   servicesText: "Des prestations claires et adaptées à vos besoins.",
   services: [
-    { title: "Accompagnement", items: ["Analyse de la situation", "Conseils personnalisés", "Suivi clair"] },
-    { title: "Intervention", items: ["Mise en œuvre efficace", "Respect des délais", "Travail soigné"] },
-    { title: "Optimisation", items: ["Amélioration continue", "Solutions adaptées", "Approche durable"] },
+    {
+      title: "Accompagnement",
+      items: [
+        "Analyse de la situation",
+        "Conseils personnalisés",
+        "Suivi clair",
+      ],
+    },
+    {
+      title: "Intervention",
+      items: ["Mise en œuvre efficace", "Respect des délais", "Travail soigné"],
+    },
+    {
+      title: "Optimisation",
+      items: [
+        "Amélioration continue",
+        "Solutions adaptées",
+        "Approche durable",
+      ],
+    },
   ],
 
   teamTitle: "Qui sommes-nous",
-  teamText: "PME familiale orientée qualité. Une équipe terrain, un suivi clair, des interventions propres.",
+  teamText:
+    "PME familiale orientée qualité. Une équipe terrain, un suivi clair, des interventions propres.",
   teamCards: [
     { title: "L’équipe", text: "Une équipe terrain, réactive, soigneuse." },
     { title: "Nos valeurs", text: "Qualité, transparence, respect du client." },
@@ -267,7 +295,8 @@ export const DEFAULT_CONTENT: Content = {
   ],
 
   contactTitle: "Contact",
-  contactText: "Expliquez votre besoin en 2 lignes, nous vous répondrons rapidement.",
+  contactText:
+    "Expliquez votre besoin en 2 lignes, nous vous répondrons rapidement.",
   contact: {
     address: "Adresse — Ville",
     phone: "+32 400 00 00 00",
@@ -326,7 +355,8 @@ export const DEFAULT_CONTENT: Content = {
 
   // legacy mirror (ok)
   splitTitle: "Une approche simple, pro, efficace.",
-  splitText: "Diagnostic clair, intervention propre, et un résultat durable — avec des explications compréhensibles.",
+  splitText:
+    "Diagnostic clair, intervention propre, et un résultat durable — avec des explications compréhensibles.",
   splitImage: "/images/template-base/P2.jpg",
   splitImageAlt: "Illustration",
   splitCtaLabel: "Me contacter",
@@ -387,7 +417,13 @@ export type SectionVariantByType = {
 export type Section<T extends SectionType = SectionType> = {
   id: string;
   type: T;
+
+  /** H2 dans la section (business) */
   title?: string;
+
+  /** Label affiché dans le menu (business) */
+  navLabel?: string;
+
   variant: SectionVariantByType[T];
   enabled?: boolean;
   lock?: boolean;
@@ -398,7 +434,13 @@ export type Section<T extends SectionType = SectionType> = {
 export type SectionInput = {
   id: string;
   type: SectionType;
+
+  /** H2 dans la section (business) */
   title?: string;
+
+  /** Label affiché dans le menu (business) */
+  navLabel?: string;
+
   variant?: SectionVariantByType[SectionType] | string;
   enabled?: boolean;
   lock?: boolean;
@@ -459,17 +501,68 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
   },
 
   sections: [
-    { id: "header", type: "header", title: "Header", variant: "D", enabled: true, lock: true },
-    { id: "hero", type: "hero", title: "Accueil", variant: "B", enabled: true, lock: true },
+    {
+      id: "header",
+      type: "header",
+      title: "Header",
+      variant: "D",
+      enabled: true,
+      lock: true,
+    },
+    {
+      id: "hero",
+      type: "hero",
+      title: "Accueil",
+      variant: "B",
+      enabled: true,
+      lock: true,
+    },
 
-    { id: "split-1", type: "split", title: "Approche", variant: "A", enabled: true },
-    { id: "proof", type: "proof", title: "Preuves", variant: "stats", enabled: true },
-    { id: "split-2", type: "split", title: "Méthode", variant: "B", enabled: true },
+    {
+      id: "split-1",
+      type: "split",
+      title: "Approche",
+      variant: "A",
+      enabled: true,
+    },
+    {
+      id: "proof",
+      type: "proof",
+      title: "Preuves",
+      variant: "stats",
+      enabled: true,
+    },
+    {
+      id: "split-2",
+      type: "split",
+      title: "Méthode",
+      variant: "B",
+      enabled: true,
+    },
 
-    { id: "services", type: "services", title: "Services", variant: "C", enabled: true },
+    {
+      id: "services",
+      type: "services",
+      title: "Services",
+      variant: "C",
+      enabled: true,
+    },
     { id: "team", type: "team", title: "Équipe", variant: "A", enabled: true },
-    { id: "realisations", type: "gallery", title: "Réalisations", variant: "twoCol", enabled: true },
-    { id: "contact", type: "contact", title: "Contact", variant: "AUTO", enabled: true, lock: true },
+    {
+      id: "realisations",
+      type: "gallery",
+      title: "Réalisations",
+      variant: "twoCol",
+      enabled: true,
+    },
+    {
+      id: "contact",
+      type: "contact",
+      title: "Contact",
+      variant: "AUTO",
+      enabled: true,
+      lock: true,
+    },
   ],
 };
 
@@ -485,7 +578,42 @@ export function hasText(v: string | null | undefined) {
   return !!(v && v.trim().length > 0);
 }
 
-export function resolveContactVariant(hero: HeroVariant): Exclude<ContactVariant, "AUTO"> {
-  const dark = hero === "A" || hero === "B" || hero === "D" || hero === "E" || hero === "G" || hero === "H";
+/** Résout le titre H2 de section (fallback safe) */
+export function resolveSectionTitle(
+  s: Pick<SectionInput, "title" | "navLabel"> | null | undefined
+) {
+  const t = (s?.title ?? "").trim();
+  if (t) return t;
+
+  // fallback : si quelqu’un a mis navLabel mais pas title
+  const n = (s?.navLabel ?? "").trim();
+  if (n) return n;
+
+  return "";
+}
+
+/** Résout le label menu (header) (fallback safe) */
+export function resolveSectionNavLabel(
+  s: Pick<SectionInput, "title" | "navLabel"> | null | undefined
+) {
+  const n = (s?.navLabel ?? "").trim();
+  if (n) return n;
+
+  const t = (s?.title ?? "").trim();
+  if (t) return t;
+
+  return "";
+}
+
+export function resolveContactVariant(
+  hero: HeroVariant
+): Exclude<ContactVariant, "AUTO"> {
+  const dark =
+    hero === "A" ||
+    hero === "B" ||
+    hero === "D" ||
+    hero === "E" ||
+    hero === "G" ||
+    hero === "H";
   return dark ? "B" : "A";
 }

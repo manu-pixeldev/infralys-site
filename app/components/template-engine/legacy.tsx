@@ -1,8 +1,9 @@
 "use client";
 
 import React from "react";
+import { createPortal } from "react-dom";
 import NextImage from "next/image";
-
+import { resolveSectionNavLabel } from "../../template-base/template.config";
 import type { ThemeLike } from "./theme";
 import {
   cx,
@@ -469,6 +470,20 @@ export function LegacyHeader(props: {
     if (typeof window === "undefined") return;
     (window as any).__te_ids = new Map<string, number>();
   }, []);
+  // ============================================================
+  // ✅ PORTAL HEADER (anti scroll / anti transform / anti filter)
+  // ============================================================
+
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+
+  const portalHeader = React.useCallback(
+    (node: React.ReactElement) => {
+      if (!mounted || typeof document === "undefined") return node;
+      return createPortal(node, document.body);
+    },
+    [mounted]
+  );
 
   const variant = (headerVariant ?? "A") as HeaderVariantX;
   const l = resolveLayout(props.layout, props.globalLayout);
@@ -638,10 +653,11 @@ export function LegacyHeader(props: {
       usedIds.set(rawId, n);
       const domId = n === 1 ? rawId : `${rawId}-${n}`;
 
-      let label = sec.navLabel ?? sec.title ?? rawId;
+      let label = resolveSectionNavLabel(sec) || rawId;
 
       const tt = String(sec.type ?? "").toLowerCase();
-      if (tt === "galleries" || tt === "gallery") {
+      // ✅ Galerie: on prend le titre de la galerie SEULEMENT si navLabel n'est pas défini
+      if (!hasText(sec?.navLabel) && (tt === "galleries" || tt === "gallery")) {
         const gs = Array.isArray(props.content?.galleries)
           ? props.content.galleries
           : [];
@@ -874,7 +890,7 @@ export function LegacyHeader(props: {
   // ============================================================
 
   const headerPos = "fixed left-0 right-0 top-0";
-  const headerZ = "z-50";
+  const headerZ = "z-[9999]";
   const Spacer = (
     <div aria-hidden="true" style={{ height: "var(--header-h, 0px)" }} />
   );
@@ -893,6 +909,7 @@ export function LegacyHeader(props: {
   const headerClassBase = cx(
     headerPos,
     headerZ,
+    "isolate", // ✅ important (stacking context propre)
     "border-b transition-[background-color,backdrop-filter] duration-200",
     theme.isDark
       ? "border-white/10 text-white"
@@ -910,13 +927,15 @@ export function LegacyHeader(props: {
 
   const HeaderShell = (children: React.ReactNode) => (
     <>
-      <header
-        ref={headerRef as any}
-        style={headerStyle}
-        className={headerClassBase}
-      >
-        {children}
-      </header>
+      {portalHeader(
+        <header
+          ref={headerRef as any}
+          style={headerStyle}
+          className={headerClassBase}
+        >
+          {children}
+        </header>
+      )}
       {Spacer}
     </>
   );
@@ -1134,104 +1153,124 @@ export function LegacyHeader(props: {
 
     return (
       <>
-        <header
-          ref={headerRef as any}
-          style={headerStyle}
-          className={headerClassBase}
-        >
-          <Wrap
-            layout={props.layout}
-            globalLayout={props.globalLayout}
-            className={cx("grid grid-cols-[auto_1fr_auto] items-center gap-4")}
-            style={{ paddingTop: padY2, paddingBottom: padY2 }}
-          >
-            <a href="#top" className="flex items-center gap-3 min-w-0">
-              <div
-                style={{
-                  transform: `scale(${logoScale})`,
-                  transformOrigin: "left center",
-                }}
-                className="shrink-0"
-              >
-                {LogoNode}
-              </div>
-              {BrandText}
-            </a>
-
-            <div
-              className={cx(
-                "hidden lg:flex items-center justify-center gap-3 transition-opacity duration-200",
-                isScrolled && "opacity-95"
-              )}
-            >
-              {phone ? (
-                <div
-                  className={cx("max-w-[220px]", pillBaseD)}
-                  style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
-                >
-                  <div
-                    className={cx(
-                      "text-[10px] font-semibold uppercase tracking-wider",
-                      pillLabel
-                    )}
-                  >
-                    Téléphone
-                  </div>
-                  <div
-                    className={cx("truncate text-sm font-semibold", pillValue)}
-                  >
-                    {phone}
-                  </div>
-                </div>
-              ) : null}
-
-              {email ? (
-                <div
-                  className={cx("max-w-[260px]", pillBaseD)}
-                  style={{ paddingTop: lerp(8, 6), paddingBottom: lerp(8, 6) }}
-                >
-                  <div
-                    className={cx(
-                      "text-[10px] font-semibold uppercase tracking-wider",
-                      pillLabel
-                    )}
-                  >
-                    E-mail
-                  </div>
-                  <div
-                    className={cx("truncate text-sm font-semibold", pillValue)}
-                  >
-                    {email}
-                  </div>
-                </div>
-              ) : null}
-
-              <SocialRow theme={theme} cfg={socialsCfg} className="ml-2" />
-            </div>
-
-            <div className="justify-self-end flex items-center gap-3">
-              <SocialRow theme={theme} cfg={socialsCfg} className="lg:hidden" />
-              {Cta}
-            </div>
-          </Wrap>
-
-          <div
+        {portalHeader(
+          <header
+            ref={headerRef as any}
             style={headerStyle}
-            className={cx(
-              "border-t transition-[background-color,backdrop-filter] duration-200",
-              theme.isDark ? "border-white/10" : "border-slate-200"
-            )}
+            className={headerClassBase}
           >
             <Wrap
               layout={props.layout}
               globalLayout={props.globalLayout}
-              className="flex justify-center"
-              style={{ paddingTop: navPadY, paddingBottom: navPadY }}
+              className={cx(
+                "grid grid-cols-[auto_1fr_auto] items-center gap-4"
+              )}
+              style={{ paddingTop: padY2, paddingBottom: padY2 }}
             >
-              {NavB()}
+              <a href="#top" className="flex items-center gap-3 min-w-0">
+                <div
+                  style={{
+                    transform: `scale(${logoScale})`,
+                    transformOrigin: "left center",
+                  }}
+                  className="shrink-0"
+                >
+                  {LogoNode}
+                </div>
+                {BrandText}
+              </a>
+
+              <div
+                className={cx(
+                  "hidden lg:flex items-center justify-center gap-3 transition-opacity duration-200",
+                  isScrolled && "opacity-95"
+                )}
+              >
+                {phone ? (
+                  <div
+                    className={cx("max-w-[220px]", pillBaseD)}
+                    style={{
+                      paddingTop: lerp(8, 6),
+                      paddingBottom: lerp(8, 6),
+                    }}
+                  >
+                    <div
+                      className={cx(
+                        "text-[10px] font-semibold uppercase tracking-wider",
+                        pillLabel
+                      )}
+                    >
+                      Téléphone
+                    </div>
+                    <div
+                      className={cx(
+                        "truncate text-sm font-semibold",
+                        pillValue
+                      )}
+                    >
+                      {phone}
+                    </div>
+                  </div>
+                ) : null}
+
+                {email ? (
+                  <div
+                    className={cx("max-w-[260px]", pillBaseD)}
+                    style={{
+                      paddingTop: lerp(8, 6),
+                      paddingBottom: lerp(8, 6),
+                    }}
+                  >
+                    <div
+                      className={cx(
+                        "text-[10px] font-semibold uppercase tracking-wider",
+                        pillLabel
+                      )}
+                    >
+                      E-mail
+                    </div>
+                    <div
+                      className={cx(
+                        "truncate text-sm font-semibold",
+                        pillValue
+                      )}
+                    >
+                      {email}
+                    </div>
+                  </div>
+                ) : null}
+
+                <SocialRow theme={theme} cfg={socialsCfg} className="ml-2" />
+              </div>
+
+              <div className="justify-self-end flex items-center gap-3">
+                <SocialRow
+                  theme={theme}
+                  cfg={socialsCfg}
+                  className="lg:hidden"
+                />
+                {Cta}
+              </div>
             </Wrap>
-          </div>
-        </header>
+
+            <div
+              style={headerStyle}
+              className={cx(
+                "border-t transition-[background-color,backdrop-filter] duration-200",
+                theme.isDark ? "border-white/10" : "border-slate-200"
+              )}
+            >
+              <Wrap
+                layout={props.layout}
+                globalLayout={props.globalLayout}
+                className="flex justify-center"
+                style={{ paddingTop: navPadY, paddingBottom: navPadY }}
+              >
+                {NavB()}
+              </Wrap>
+            </div>
+          </header>
+        )}
 
         {Spacer}
       </>
@@ -1345,6 +1384,8 @@ export function LegacyHero({
   const cta1 = content?.cta?.heroPrimary ?? "Me contacter";
   const cta2 = content?.cta?.heroSecondary ?? "Voir nos services";
 
+  const shimmerOnPrimary = Boolean(fx?.enabled && fx?.shimmerCta);
+
   const PrimaryBtn = (
     <a
       href="#contact"
@@ -1353,7 +1394,7 @@ export function LegacyHero({
         "px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
         theme.accentFrom,
         theme.accentTo,
-        fx?.enabled && fx?.shimmerCta && "fx-cta"
+        shimmerOnPrimary && "fx-cta"
       )}
     >
       {cta1}
@@ -1368,8 +1409,7 @@ export function LegacyHero({
         "px-6 py-3 text-sm font-semibold border transition hover:-translate-y-[1px] active:translate-y-0",
         theme.isDark
           ? "border-white/15 text-white hover:bg-white/5"
-          : "border-slate-200 text-slate-900 hover:bg-slate-50",
-        fx?.enabled && fx?.shimmerCta && "fx-cta"
+          : "border-slate-200 text-slate-900 hover:bg-slate-50"
       )}
     >
       {cta2}
@@ -2186,13 +2226,19 @@ export function LegacyContact(props: any) {
                 )}
                 placeholder="Message"
               />
+
+              {/* ✅ GROS CTA: plus lent + 3 passes puis stop (premium) */}
               <button
                 type="button"
                 className={cx(
                   radiusClass(l.radius),
-                  "fx-cta mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+                  "mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
                   theme.accentFrom,
-                  theme.accentTo
+                  theme.accentTo,
+                  // shimmer opt-in (si data-fx-shimmer="1" est présent plus haut)
+                  "fx-cta fx-cta-lg fx-cta-3x",
+                  // option “ultra luxe” (prêt si tu ajoutes une règle CSS plus tard)
+                  "fx-cta-luxe"
                 )}
               >
                 Envoyer
