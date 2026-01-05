@@ -183,6 +183,9 @@ export default function TemplateEngine({
     shimmerCta: false,
   };
 
+  const fxEnabled = !!fx?.enabled;
+  const fxShimmer = fxEnabled && !!fx?.shimmerCta;
+
   const opt = (liveConfig as any).options ?? {};
   const themeVariant = (opt as any).themeVariant ?? "amberOrange|classic";
   const canvasStyle = ((opt as any).canvasStyle ?? "classic") as CanvasStyle;
@@ -566,7 +569,7 @@ export default function TemplateEngine({
   // IMPORTANT: shimmer is NOT applied here anymore (opt-in on buttons via .fx-cta)
   const wrap = React.useCallback(
     (s: Section, node: React.ReactNode, key: React.Key, variant: string) => {
-      const t = String(s.type || "");
+      const t = String((s as any).type || "");
       if (t === "header" || t === "top") {
         return <React.Fragment key={key}>{node}</React.Fragment>;
       }
@@ -574,7 +577,7 @@ export default function TemplateEngine({
       return (
         <div
           key={key}
-          ref={registerReveal(String(s.id))}
+          ref={registerReveal(String((s as any).id ?? ""))}
           className={cx(
             "reveal",
             fx.enabled && fx.softGlow && "fx-softglow",
@@ -626,10 +629,14 @@ export default function TemplateEngine({
       }
     };
   }, [theme.canvasVar]);
-  const usedDomIds = new Map<string, number>();
+
+  // ✅ DOM ids uniqueness map (reset each render)
+  const usedDomIdsRef = React.useRef<Map<string, number>>(new Map());
+  usedDomIdsRef.current.clear();
 
   return (
     <div
+      data-fx-shimmer={fx.enabled && fx.shimmerCta ? "1" : "0"}
       className={cx(
         "min-h-screen",
         theme.bgPage,
@@ -640,27 +647,31 @@ export default function TemplateEngine({
     >
       <FxStyles enabled={!!fx.enabled} ambient={!!fx.ambient} />
 
-      {sections.map((s) => {
-        if (!s || s.enabled === false) return null;
+      {sections.map((s, idx) => {
+        if (!s || (s as any).enabled === false) return null;
 
-        const type = String(s.type || "");
+        const type = String((s as any).type || "");
         const variant = resolveSectionVariant(s);
         const Comp = (VARIANTS as any)?.[type]?.[variant] as any;
         if (!Comp) return null;
 
         // ✅ DOM id unique (split, split-2, split-3…)
-        const rawId = String(s.id || "").trim();
+        // fallback si s.id vide/undefined
+        const rawId =
+          String((s as any).id ?? "").trim() || `${type}-${idx + 1}`;
+
+        const usedDomIds = usedDomIdsRef.current;
         const n = (usedDomIds.get(rawId) ?? 0) + 1;
         usedDomIds.set(rawId, n);
-        const domId = n === 1 ? rawId : `${rawId}-${n}`;
 
+        const domId = n === 1 ? rawId : `${rawId}-${n}`;
         const key = `${domId}:${variant}`;
 
         const node = (
           <section id={domId} className="w-full">
             <Comp
               {...(s as any)}
-              sectionId={domId} // ✅ IMPORTANT: on passe l’id DOM réel
+              sectionId={domId} // ✅ IMPORTANT: id DOM réel
               theme={theme}
               brand={(liveConfig as any).brand}
               content={(liveConfig as any).content}
@@ -688,7 +699,22 @@ export default function TemplateEngine({
           </section>
         );
 
-        return wrap(s, node, key, variant);
+        // ✅ reveal doit suivre le domId (pas s.id)
+        return (
+          <div
+            key={key}
+            ref={registerReveal(domId)}
+            className={cx(
+              "reveal",
+              fx.enabled && fx.softGlow && "fx-softglow",
+              fx.enabled && fx.borderScan && "fx-border-scan"
+            )}
+            style={{ scrollMarginTop: "var(--header-offset, 84px)" }}
+            data-variant={variant}
+          >
+            {node}
+          </div>
+        );
       })}
 
       {/* Studio Panel */}
@@ -727,10 +753,3 @@ export default function TemplateEngine({
     </div>
   );
 }
-
-/*
-PS (Charcoal header noir “décalé”):
-- c’est côté Header (legacy/pro) quand hasCanvas=false, il met un fallback bg-slate-950.
-- si ton thème charcoal n’injecte pas de canvasVar (--te-canvas), hasCanvas reste false.
-- donc le fix final est dans legacy/pro header: remplacer le fallback bg-slate-950 par un fallback basé sur le thème (ex: theme.bgPage ou un token bgHeader).
-*/

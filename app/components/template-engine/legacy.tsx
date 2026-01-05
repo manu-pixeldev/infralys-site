@@ -1325,6 +1325,7 @@ export function LegacyHero({
   globalLayout,
   sectionId,
   variant,
+  fx,
 }: any) {
   const l = resolveLayout(layout, globalLayout);
   const v = String(variant ?? "A");
@@ -1349,9 +1350,10 @@ export function LegacyHero({
       href="#contact"
       className={cx(
         radiusClass(l.radius),
-        "fx-cta px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+        "px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
         theme.accentFrom,
-        theme.accentTo
+        theme.accentTo,
+        fx?.enabled && fx?.shimmerCta && "fx-cta"
       )}
     >
       {cta1}
@@ -1366,7 +1368,8 @@ export function LegacyHero({
         "px-6 py-3 text-sm font-semibold border transition hover:-translate-y-[1px] active:translate-y-0",
         theme.isDark
           ? "border-white/15 text-white hover:bg-white/5"
-          : "border-slate-200 text-slate-900 hover:bg-slate-50"
+          : "border-slate-200 text-slate-900 hover:bg-slate-50",
+        fx?.enabled && fx?.shimmerCta && "fx-cta"
       )}
     >
       {cta2}

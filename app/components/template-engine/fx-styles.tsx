@@ -6,9 +6,11 @@ import React from "react";
 export function FxStyles({
   enabled,
   ambient,
+  shimmer,
 }: {
   enabled: boolean;
   ambient: boolean;
+  shimmer?: boolean; // ✅ NEW: pilotage shimmer CTA
 }) {
   if (!enabled) return null;
 
@@ -38,6 +40,7 @@ export function FxStyles({
         border-radius: inherit;
         padding: 1px;
 
+        /* 🔧 TEST BORDER-SCAN: change the 0.55 (brightness) and 4.2s (speed) */
         background: linear-gradient(
             90deg,
             rgba(255, 255, 255, 0) 0%,
@@ -69,9 +72,10 @@ export function FxStyles({
 
       /* ============================================================
          SHIMMER CTA (OPT-IN ONLY)
-         - No longer applied to whole wrappers.
          - Apply class .fx-cta on buttons/CTAs.
+         - We unify legacy aliases (.fx-shimmer-cta) to the SAME behavior.
          ============================================================ */
+
       @keyframes shimmer {
         0% {
           transform: translateX(-140%) skewX(-18deg);
@@ -89,40 +93,53 @@ export function FxStyles({
         }
       }
 
-      /* opt-in target */
-      .fx-cta {
+      /* ✅ One source of truth */
+      .fx-cta,
+      .fx-shimmer-cta {
         position: relative;
         overflow: hidden;
         isolation: isolate;
       }
-      .fx-cta::after {
+
+      .fx-cta::after,
+      .fx-shimmer-cta::after {
         content: "";
         position: absolute;
         top: -35%;
         left: -55%;
         width: 55%;
         height: 170%;
+
+        /* 🔧 TEST SHIMMER: change 0.55 (intensity) + 2.8s (speed) */
         background: linear-gradient(
           90deg,
           transparent,
           rgba(255, 255, 255, 0.55),
           transparent
         );
+
         pointer-events: none;
         z-index: 2;
+
+        /* OFF by default -> ON only when data-fx-shimmer="1" */
+        opacity: 0;
+        transform: translateX(-140%) skewX(-18deg);
+      }
+
+      /* ✅ Shimmer ON switch (global) */
+      [data-fx-shimmer="1"] .fx-cta::after,
+      [data-fx-shimmer="1"] .fx-shimmer-cta::after {
+        /* 🔧 TEST SHIMMER SPEED: 2.8s -> 1.2s to be sure you see it */
         animation: shimmer 2.8s ease-in-out infinite;
       }
 
-      /* if you still want wrappers to shimmer, keep this alias
-         BUT it will not be auto-added anymore by TemplateEngine */
-      .fx-shimmer,
-      .fx-shimmer-cta {
+      /* If you still want wrappers to shimmer sometimes */
+      .fx-shimmer {
         position: relative;
         overflow: hidden;
         isolation: isolate;
       }
-      .fx-shimmer::after,
-      .fx-shimmer-cta::after {
+      .fx-shimmer::after {
         content: "";
         position: absolute;
         top: -35%;
