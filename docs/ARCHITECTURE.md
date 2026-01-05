@@ -1,139 +1,234 @@
-# Architecture — infralys-site
+Architecture — infralys-site
 
-## Vue d’ensemble
+1. Vue d’ensemble
 
-Projet Next.js structuré autour d’un moteur de templates modulaire.
+infralys-site est un projet Next.js (App Router) structuré autour d’un moteur de templates modulaire.
 
-- Header / Hero / Sections = template-engine
-- Thèmes = tokens + canvas CSS vars
-- Clients spécifiques = app/clients (jamais versionnés)
+Objectifs clés :
 
----
+Générer des pages marketing professionnelles à partir de sections configurables
 
-## Dossiers clés
+Séparer strictement structure / thème / contenu
 
-### app/components/template-engine/
+Préparer une évolution SaaS multi-clients / multipages
+
+Architecture conceptuelle :
+
+TemplateEngine
+├─ Theme (tokens + canvas CSS vars)
+├─ Sections (Header, Hero, Split, Services, …)
+├─ Studio Panel (édition live)
+└─ Legacy Variants (UI stable, réutilisable)
+
+2. Dossiers clés
+   app/components/template-engine/
 
 Cœur du système de rendu.
 
 Fichiers principaux :
 
-- legacy.tsx  
-  → Header, Hero, Sections (Split, Services, Team, Galleries, Contact)
-- theme.ts  
-  → Tokens visuels (colors, surfaces, canvas, accents)
-- variants.ts  
-  → Variantes structurelles (A, B, C…)
-- socials.tsx  
-  → Icônes & liens sociaux
-- studio-panel.tsx  
-  → UI d’édition (studio)
+template-engine.tsx
+Orchestrateur :
 
----
+normalise la config (liveConfig)
 
-### Header (source de vérité)
+rend les sections dans l’ordre
 
-📍 Fichier :
+injecte les props communes (theme, layout, scroll state, nav state)
+
+monte le StudioPanel via portal
+
+legacy.tsx
+UI legacy stable :
+
+Header
+
+Hero
+
+Sections (Split, Services, Team, Galleries, Contact)
+
+Helpers visuels (Surface, Glass, Navigation)
+
+theme.ts
+Source de vérité visuelle :
+
+tokens de couleur
+
+surfaces
+
+canvas CSS variables
+
+accents (gradients)
+
+isDark
+
+variants.ts
+Mapping type + variant → composant
+👉 aucune logique métier ici, uniquement structure.
+
+studio-panel.tsx
+UI d’édition :
+
+drag & drop sections
+
+activation / désactivation
+
+options globales (thème, layout, nav…)
+
+3. Header — source de vérité
+
+📍 Implémentation principale : legacy.tsx
+
+Le Header est un composant critique :
+toute la navigation, le scroll-spy et le glass effect y sont centralisés.
 
 Responsabilités :
 
-- Gestion du scroll (`isScrolled`)
-- Glass effect header
-- Dropdown "Plus"
-- Navigation active / overflow
+Détection du scroll (isScrolled, scrollT)
 
-⚠️ Toute modif header ou menu doit se faire ici.
+Glass / canvas header (opaque → translucide)
 
----
+Navigation principale + overflow (“Plus”)
 
-### Thèmes & surfaces
+Gestion du lien actif (underline stable)
 
-📍 Fichier :
+Calcul et exposition de --header-offset
 
-Contient :
+⚠️ Règle absolue
+Toute modification liée à :
 
-- `canvasVar` (CSS vars)
-- `surfaceBg`, `surfaceBorder`
-- `isDark`
-- Accents (gradients)
+navigation
 
-Les composants **consomment**, ils ne décident pas.
+underline
 
----
+scroll
 
-### Surfaces (cards, blocs)
+dropdown
+👉 doit être faite ici, jamais dans les sections.
 
-📍 Composant :
+4. Thèmes & surfaces
 
-Règle :
+📍 Fichier : theme.ts
 
-- Une surface = même logique partout
-- Pas de couleur hardcodée dans les sections
+Le thème définit, les composants consomment.
 
-////////////////////Note de V21:///////////////////////////////////////////////
+Contenu :
 
-# Architecture générale
+canvasVar → CSS variables globales (--te-canvas, --te-surface, …)
 
-Ce document décrit les règles structurelles et les choix techniques du projet.
+surfaceBg, surfaceBorder
 
----
+isDark
 
-## Scroll-spy du header (navigation active)
+accents (accentFrom, accentTo)
 
-### Problème rencontré
+Règles :
 
-Dans Next.js (App Router), l’utilisation de `document.body.offsetHeight` pour détecter le bas de page est **non fiable**. Selon le layout, `offsetHeight` peut être proche de la hauteur du viewport, ce qui déclenche un faux _"bas de page"_ en permanence.
+❌ aucune couleur hardcodée dans les sections
 
-Effet observé :
+✅ tout passe par les tokens du thème
 
-- le lien **Contact** devient actif trop tôt
-- la navigation semble "figée" et ne réagit plus au scroll
+✅ changement de thème = aucun refactor UI
 
-### Règle à respecter
+5. Surfaces (cards, blocs)
 
-👉 **Toujours utiliser `scrollHeight` (documentElement + body) pour détecter le bas de page.**
+📍 Composant : Surface (legacy)
 
-### Implémentation correcte
+Principe :
 
-```ts
+Une Surface = une carte visuelle cohérente partout
+
+Même logique pour Hero, Split, Services, Contact, etc.
+
+Règles :
+
+même rayon
+
+même gestion border / backdrop
+
+aucune logique métier dans Surface
+
+👉 garantit une harmonisation visuelle globale.
+
+6. Navigation & scroll-spy (règle critique)
+   Problème rencontré
+
+Dans Next.js App Router, l’utilisation de :
+
+document.body.offsetHeight
+
+est non fiable pour détecter le bas de page.
+
+Effets observés :
+
+lien Contact activé trop tôt
+
+navigation figée
+
+underline incohérent
+
+Règle obligatoire
+
+👉 Toujours utiliser scrollHeight pour détecter le bas réel de la page.
+
+Implémentation correcte :
+
 const scrollH = Math.max(
-  document.documentElement.scrollHeight,
-  document.body.scrollHeight
+document.documentElement.scrollHeight,
+document.body.scrollHeight
 );
 
 const atBottom = window.innerHeight + window.scrollY >= scrollH - 4;
-```
 
-### Logique du scroll-spy
+Logique du scroll-spy
 
-- On parcourt les sections visibles (`getBoundingClientRect().top`)
-- On sélectionne la **dernière section passée sous le header**
-- **Exception** : si on est réellement tout en bas → forcer `#contact`
+On parcourt les sections du menu
 
-```ts
+On récupère leur position réelle dans la page
+
+On sélectionne la dernière section passée sous le header
+
+Exception : si on est réellement tout en bas → forcer #contact
+
 if (atBottom && linksAll.some((l) => l.href === "#contact")) {
-  setActiveHrefLocal("#contact");
+setActiveHrefLocal("#contact");
 } else {
-  setActiveHrefLocal(best?.href ?? "#top");
+setActiveHrefLocal(best?.href ?? "#top");
 }
-```
 
-### Bonnes pratiques
+Bonnes pratiques impératives
 
-- Le `href` du menu **doit correspondre exactement** à l’`id` DOM
-- Ne jamais dupliquer les `id` dans les sections
-- Le scroll-spy doit être :
+Le href du menu doit correspondre exactement à l’id DOM
 
-  - local au header
-  - indépendant du router
-  - robuste au resize
+Les id doivent être uniques (split, split-2, …)
 
-### Pourquoi c’est important
+Le scroll-spy doit être :
 
-Ce comportement garantit :
+local au Header
 
-- une navigation fiable
-- un underline toujours cohérent
-- un comportement stable même avec des layouts complexes (header fixe, glass, canvas)
+indépendant du router Next
 
-> ⚠️ Si un jour le scroll se fait dans un container (et non `window`), le scroll-spy devra écouter ce container explicitement.
+robuste au resize
+
+stable avec un header fixe
+
+⚠️ Si un jour le scroll se fait dans un container (et non window),
+le scroll-spy devra écouter explicitement ce container.
+
+7. Philosophie globale
+
+TemplateEngine = orchestration
+
+Legacy = UI stable et éprouvée
+
+Theme = seule source visuelle
+
+StudioPanel = contrôle, jamais logique de rendu
+
+👉 Cette séparation permet :
+
+évolution rapide
+
+ajout de thèmes / variants
+
+transformation en SaaS multi-clients sans refonte
