@@ -1930,3 +1930,4 @@ export function StudioPanel({
     </div>
   );
 }
+export default StudioPanel;

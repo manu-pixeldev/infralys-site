@@ -187,7 +187,14 @@ export default function TemplateEngine({
   const themeVariant = (opt as any).themeVariant ?? "amberOrange|classic";
   const canvasStyle = ((opt as any).canvasStyle ?? "classic") as CanvasStyle;
 
-  const maxDirectLinksInMenu = Number((opt as any).maxDirectLinksInMenu ?? 4);
+  const maxDirectLinksInMenu = Number(
+    (opt as any)?.nav?.maxDirectLinksInMenu ??
+      (opt as any)?.maxDirectLinksInMenu ??
+      (opt as any)?.maxDirectLinks ??
+      (liveConfig as any)?.content?.nav?.maxDirectLinksInMenu ??
+      (liveConfig as any)?.content?.nav?.maxDirectLinks ??
+      4
+  );
 
   // theme depends on canvasStyle + themeVariant
   const theme = React.useMemo(() => {
@@ -341,7 +348,10 @@ export default function TemplateEngine({
       if (!id) continue;
 
       const title = String((s as any).title || "").trim();
-      if (title) map.set(slugify(title), id);
+      if (title) {
+        const key = slugify(title);
+        if (!map.has(key)) map.set(key, id); // ✅ garde le premier
+      }
 
       map.set(slugify(id), id);
     }
@@ -616,6 +626,7 @@ export default function TemplateEngine({
       }
     };
   }, [theme.canvasVar]);
+  const usedDomIds = new Map<string, number>();
 
   return (
     <div
@@ -637,12 +648,19 @@ export default function TemplateEngine({
         const Comp = (VARIANTS as any)?.[type]?.[variant] as any;
         if (!Comp) return null;
 
-        const key = `${String(s.id)}:${variant}`;
+        // ✅ DOM id unique (split, split-2, split-3…)
+        const rawId = String(s.id || "").trim();
+        const n = (usedDomIds.get(rawId) ?? 0) + 1;
+        usedDomIds.set(rawId, n);
+        const domId = n === 1 ? rawId : `${rawId}-${n}`;
+
+        const key = `${domId}:${variant}`;
 
         const node = (
-          <section id={String(s.id || "")} className="w-full">
+          <section id={domId} className="w-full">
             <Comp
               {...(s as any)}
+              sectionId={domId} // ✅ IMPORTANT: on passe l’id DOM réel
               theme={theme}
               brand={(liveConfig as any).brand}
               content={(liveConfig as any).content}

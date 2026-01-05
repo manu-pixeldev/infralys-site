@@ -281,6 +281,8 @@ function DesktopOverflowMenu({
   showCaret = true,
   activeHref,
   navBaseClass,
+  underline = false,
+  underlineActive = false,
 }: {
   theme: ThemeLike;
   label?: string;
@@ -292,6 +294,8 @@ function DesktopOverflowMenu({
   showCaret?: boolean;
   activeHref?: string;
   navBaseClass?: string; // ✅ pour matcher la typo du header
+  underline?: boolean;
+  underlineActive?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -338,7 +342,7 @@ function DesktopOverflowMenu({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={cx(
-          "inline-flex items-center gap-2 rounded-full px-4 py-2 font-semibold transition text-inherit",
+          "group inline-flex items-center gap-2 transition-colors text-inherit",
           navBaseClass ?? "",
           buttonClassName
             ? buttonClassName
@@ -348,10 +352,33 @@ function DesktopOverflowMenu({
               )
         )}
       >
-        <span className="whitespace-nowrap">{label}</span>
-        {showCaret ? (
-          <span className={cx("transition", open ? "rotate-180" : "")}>▾</span>
-        ) : null}
+        {/* underline EXACT sous le texte */}
+        <span className="relative inline-block">
+          <span className="whitespace-nowrap">{label}</span>
+          {showCaret ? (
+            <span
+              className={cx(
+                "ml-2 inline-block transition",
+                open ? "rotate-180" : ""
+              )}
+            >
+              ▾
+            </span>
+          ) : null}
+
+          {underline ? (
+            <span
+              className={cx(
+                "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
+                theme.accentFrom,
+                theme.accentTo,
+                underlineActive
+                  ? "opacity-100"
+                  : "opacity-0 group-hover:opacity-100"
+              )}
+            />
+          ) : null}
+        </span>
       </button>
 
       {open ? (
@@ -581,18 +608,8 @@ export function LegacyHeader(props: {
     ? (props as any).sections
     : [];
 
-  // active href handling (Accueil)
-  const firstSectionId =
-    secs.find(
-      (sec: any) =>
-        sec?.enabled !== false && sec?.type !== "header" && sec?.type !== "top"
-    )?.id ?? "";
-
-  const rawActiveHref = props.activeHref ?? "#top";
-  const activeHref =
-    firstSectionId && rawActiveHref === `#${firstSectionId}`
-      ? "#top"
-      : rawActiveHref;
+  // active href handling (Accueil) — ✅ ne pas “remapper” ici
+  const activeHref = props.activeHref ?? "#top";
 
   // ============================================================
   // ✅ LINKS (href = DOM id unique)
@@ -638,9 +655,15 @@ export function LegacyHeader(props: {
     })
     .filter(Boolean) as { href: string; label: string }[];
 
-  // remplace la 1ère section par Accueil
-  if (orderedLinks.length) {
+  // ✅ HOME link logic
+  const firstRealHref = orderedLinks[0]?.href ?? "#top";
+
+  // si la première section est hero, on remplace par #top (Accueil)
+  // sinon on garde la première section ET on ajoute Accueil devant
+  if (orderedLinks.length && firstRealHref === "#hero") {
     orderedLinks[0] = { href: "#top", label: homeLabel };
+  } else {
+    orderedLinks = [{ href: "#top", label: homeLabel }, ...orderedLinks];
   }
 
   const fallbackLinks = [
@@ -976,33 +999,21 @@ export function LegacyHeader(props: {
       })}
 
       {overflowLinks.length ? (
-        <div className="relative inline-flex w-fit">
-          <div className="group relative inline-flex w-fit">
-            <DesktopOverflowMenu
-              theme={theme}
-              label={cleanNavLabel(overflowLabel)}
-              items={overflowLinks.map((x) => ({
-                ...x,
-                label: cleanNavLabel(x.label),
-              }))}
-              menuStyle={menuStyle}
-              hasCanvas={hasCanvas}
-              active={overflowActive}
-              activeHref={activeHrefEffective}
-              navBaseClass={navBase}
-            />
-            <span
-              className={cx(
-                "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
-                theme.accentFrom,
-                theme.accentTo,
-                overflowActive
-                  ? "opacity-100"
-                  : "opacity-0 group-hover:opacity-100"
-              )}
-            />
-          </div>
-        </div>
+        <DesktopOverflowMenu
+          theme={theme}
+          label={cleanNavLabel(overflowLabel)}
+          items={overflowLinks.map((x) => ({
+            ...x,
+            label: cleanNavLabel(x.label),
+          }))}
+          menuStyle={menuStyle}
+          hasCanvas={hasCanvas}
+          active={overflowActive}
+          activeHref={activeHrefEffective}
+          navBaseClass={navBase}
+          underline
+          underlineActive={overflowActive}
+        />
       ) : null}
     </nav>
   );
@@ -1057,30 +1068,32 @@ export function LegacyHeader(props: {
       )}
     >
       {inlineLinks.map((lnk) => {
-        const active = lnk.href === activeHrefEffective;
+        const isActive =
+          lnk.href === activeHrefEffective || lnk.sectionId === activeSectionId;
+
         return (
           <a
-            key={lnk.href}
+            key={lnk.id ?? lnk.href}
             href={lnk.href}
             className={cx(
-              "group inline-flex transition-colors",
+              "group relative inline-flex",
               navHoverTextClass,
-              hasCanvas && !active && "opacity-80 hover:opacity-100",
-              active &&
+              hasCanvas && !isActive && "opacity-80 hover:opacity-100",
+              isActive &&
                 !hasCanvas &&
                 (theme.isDark ? "text-white" : "text-slate-950")
             )}
           >
+            {/* TEXTE = référence de largeur */}
             <span className="relative inline-block">
-              <span className="whitespace-nowrap">
-                {cleanNavLabel(lnk.label)}
-              </span>
+              {lnk.label}
               <span
                 className={cx(
-                  "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
+                  "pointer-events-none absolute left-0 -bottom-2 h-[2px]",
+                  "w-full bg-gradient-to-r transition-opacity",
                   theme.accentFrom,
                   theme.accentTo,
-                  active ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                  isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                 )}
               />
             </span>
@@ -1088,24 +1101,24 @@ export function LegacyHeader(props: {
         );
       })}
 
-      {overflowLinks.length ? (
-        <div className="group relative inline-flex w-fit">
+      {overflowLinks.length > 0 && (
+        <div className="group relative inline-flex">
           <DesktopOverflowMenu
             theme={theme}
-            label={cleanNavLabel(overflowLabel)}
-            items={overflowLinks.map((x) => ({
-              ...x,
-              label: cleanNavLabel(x.label),
-            }))}
+            label={overflowLabel}
+            items={overflowLinks}
             menuStyle={menuStyle}
             hasCanvas={hasCanvas}
             active={overflowActive}
             activeHref={activeHrefEffective}
             navBaseClass={navBase}
           />
+
+          {/* underline DU TEXTE seulement */}
           <span
             className={cx(
-              "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full bg-gradient-to-r transition-opacity",
+              "pointer-events-none absolute left-0 -bottom-2 h-[2px] w-full",
+              "bg-gradient-to-r transition-opacity",
               theme.accentFrom,
               theme.accentTo,
               overflowActive
@@ -1114,7 +1127,7 @@ export function LegacyHeader(props: {
             )}
           />
         </div>
-      ) : null}
+      )}
     </nav>
   );
 
