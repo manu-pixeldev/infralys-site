@@ -2,7 +2,15 @@
 
 import React from "react";
 
-/** FX styles (global) */
+/**
+ * FxStyles
+ * - Base UI polish (divider + reveal) ALWAYS ON
+ * - FX opt-in via data attrs + classes
+ *
+ * DATA FLAGS (set by app/layout.tsx script):
+ * - html[data-reveal-ready="1"]  -> reveal system allowed
+ * - html[data-reveal-skip="1"]   -> disables pending hide for 1 frame after refresh mid-scroll
+ */
 export function FxStyles({
   enabled,
   ambient,
@@ -10,17 +18,53 @@ export function FxStyles({
 }: {
   enabled: boolean;
   ambient: boolean;
-  shimmer?: boolean; // ✅ pilotage shimmer CTA
+  shimmer?: boolean;
 }) {
-  if (!enabled) return null;
-
-  const shimmerOn = shimmer ? "1" : "0";
-
   return (
     <style jsx global>{`
       /* ============================================================
-         BORDER SCAN (needs .fx-border-scan on wrapper)
+         BASE — Premium section divider (TOUJOURS)
          ============================================================ */
+
+      .fx-divider {
+        position: relative;
+        isolation: isolate;
+      }
+
+      .fx-divider::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        height: 26px;
+        pointer-events: none;
+        z-index: 1;
+        opacity: 1;
+      }
+
+      [data-ui="dark"] .fx-divider::before {
+        background: linear-gradient(
+          to bottom,
+          rgba(255, 255, 255, 0.1),
+          rgba(255, 255, 255, 0.04) 35%,
+          rgba(255, 255, 255, 0) 100%
+        );
+      }
+
+      [data-ui="light"] .fx-divider::before {
+        background: linear-gradient(
+          to bottom,
+          rgba(0, 0, 0, 0.06),
+          rgba(0, 0, 0, 0.025) 35%,
+          rgba(0, 0, 0, 0) 100%
+        );
+      }
+
+      /* ============================================================
+         FX — Border scan (OPTIONNEL)
+         ============================================================ */
+
       @keyframes scanBorder {
         0% {
           background-position: 0% 50%;
@@ -33,55 +77,69 @@ export function FxStyles({
       .fx-border-scan {
         position: relative;
         isolation: isolate;
+
+        --fx-scan-opacity: 0.65;
+        --fx-scan-speed: 5.4s;
+        --fx-scan-a: 0.7;
+        --fx-scan-blend: screen;
+
+        --fx-scan-r: 255;
+        --fx-scan-g: 255;
+        --fx-scan-b: 255;
       }
 
-      .fx-border-scan::before {
+      [data-ui="light"] .fx-border-scan {
+        --fx-scan-opacity: 0.38;
+        --fx-scan-a: 0.55;
+        --fx-scan-blend: multiply;
+
+        --fx-scan-r: 0;
+        --fx-scan-g: 0;
+        --fx-scan-b: 0;
+      }
+
+      /* ✅ IMPORTANT: uniquement ::after pour le scan (évite double-ligne). */
+      [data-fx-enabled="1"] .fx-border-scan.fx-divider::after {
         content: "";
         position: absolute;
-        inset: -1px;
-        border-radius: inherit;
-        padding: 1px;
+        left: 0;
+        right: 0;
+        top: 0;
+        height: 1px;
+        pointer-events: none;
+        z-index: 2;
 
-        /* 🔧 TEST BORDER-SCAN: brightness + speed */
         background: linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0) 0%,
-            rgba(255, 255, 255, 0.55) 25%,
-            rgba(255, 255, 255, 0) 50%
+            rgba(var(--fx-scan-r), var(--fx-scan-g), var(--fx-scan-b), 0) 0%,
+            rgba(
+                var(--fx-scan-r),
+                var(--fx-scan-g),
+                var(--fx-scan-b),
+                var(--fx-scan-a)
+              )
+              25%,
+            rgba(var(--fx-scan-r), var(--fx-scan-g), var(--fx-scan-b), 0) 50%
           )
           0% 50% / 200% 200%;
 
-        mix-blend-mode: screen;
-
-        mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-        -webkit-mask: linear-gradient(#000 0 0) content-box,
-          linear-gradient(#000 0 0);
-        mask-composite: exclude;
-        -webkit-mask-composite: xor;
-
-        opacity: 0.75;
-        pointer-events: none;
-        animation: scanBorder 4.2s linear infinite;
-        z-index: 2;
+        mix-blend-mode: var(--fx-scan-blend);
+        opacity: var(--fx-scan-opacity);
+        animation: scanBorder var(--fx-scan-speed) linear infinite;
       }
 
       /* ============================================================
-         SOFT GLOW
+         FX — Soft glow (OPTIONNEL)
          ============================================================ */
       .fx-softglow {
         box-shadow: 0 18px 60px rgba(0, 0, 0, 0.08);
       }
 
       /* ============================================================
-         SHIMMER CTA (OPT-IN ONLY)
-         - Apply class .fx-cta on buttons/CTAs.
-         - Legacy alias .fx-shimmer-cta is unified to same behavior.
-         - Global ON/OFF via [data-fx-shimmer="${shimmerOn}"].
+         FX — Shimmer CTA (OPTIONNEL)
          ============================================================ */
 
-      /* pause + sweep + pause (premium) */
       @keyframes fxCtaShimmer {
-        /* pause OFFSCREEN (longue) */
         0% {
           transform: translateX(-140%) skewX(-18deg);
           opacity: 0;
@@ -90,8 +148,6 @@ export function FxStyles({
           transform: translateX(-140%) skewX(-18deg);
           opacity: 0;
         }
-
-        /* sweep (smooth) */
         36% {
           opacity: 0.55;
         }
@@ -102,37 +158,26 @@ export function FxStyles({
           transform: translateX(140%) skewX(-18deg);
           opacity: 0;
         }
-
-        /* pause ON THE RIGHT (longue) */
         100% {
           transform: translateX(140%) skewX(-18deg);
           opacity: 0;
         }
       }
 
-      /* ✅ One source of truth */
       .fx-cta,
       .fx-shimmer-cta {
         position: relative;
         overflow: hidden;
         isolation: isolate;
 
-        /* defaults (override per button with modifiers) */
-        --fx-cta-shimmer-dur: 5200ms; /* default premium */
+        --fx-cta-shimmer-dur: 5200ms;
         --fx-cta-shimmer-ease: ease-in-out;
 
-        /* micro perf */
-        will-change: transform;
-      }
+        --fx-cta-a1: 0.18;
+        --fx-cta-a2: 0.55;
 
-      /* CTA large (full width / gros boutons) => plus lent */
-      .fx-cta-lg {
-        --fx-cta-shimmer-dur: 9800ms; /* 👈 luxe */
-      }
-
-      /* Ultra-luxe: un peu plus “soyeux” (optionnel) */
-      .fx-cta-luxe {
-        --fx-cta-shimmer-ease: cubic-bezier(0.25, 0.8, 0.25, 1);
+        --fx-cta-blend: screen;
+        --fx-cta-blur: 0.4px;
       }
 
       .fx-cta::after,
@@ -147,115 +192,92 @@ export function FxStyles({
         background: linear-gradient(
           110deg,
           transparent 0%,
-          rgba(255, 255, 255, 0.18) 35%,
-          rgba(255, 255, 255, 0.55) 50%,
-          rgba(255, 255, 255, 0.18) 65%,
+          rgba(255, 255, 255, var(--fx-cta-a1)) 35%,
+          rgba(255, 255, 255, var(--fx-cta-a2)) 50%,
+          rgba(255, 255, 255, var(--fx-cta-a1)) 65%,
           transparent 100%
         );
 
-        mix-blend-mode: screen; /* 🔑 lisible sur gradients */
-        filter: blur(0.4px);
+        mix-blend-mode: var(--fx-cta-blend);
+        filter: blur(var(--fx-cta-blur));
 
         pointer-events: none;
         z-index: 2;
 
-        /* OFF by default */
         opacity: 0;
         transform: translateX(-140%) skewX(-18deg);
-
-        /* perf */
-        will-change: transform, opacity;
       }
 
-      /* ✅ Shimmer ON (global switch) */
+      [data-ui="light"] .fx-cta,
+      [data-ui="light"] .fx-shimmer-cta {
+        --fx-cta-a1: 0.12;
+        --fx-cta-a2: 0.26;
+        --fx-cta-blend: soft-light;
+        --fx-cta-blur: 0.6px;
+      }
+
       [data-fx-shimmer="1"] .fx-cta::after,
       [data-fx-shimmer="1"] .fx-shimmer-cta::after {
         animation-name: fxCtaShimmer;
         animation-duration: var(--fx-cta-shimmer-dur);
         animation-timing-function: var(--fx-cta-shimmer-ease);
-        animation-iteration-count: infinite;
-
-        /* smoother & no “jump” */
-        animation-fill-mode: both;
-      }
-
-      /* ✅ Ultra luxe: 3 passes puis stop */
-      [data-fx-shimmer="1"] .fx-cta.fx-cta-3x::after,
-      [data-fx-shimmer="1"] .fx-shimmer-cta.fx-cta-3x::after {
         animation-iteration-count: 3;
       }
 
       /* ============================================================
-         If you still want wrappers to shimmer sometimes
-         ============================================================ */
-      .fx-shimmer {
-        position: relative;
-        overflow: hidden;
-        isolation: isolate;
-      }
-
-      .fx-shimmer::after {
-        content: "";
-        position: absolute;
-        top: -35%;
-        left: -70%;
-        width: 70%;
-        height: 170%;
-        background: linear-gradient(
-          110deg,
-          transparent 0%,
-          rgba(255, 255, 255, 0.35) 35%,
-          rgba(255, 255, 255, 0.55) 50%,
-          rgba(255, 255, 255, 0.35) 65%,
-          transparent 100%
-        );
-        mix-blend-mode: overlay;
-        filter: blur(0.4px);
-        animation: fxCtaShimmer 4200ms ease-in-out infinite;
-        animation-fill-mode: both;
-        pointer-events: none;
-        z-index: 2;
-        will-change: transform, opacity;
-      }
-
-      /* ============================================================
-         AMBIENT
+         FX — Ambient (OPTIONNEL)
          ============================================================ */
       ${ambient
         ? `
-        .fx-ambient {
-          position: relative;
-          isolation: isolate;
-          overflow: hidden;
-        }
-        .fx-ambient::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          z-index: -1;
-          background:
-            radial-gradient(circle at 20% 20%, rgba(0,0,0,0.06), transparent 40%),
-            radial-gradient(circle at 80% 10%, rgba(0,0,0,0.05), transparent 45%),
-            radial-gradient(circle at 60% 90%, rgba(0,0,0,0.04), transparent 50%);
-        }
+      [data-fx-enabled="1"] .fx-ambient {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+      }
+      [data-fx-enabled="1"] .fx-ambient::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: -1;
+        background:
+          radial-gradient(circle at 20% 20%, rgba(0,0,0,0.06), transparent 40%),
+          radial-gradient(circle at 80% 10%, rgba(0,0,0,0.05), transparent 45%),
+          radial-gradient(circle at 60% 90%, rgba(0,0,0,0.04), transparent 50%);
+      }
       `
         : ``}
 
       /* ============================================================
-         Reveal one-shot
+         BASE — Reveal one-shot (smooth)
          ============================================================ */
+
       .reveal {
         will-change: opacity, transform;
         transition: opacity 520ms ease, transform 520ms ease;
       }
+
+      /* hidden state (set by JS: dataset.reveal="pending") */
       .reveal[data-reveal="pending"] {
         opacity: 0;
         transform: translateY(14px);
       }
+
+      /* ✅ Boot protection: on refresh mid-scroll, don't hide pending for 1 frame => no jumps */
+      html[data-reveal-skip="1"] .reveal[data-reveal="pending"] {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* visible state => KEEP transition (no snap) */
       .reveal.is-in {
         opacity: 1;
         transform: translateY(0);
+      }
+
+      /* after finish: reduce paint cost */
+      .reveal.reveal-done {
+        will-change: auto;
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -265,10 +287,10 @@ export function FxStyles({
           transform: none !important;
           transition: none !important;
         }
-        .fx-border-scan::before,
-        .fx-shimmer::after,
-        .fx-shimmer-cta::after,
-        .fx-cta::after {
+
+        .fx-border-scan.fx-divider::after,
+        .fx-cta::after,
+        .fx-shimmer-cta::after {
           animation: none !important;
         }
       }

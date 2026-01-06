@@ -1,3 +1,4 @@
+// app/components/template-engine/legacy.tsx
 "use client";
 
 import React from "react";
@@ -37,28 +38,6 @@ function cleanNavLabel(v: any) {
     .replace(/^\s*\+\s*/, "")
     .replace(/\s*\+\s*$/, "")
     .trim();
-}
-
-/**
- * Génère un id DOM unique pour des sections répétées (split, split-2, split-3...)
- * IMPORTANT: nécessite un reset global une fois par page (dans LegacyHeader).
- */
-function useUniqueDomId(sectionId?: string) {
-  return React.useMemo(() => {
-    const raw = String(sectionId ?? "").trim();
-    if (!raw) return "";
-
-    if (typeof window === "undefined") return raw;
-
-    const w = window as any;
-    w.__te_ids = w.__te_ids || new Map<string, number>();
-
-    const m: Map<string, number> = w.__te_ids;
-    const n = (m.get(raw) ?? 0) + 1;
-    m.set(raw, n);
-
-    return n === 1 ? raw : `${raw}-${n}`;
-  }, [sectionId]);
 }
 
 /* ============================================================
@@ -294,7 +273,7 @@ function DesktopOverflowMenu({
   buttonClassName?: string;
   showCaret?: boolean;
   activeHref?: string;
-  navBaseClass?: string; // ✅ pour matcher la typo du header
+  navBaseClass?: string;
   underline?: boolean;
   underlineActive?: boolean;
 }) {
@@ -353,7 +332,6 @@ function DesktopOverflowMenu({
               )
         )}
       >
-        {/* underline EXACT sous le texte */}
         <span className="relative inline-block">
           <span className="whitespace-nowrap">{label}</span>
           {showCaret ? (
@@ -465,11 +443,6 @@ export function LegacyHeader(props: {
 }) {
   const { theme, brand, headerVariant, headerRef, showTeam, contact } = props;
 
-  // ✅ RESET global ids map 1x par page (sinon tu gardes split-999 en hot reload)
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    (window as any).__te_ids = new Map<string, number>();
-  }, []);
   // ============================================================
   // ✅ PORTAL HEADER (anti scroll / anti transform / anti filter)
   // ============================================================
@@ -623,11 +596,12 @@ export function LegacyHeader(props: {
     ? (props as any).sections
     : [];
 
-  // active href handling (Accueil) — ✅ ne pas “remapper” ici
+  // active href handling (Accueil)
   const activeHref = props.activeHref ?? "#top";
 
   // ============================================================
-  // ✅ LINKS (href = DOM id unique)
+  // ✅ LINKS (href = DOM id unique) — IMPORTANT:
+  // Ici on suppose que le moteur a déjà injecté sec.domId
   // ============================================================
 
   const homeLabel = String(props.content?.nav?.homeLabel ?? "Accueil");
@@ -641,27 +615,19 @@ export function LegacyHeader(props: {
       )
     : [];
 
-  const usedIds = new Map<string, number>();
-
   let orderedLinks: { href: string; label: string }[] = enabledSecs
     .map((sec: any) => {
-      const rawId = String(sec?.id ?? "").trim();
-      if (!rawId) return null;
+      const domId = String(sec?.domId ?? sec?.id ?? "").trim();
+      if (!domId) return null;
 
-      // ✅ id unique (split, split-2, split-3…)
-      const n = (usedIds.get(rawId) ?? 0) + 1;
-      usedIds.set(rawId, n);
-      const domId = n === 1 ? rawId : `${rawId}-${n}`;
-
-      let label = resolveSectionNavLabel(sec) || rawId;
+      let label = resolveSectionNavLabel(sec) || domId;
 
       const tt = String(sec.type ?? "").toLowerCase();
-      // ✅ Galerie: on prend le titre de la galerie SEULEMENT si navLabel n'est pas défini
       if (!hasText(sec?.navLabel) && (tt === "galleries" || tt === "gallery")) {
         const gs = Array.isArray(props.content?.galleries)
           ? props.content.galleries
           : [];
-        const gg = gs.find((x: any) => String(x?.id) === rawId);
+        const gg = gs.find((x: any) => String(x?.id) === String(sec?.id));
         if (gg?.title) label = gg.title;
       }
 
@@ -674,8 +640,6 @@ export function LegacyHeader(props: {
   // ✅ HOME link logic
   const firstRealHref = orderedLinks[0]?.href ?? "#top";
 
-  // si la première section est hero, on remplace par #top (Accueil)
-  // sinon on garde la première section ET on ajoute Accueil devant
   if (orderedLinks.length && firstRealHref === "#hero") {
     orderedLinks[0] = { href: "#top", label: homeLabel };
   } else {
@@ -731,7 +695,6 @@ export function LegacyHeader(props: {
     const headerOffset = getHeaderOffsetPx();
     const y = window.scrollY + headerOffset + 8;
 
-    // 🔒 stratégie fiable : dernière section atteinte
     let bestHref: string = "#top";
     let bestTop = -Infinity;
 
@@ -750,7 +713,6 @@ export function LegacyHeader(props: {
       }
     }
 
-    // 🔒 force Contact en bas de page
     const scrollH = Math.max(
       document.documentElement.scrollHeight,
       document.body.scrollHeight
@@ -891,8 +853,10 @@ export function LegacyHeader(props: {
 
   const headerPos = "fixed left-0 right-0 top-0";
   const headerZ = "z-[9999]";
+
+  // ✅ SOURCE DE VÉRITÉ UNIQUE
   const Spacer = (
-    <div aria-hidden="true" style={{ height: "var(--header-h, 0px)" }} />
+    <div aria-hidden="true" style={{ height: "var(--header-offset, 100px)" }} />
   );
 
   const canvasVar = pickCanvasVar(theme, props.canvasVar);
@@ -909,7 +873,7 @@ export function LegacyHeader(props: {
   const headerClassBase = cx(
     headerPos,
     headerZ,
-    "isolate", // ✅ important (stacking context propre)
+    "isolate",
     "border-b transition-[background-color,backdrop-filter] duration-200",
     theme.isDark
       ? "border-white/10 text-white"
@@ -1076,7 +1040,6 @@ export function LegacyHeader(props: {
     </nav>
   );
 
-  // ✅ underline EXACTEMENT sous le texte (et pas full width d’un wrapper)
   const NavC = () => (
     <nav
       className={cx(
@@ -1102,7 +1065,6 @@ export function LegacyHeader(props: {
                 (theme.isDark ? "text-white" : "text-slate-950")
             )}
           >
-            {/* TEXTE = référence de largeur */}
             <span className="relative inline-block">
               {cleanNavLabel(lnk.label)}
               <span
@@ -1138,6 +1100,7 @@ export function LegacyHeader(props: {
     </nav>
   );
 
+  // variant D inchangé
   const RenderD = () => {
     const phone = contact?.phone ?? "";
     const email = contact?.email ?? "";
@@ -1287,7 +1250,7 @@ export function LegacyHeader(props: {
       )}
       style={{ paddingTop: padY, paddingBottom: padY }}
     >
-      <div ref={leftRef} className="justify-self-start min-w-0">
+      <div className="justify-self-start min-w-0">
         {hasBrandLeft ? (
           <a href="#top" className="flex items-center gap-3 min-w-0">
             <div
@@ -1313,7 +1276,6 @@ export function LegacyHeader(props: {
         <div className="relative flex justify-center">
           {nav}
 
-          {/* mesure invisible (labels + overflow) */}
           <div
             ref={measureRef}
             className={cx(
@@ -1333,44 +1295,35 @@ export function LegacyHeader(props: {
         </div>
       </div>
 
-      <div
-        ref={rightRef}
-        className="justify-self-end flex items-center gap-3 min-w-0"
-      >
+      <div className="justify-self-end flex items-center gap-3 min-w-0">
         <SocialRow theme={theme} cfg={socialsCfg} className="hidden lg:flex" />
         {Cta}
       </div>
     </Wrap>
   );
 
-  const RenderA = () => HeaderShell(<GridHeaderRow nav={NavA()} />);
-  const RenderB = () => HeaderShell(<GridHeaderRow nav={NavB()} />);
-  const RenderC = () => HeaderShell(<GridHeaderRow nav={NavC()} />);
+  const HeaderShellA = () => HeaderShell(<GridHeaderRow nav={NavA()} />);
+  const HeaderShellB = () => HeaderShell(<GridHeaderRow nav={NavB()} />);
+  const HeaderShellC = () => HeaderShell(<GridHeaderRow nav={NavC()} />);
 
   if (variant === "D") return RenderD();
-  if (variant === "B") return RenderB();
-  if (variant === "C") return RenderC();
-  return RenderA();
+  if (variant === "B") return HeaderShellB();
+  if (variant === "C") return HeaderShellC();
+  return HeaderShellA();
 }
 
 /* ============================================================
-   BLOC 3 — HERO (A/B)
+   BLOC 3 — HERO
    ============================================================ */
 
-export function LegacyHero({
-  theme,
-  content,
-  layout,
-  globalLayout,
-  sectionId,
-  variant,
-  fx,
-}: any) {
+export function LegacyHero(props: any) {
+  const { theme, content, layout, globalLayout, sectionId, variant, fx } =
+    props;
   const l = resolveLayout(layout, globalLayout);
   const v = String(variant ?? "A");
 
-  // ✅ id DOM unique
-  const domId = useUniqueDomId(sectionId ?? "hero");
+  // ✅ domId déterministe venant du moteur
+  const domId = String(props.domId ?? sectionId ?? "hero");
 
   const kicker = content?.heroKicker ?? "Sous-titre et/ou slogan";
   const title = content?.heroTitle ?? "Titre de la section HERO";
@@ -1557,7 +1510,7 @@ export function LegacyHero({
 }
 
 /* ============================================================
-   BLOC 4 — SPLIT (A/B)
+   BLOC 4 — SPLIT
    ============================================================ */
 
 export function LegacySplit(props: any) {
@@ -1565,8 +1518,7 @@ export function LegacySplit(props: any) {
   const l = resolveLayout(layout, globalLayout);
   const v = String(variant ?? "A");
 
-  // ✅ id DOM unique (split, split-2...)
-  const domId = useUniqueDomId(sectionId ?? "split");
+  const domId = String(props.domId ?? sectionId ?? "split");
 
   const title =
     content?.split?.title ??
@@ -1669,7 +1621,7 @@ export function LegacyServices(props: any) {
   const l = resolveLayout(layout, globalLayout);
   const v = String(variant ?? "A");
 
-  const domId = useUniqueDomId(sectionId ?? "services");
+  const domId = String(props.domId ?? sectionId ?? "services");
 
   const title = content?.servicesTitle ?? "Nos services";
   const text =
@@ -1778,7 +1730,7 @@ export function LegacyTeam(props: any) {
   const l = resolveLayout(layout, globalLayout);
   const v = String(variant ?? "A");
 
-  const domId = useUniqueDomId(sectionId ?? "team");
+  const domId = String(props.domId ?? sectionId ?? "team");
 
   const title = content?.teamTitle ?? "Qui sommes-nous";
   const text = content?.teamText ?? "Une équipe terrain orientée qualité.";
@@ -1855,7 +1807,7 @@ export function LegacyTeam(props: any) {
 }
 
 /* ============================================================
-   BLOC 7 — GALLERIES (NO DUPLICATE IDs)
+   BLOC 7 — GALLERIES (pas d'id DOM ici)
    ============================================================ */
 
 export function LegacyGalleries(props: any) {
@@ -1864,7 +1816,7 @@ export function LegacyGalleries(props: any) {
     content,
     layout,
     globalLayout,
-    sectionId, // ⚠️ utilisé pour choisir la galerie, PAS pour mettre un id DOM ici
+    sectionId, // utilisé pour choisir la galerie
     onOpen,
     enableLightbox,
     variant,
@@ -2034,8 +1986,7 @@ export function LegacyContact(props: any) {
 
   const v = String(variant ?? "A");
 
-  // ✅ id DOM unique
-  const domId = useUniqueDomId(sectionId ?? "contact");
+  const domId = String(props.domId ?? sectionId ?? "contact");
 
   const kicker = content?.contactKicker ?? "Contact";
   const title = content?.contactTitle ?? "Contact";
@@ -2227,18 +2178,13 @@ export function LegacyContact(props: any) {
                 placeholder="Message"
               />
 
-              {/* ✅ GROS CTA: plus lent + 3 passes puis stop (premium) */}
               <button
                 type="button"
                 className={cx(
                   radiusClass(l.radius),
                   "mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
                   theme.accentFrom,
-                  theme.accentTo,
-                  // shimmer opt-in (si data-fx-shimmer="1" est présent plus haut)
-                  "fx-cta fx-cta-lg fx-cta-3x",
-                  // option “ultra luxe” (prêt si tu ajoutes une règle CSS plus tard)
-                  "fx-cta-luxe"
+                  theme.accentTo
                 )}
               >
                 Envoyer
@@ -2271,6 +2217,7 @@ export function LegacyContact(props: any) {
                   {kicker}
                 </div>
               ) : null}
+
               <h2
                 className={cx(
                   "mt-2 text-3xl md:text-4xl font-semibold tracking-tight",
@@ -2279,6 +2226,7 @@ export function LegacyContact(props: any) {
               >
                 {title}
               </h2>
+
               {hasText(text) ? (
                 <p
                   className={cx(
@@ -2308,6 +2256,7 @@ export function LegacyContact(props: any) {
                     {address}
                   </div>
                 ) : null}
+
                 {hasText(phone) ? (
                   <div
                     className={cx(
@@ -2325,6 +2274,7 @@ export function LegacyContact(props: any) {
                     {phone}
                   </div>
                 ) : null}
+
                 {hasText(email) ? (
                   <div
                     className={cx(
@@ -2356,13 +2306,14 @@ export function LegacyContact(props: any) {
               >
                 Demande rapide
               </div>
+
               <div
                 className={cx(
                   "mt-1 text-sm",
                   theme.isDark ? "text-white/70" : "text-slate-600"
                 )}
               >
-                (shimmer ok) Brancher ici ton vrai formulaire plus tard.
+                (Démo) Brancher ici ton vrai formulaire plus tard.
               </div>
 
               <div className="mt-6 space-y-3">
@@ -2376,6 +2327,7 @@ export function LegacyContact(props: any) {
                   )}
                   placeholder="Nom"
                 />
+
                 <input
                   className={cx(
                     radiusClass(l.radius),
@@ -2386,6 +2338,7 @@ export function LegacyContact(props: any) {
                   )}
                   placeholder="E-mail"
                 />
+
                 <textarea
                   rows={4}
                   className={cx(
@@ -2397,11 +2350,12 @@ export function LegacyContact(props: any) {
                   )}
                   placeholder="Message"
                 />
+
                 <button
                   type="button"
                   className={cx(
                     radiusClass(l.radius),
-                    "fx-cta mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+                    "fx-cta fx-cta-lg fx-cta-3x mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
                     theme.accentFrom,
                     theme.accentTo
                   )}

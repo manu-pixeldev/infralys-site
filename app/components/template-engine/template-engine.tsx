@@ -78,6 +78,9 @@ function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
 
   // nav defaults
   next.options.maxDirectLinksInMenu = next.options.maxDirectLinksInMenu ?? 4;
+  next.options.nav = next.options.nav ?? {};
+  next.options.nav.maxDirectLinksInMenu =
+    next.options.nav.maxDirectLinksInMenu ?? next.options.maxDirectLinksInMenu;
 
   next.brand = next.brand ?? {};
   next.brand.logo = next.brand.logo ?? {};
@@ -199,7 +202,6 @@ export default function TemplateEngine({
       4
   );
 
-  // theme depends on canvasStyle + themeVariant
   const theme = React.useMemo(() => {
     const { accent, canvas } = parseThemeVariant(themeVariant);
     return getTheme({ accent, canvas, style: canvasStyle });
@@ -250,13 +252,43 @@ export default function TemplateEngine({
     ? ((liveConfig as any).sections as any)
     : [];
 
+  /**
+   * NOTE:
+   * - Header mesure sa hauteur et set:
+   *   --header-h et --header-offset
+   */
+  const headerRef = React.useRef<HTMLElement>(null);
+
   /* ============================================================
-     REVEAL OBSERVER (compile-safe)
-     ============================================================ */
+   REVEAL OBSERVER (one-shot) — ONLY on scroll DOWN
+   - dataset.reveal is set only by registerReveal
+   ============================================================ */
   const revealRef = React.useRef<IntersectionObserver | null>(null);
 
+  const lastScrollYRef = React.useRef<number>(0);
+  const lastDirRef = React.useRef<1 | -1>(1); // 1 = down, -1 = up
+
   React.useEffect(() => {
-    // cleanup on unmount
+    // init
+    lastScrollYRef.current =
+      typeof window !== "undefined" ? window.scrollY || 0 : 0;
+
+    const onScroll = () => {
+      const y = window.scrollY || 0;
+      const dy = y - lastScrollYRef.current;
+
+      // ignore micro jitter
+      if (Math.abs(dy) >= 2) {
+        lastDirRef.current = dy > 0 ? 1 : -1;
+        lastScrollYRef.current = y;
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  React.useEffect(() => {
     return () => {
       revealRef.current?.disconnect();
       revealRef.current = null;
@@ -267,15 +299,55 @@ export default function TemplateEngine({
     return (node: HTMLElement | null) => {
       if (!node) return;
 
-      node.dataset.reveal = "pending";
+      // set pending only if not already revealed
+      if (!node.classList.contains("is-in")) {
+        node.dataset.reveal = node.dataset.reveal || "pending";
+      }
 
       if (!revealRef.current) {
         revealRef.current = new IntersectionObserver(
           (entries) => {
             for (const e of entries) {
               if (!e.isIntersecting) continue;
+
               const el = e.target as HTMLElement;
+
+              // ✅ only animate when scrolling DOWN
+              if (lastDirRef.current !== 1) {
+                // HARD skip: no transition, no movement, no flicker
+                el.style.transition = "none";
+                el.style.transform = "none";
+                el.style.opacity = "1";
+
+                // mark revealed
+                el.classList.add("is-in");
+                el.classList.add("reveal-done");
+                try {
+                  delete (el as any).dataset?.reveal;
+                } catch {}
+
+                // keep it clean (optional)
+                requestAnimationFrame(() => {
+                  // we can keep transform/opacity inline, but removing is safe once it's revealed
+                  el.style.transition = "";
+                  el.style.transform = "";
+                  el.style.opacity = "";
+                });
+
+                revealRef.current?.unobserve(el);
+                continue;
+              }
+
+              // normal smooth reveal (down only)
               el.classList.add("is-in");
+
+              window.setTimeout(() => {
+                el.classList.add("reveal-done");
+                try {
+                  delete (el as any).dataset?.reveal;
+                } catch {}
+              }, 650);
+
               revealRef.current?.unobserve(el);
             }
           },
@@ -288,19 +360,12 @@ export default function TemplateEngine({
   }, []);
 
   /* ============================================================
-     ACTIVE SECTION HIGHLIGHT (V2030 - stable + deep link safe)
-     - ✅ “Accueil” highlights the HOME section href (#hero usually)
-     - ✅ #top still works as an alias (scroll top), but highlight stays on home
-     - ✅ NO SCROLL when effect re-runs due to Studio edits
+     ACTIVE SECTION HIGHLIGHT (unchanged)
      ============================================================ */
-
   const [activeHref, setActiveHref] = React.useState<string>("#top");
 
-  // ✅ prevents “studio edit => re-run effect => applyHash scroll jump”
   const didInitHashScrollRef = React.useRef(false);
   const lastHashAppliedRef = React.useRef<string>("");
-
-  // ✅ keep timeout ids so we can cancel on cleanup / re-run
   const hashTimeoutsRef = React.useRef<number[]>([]);
 
   const slugify = React.useCallback((s: string) => {
@@ -313,7 +378,7 @@ export default function TemplateEngine({
   }, []);
 
   const enabledSections = React.useMemo(() => {
-    return sections.filter((s) => s && s.enabled !== false);
+    return sections.filter((s) => s && (s as any).enabled !== false);
   }, [sections]);
 
   const realSections = React.useMemo(() => {
@@ -333,17 +398,14 @@ export default function TemplateEngine({
     return observableIds[0] ?? "";
   }, [observableIds]);
 
-  // ✅ HOME ID: treat #hero as "Accueil" when present, else fallback to first real section
   const homeId = React.useMemo(() => {
     return observableIds.includes("hero") ? "hero" : firstRealId;
   }, [observableIds, firstRealId]);
 
-  // ✅ single helper so “Accueil” highlight is consistent everywhere
   const setActiveHome = React.useCallback(() => {
     setActiveHref(homeId ? `#${homeId}` : "#top");
   }, [homeId]);
 
-  // aliases: allow #preuves (title) to resolve to the real id
   const aliasToId = React.useMemo(() => {
     const map = new Map<string, string>();
     for (const s of realSections) {
@@ -353,7 +415,7 @@ export default function TemplateEngine({
       const title = String((s as any).title || "").trim();
       if (title) {
         const key = slugify(title);
-        if (!map.has(key)) map.set(key, id); // ✅ garde le premier
+        if (!map.has(key)) map.set(key, id);
       }
 
       map.set(slugify(id), id);
@@ -366,7 +428,7 @@ export default function TemplateEngine({
       .getPropertyValue("--header-offset")
       .trim();
     const n = Number(String(v).replace("px", "").trim());
-    return Number.isFinite(n) && n > 0 ? n : 84;
+    return Number.isFinite(n) && n > 0 ? n : 120;
   }, []);
 
   const isNearTop = React.useCallback(() => {
@@ -378,15 +440,12 @@ export default function TemplateEngine({
   React.useEffect(() => {
     if (!mounted) return;
 
-    // kill old delayed scrolls (prevents “ghost jump”)
     for (const t of hashTimeoutsRef.current) window.clearTimeout(t);
     hashTimeoutsRef.current = [];
 
     const resolveHashToHref = (rawHash: string): string | null => {
       const raw = String(rawHash || "").trim();
       if (!raw || raw === "#") return null;
-
-      // keep supporting #top as an alias
       if (raw === "#top") return "#top";
 
       const wanted = raw.startsWith("#") ? raw.slice(1) : raw;
@@ -413,12 +472,10 @@ export default function TemplateEngine({
       const resolved = resolveHashToHref(window.location.hash);
       if (!resolved) return;
 
-      // If effect re-runs (studio edit) and hash didn't change, do NOT scroll.
       const currentHash = String(window.location.hash || "");
       const hashChanged = currentHash !== lastHashAppliedRef.current;
 
       if (!forceScroll && !hashChanged && didInitHashScrollRef.current) {
-        // still keep highlight sane (no jump)
         if (resolved === "#top") setActiveHome();
         else {
           const id = resolved.slice(1);
@@ -428,10 +485,8 @@ export default function TemplateEngine({
         return;
       }
 
-      // record
       lastHashAppliedRef.current = currentHash;
 
-      // #top: highlight “Accueil” but optionally scroll to very top
       if (resolved === "#top") {
         setActiveHome();
         if (forceScroll) window.scrollTo({ top: 0, behavior: "auto" });
@@ -445,15 +500,11 @@ export default function TemplateEngine({
 
       if (!forceScroll) return;
 
-      // offset-aware anchor; delayed re-apply after layout settle
       requestAnimationFrame(() => scrollToId(id, "auto"));
       const t = window.setTimeout(() => scrollToId(id, "auto"), 200);
       hashTimeoutsRef.current.push(t);
     };
 
-    // ✅ Mount behavior:
-    // - first time only => scroll to hash if present
-    // - on subsequent effect runs (studio edits) => NO scroll
     if (!didInitHashScrollRef.current) {
       didInitHashScrollRef.current = true;
       applyHash(true);
@@ -464,7 +515,6 @@ export default function TemplateEngine({
     const onHash = () => applyHash(true);
     window.addEventListener("hashchange", onHash);
 
-    // clicking anchors => immediate highlight + alias support
     const onClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
@@ -499,7 +549,6 @@ export default function TemplateEngine({
 
     document.addEventListener("click", onClick, true);
 
-    // near-top highlight => “Accueil” (not a special #top that doesn't exist in menu)
     const onScrollTop = () => {
       if (isNearTop()) setActiveHome();
     };
@@ -548,7 +597,6 @@ export default function TemplateEngine({
       window.removeEventListener("hashchange", onHash);
       document.removeEventListener("click", onClick, true);
       window.removeEventListener("scroll", onScrollTop);
-
       obs?.disconnect();
 
       for (const t of hashTimeoutsRef.current) window.clearTimeout(t);
@@ -565,34 +613,6 @@ export default function TemplateEngine({
     setActiveHome,
   ]);
 
-  // wrapper auto-hooks for FX classes
-  // IMPORTANT: shimmer is NOT applied here anymore (opt-in on buttons via .fx-cta)
-  const wrap = React.useCallback(
-    (s: Section, node: React.ReactNode, key: React.Key, variant: string) => {
-      const t = String((s as any).type || "");
-      if (t === "header" || t === "top") {
-        return <React.Fragment key={key}>{node}</React.Fragment>;
-      }
-
-      return (
-        <div
-          key={key}
-          ref={registerReveal(String((s as any).id ?? ""))}
-          className={cx(
-            "reveal",
-            fx.enabled && fx.softGlow && "fx-softglow",
-            fx.enabled && fx.borderScan && "fx-border-scan"
-          )}
-          style={{ scrollMarginTop: "var(--header-offset, 84px)" }}
-          data-variant={variant}
-        >
-          {node}
-        </div>
-      );
-    },
-    [fx.enabled, fx.softGlow, fx.borderScan, registerReveal]
-  );
-
   // Lightbox minimal
   const [lightboxImg, setLightboxImg] = React.useState<any>(null);
   const closeLightbox = React.useCallback(() => setLightboxImg(null), []);
@@ -603,26 +623,22 @@ export default function TemplateEngine({
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxImg, closeLightbox]);
 
-  const headerRef = React.useRef<HTMLElement>(null);
-
-  // ✅ Step 1 — ensure canvas CSS vars are globally available (header / menus / portals)
+  // ensure canvas vars globally available
   React.useEffect(() => {
     if (typeof document === "undefined") return;
 
     const style = theme.canvasVar as any;
     if (!style) return;
 
-    // apply vars to <html> so sticky header + dropdowns always inherit
     const root = document.documentElement;
-
     const keys = Object.keys(style);
+
     for (const k of keys) {
       if (!k.startsWith("--")) continue;
       root.style.setProperty(k, String(style[k]));
     }
 
     return () => {
-      // cleanup only what we set
       for (const k of keys) {
         if (!k.startsWith("--")) continue;
         root.style.removeProperty(k);
@@ -630,22 +646,28 @@ export default function TemplateEngine({
     };
   }, [theme.canvasVar]);
 
-  // ✅ DOM ids uniqueness map (reset each render)
+  // DOM ids uniqueness map (reset each render)
   const usedDomIdsRef = React.useRef<Map<string, number>>(new Map());
   usedDomIdsRef.current.clear();
 
   return (
     <div
-      data-fx-shimmer={fx.enabled && fx.shimmerCta ? "1" : "0"}
+      data-ui={theme.isDark ? "dark" : "light"}
+      data-fx-enabled={fxEnabled ? "1" : "0"}
+      data-fx-shimmer={fxShimmer ? "1" : "0"}
       className={cx(
         "min-h-screen",
         theme.bgPage,
         theme.text,
-        fx.enabled && fx.ambient && "fx-ambient"
+        fxEnabled && fx.ambient && "fx-ambient"
       )}
       style={{ ...(theme.canvasVar ?? {}) }}
     >
-      <FxStyles enabled={!!fx.enabled} ambient={!!fx.ambient} />
+      <FxStyles
+        enabled={fxEnabled}
+        ambient={!!fx.ambient}
+        shimmer={fxShimmer}
+      />
 
       {sections.map((s, idx) => {
         if (!s || (s as any).enabled === false) return null;
@@ -655,8 +677,6 @@ export default function TemplateEngine({
         const Comp = (VARIANTS as any)?.[type]?.[variant] as any;
         if (!Comp) return null;
 
-        // ✅ DOM id unique (split, split-2, split-3…)
-        // fallback si s.id vide/undefined
         const rawId =
           String((s as any).id ?? "").trim() || `${type}-${idx + 1}`;
 
@@ -664,14 +684,15 @@ export default function TemplateEngine({
         const n = (usedDomIds.get(rawId) ?? 0) + 1;
         usedDomIds.set(rawId, n);
 
+        // DOM id uniqueness (split, split-2, split-3…)
         const domId = n === 1 ? rawId : `${rawId}-${n}`;
         const key = `${domId}:${variant}`;
 
-        const node = (
-          <section id={domId} className="w-full">
+        const baseNode = (
+          <section id={domId} className="w-full" data-variant={variant}>
             <Comp
               {...(s as any)}
-              sectionId={domId} // ✅ IMPORTANT: id DOM réel
+              sectionId={domId}
               theme={theme}
               brand={(liveConfig as any).brand}
               content={(liveConfig as any).content}
@@ -699,20 +720,42 @@ export default function TemplateEngine({
           </section>
         );
 
-        // ✅ reveal doit suivre le domId (pas s.id)
+        // TOP: no wrapper FX/reveal
+        if (type === "top") {
+          return <React.Fragment key={key}>{baseNode}</React.Fragment>;
+        }
+
+        // HEADER: no wrapper FX/reveal + spacer
+        if (type === "header") {
+          return (
+            <React.Fragment key={key}>
+              {baseNode}
+              <div
+                aria-hidden="true"
+                style={{ height: "var(--header-h, 120px)" }}
+              />
+            </React.Fragment>
+          );
+        }
+
+        // ✅ Stable: fx-divider on OUTER, reveal on INNER
+        // (prevents pseudo-elements “double line” flicker during transform)
         return (
           <div
             key={key}
-            ref={registerReveal(domId)}
             className={cx(
-              "reveal",
-              fx.enabled && fx.softGlow && "fx-softglow",
-              fx.enabled && fx.borderScan && "fx-border-scan"
+              "fx-divider",
+              fxEnabled && fx.softGlow && "fx-softglow",
+              fxEnabled && fx.borderScan && "fx-border-scan"
             )}
-            style={{ scrollMarginTop: "var(--header-offset, 84px)" }}
             data-variant={variant}
+            style={{
+              scrollMarginTop: "calc(var(--header-offset, 120px) + 16px)",
+            }}
           >
-            {node}
+            <div ref={registerReveal(domId)} className="reveal">
+              {baseNode}
+            </div>
           </div>
         );
       })}

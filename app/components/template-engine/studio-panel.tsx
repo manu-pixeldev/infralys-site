@@ -1183,10 +1183,22 @@ export function StudioPanel({
   // ---------------------------
   // panel layout
   // ---------------------------
+  // panel layout — aligned to header height (no magic top)
   const panelPos =
     dock === "left"
-      ? "fixed left-4 top-4 z-[9999] w-[380px] max-w-[92vw]"
-      : "fixed right-4 top-4 z-[9999] w-[380px] max-w-[92vw]";
+      ? "fixed left-4 z-[99999] w-[380px] max-w-[92vw]"
+      : "fixed right-4 z-[99999] w-[380px] max-w-[92vw]";
+
+  // top offset driven by header height (+ safe gap)
+  const panelTopStyle: React.CSSProperties = {
+    top: "calc(var(--header-h, 84px) + env(safe-area-inset-top, 0px) + 12px)",
+  };
+
+  // height driven by viewport minus header height minus margins
+  const panelHeightStyle: React.CSSProperties = {
+    maxHeight:
+      "calc(100dvh - var(--header-h, 84px) - env(safe-area-inset-top, 0px) - 24px)",
+  };
 
   const shell =
     "rounded-3xl border border-slate-200 bg-white/92 backdrop-blur shadow-[0_20px_60px_rgba(0,0,0,0.10)] overflow-hidden";
@@ -1225,7 +1237,7 @@ export function StudioPanel({
 
   if (minimized) {
     return (
-      <div className={panelPos}>
+      <div className={panelPos} style={panelTopStyle}>
         <div className={cx(shell, "p-3")}>
           <button
             type="button"
@@ -1240,7 +1252,7 @@ export function StudioPanel({
   }
 
   return (
-    <div className={panelPos}>
+    <div className={panelPos} style={panelTopStyle}>
       <div
         ref={shellRef}
         className={shell}
@@ -1328,7 +1340,10 @@ export function StudioPanel({
           </div>
         </div>
 
-        <div className="max-h-[calc(100vh-2rem-64px)] overflow-y-auto px-5 pb-5 pt-4 space-y-4">
+        <div
+          className="overflow-y-auto px-5 pb-5 pt-4 space-y-4"
+          style={panelHeightStyle}
+        >
           {/* TOOLS */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">
