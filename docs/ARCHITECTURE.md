@@ -232,3 +232,9 @@ StudioPanel = contrôle, jamais logique de rendu
 ajout de thèmes / variants
 
 transformation en SaaS multi-clients sans refonte
+
+## Template Engine: responsabilités
+
+- `app/layout.tsx` = server layout (metadata OK, pas de "use client", pas de data attrs dynamiques).
+- `template-engine.tsx` = orchestration (sections, header spacer, reveal, studio panel portal, lightbox).
+- `fx-styles.tsx` = CSS global (divider/reveal/FX). Aucun état React ici, juste styles.

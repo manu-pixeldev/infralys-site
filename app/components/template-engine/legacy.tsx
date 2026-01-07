@@ -4,7 +4,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import NextImage from "next/image";
-import { resolveSectionNavLabel } from "../../template-base/template.config";
 import type { ThemeLike } from "./theme";
 import {
   cx,
@@ -38,6 +37,18 @@ function cleanNavLabel(v: any) {
     .replace(/^\s*\+\s*/, "")
     .replace(/\s*\+\s*$/, "")
     .trim();
+}
+function resolveNavLabelLocal(sec: any) {
+  // priorité: navLabel -> title -> label -> id -> type
+  const raw =
+    sec?.navLabel ??
+    sec?.title ??
+    sec?.label ??
+    sec?.id ??
+    sec?.type ??
+    "Section";
+
+  return cleanNavLabel(raw);
 }
 
 /* ============================================================
@@ -611,7 +622,8 @@ export function LegacyHeader(props: {
         (sec: any) =>
           sec?.enabled !== false &&
           sec?.type !== "header" &&
-          sec?.type !== "top"
+          sec?.type !== "top" &&
+          sec?.type !== "hero" // ✅ hero ne doit pas être un item de menu
       )
     : [];
 
@@ -620,7 +632,7 @@ export function LegacyHeader(props: {
       const domId = String(sec?.domId ?? sec?.id ?? "").trim();
       if (!domId) return null;
 
-      let label = resolveSectionNavLabel(sec) || domId;
+      let label = resolveNavLabelLocal(sec) || domId;
 
       const tt = String(sec.type ?? "").toLowerCase();
       if (!hasText(sec?.navLabel) && (tt === "galleries" || tt === "gallery")) {
@@ -1344,10 +1356,10 @@ export function LegacyHero(props: any) {
       href="#contact"
       className={cx(
         radiusClass(l.radius),
+        "fx-cta", // ✅ toujours présent
         "px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
         theme.accentFrom,
-        theme.accentTo,
-        shimmerOnPrimary && "fx-cta"
+        theme.accentTo
       )}
     >
       {cta1}
@@ -1985,7 +1997,6 @@ export function LegacyContact(props: any) {
   const l = resolveLayout(layout, globalLayout);
 
   const v = String(variant ?? "A");
-
   const domId = String(props.domId ?? sectionId ?? "contact");
 
   const kicker = content?.contactKicker ?? "Contact";
@@ -2028,6 +2039,29 @@ export function LegacyContact(props: any) {
       ))}
     </div>
   ) : null;
+
+  const InputBase = cx(
+    radiusClass(l.radius),
+    "w-full border px-4 py-3 text-sm outline-none"
+  );
+
+  const inputTheme = theme.isDark
+    ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
+    : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300";
+
+  const SubmitBtn = (
+    <button
+      type="button"
+      className={cx(
+        radiusClass(l.radius),
+        "fx-cta mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+        theme.accentFrom,
+        theme.accentTo
+      )}
+    >
+      Envoyer
+    </button>
+  );
 
   const RenderA = () => (
     <section id={domId} className={cx(sectionPadY(l.density))}>
@@ -2083,6 +2117,7 @@ export function LegacyContact(props: any) {
                   {address}
                 </div>
               ) : null}
+
               {hasText(phone) ? (
                 <div
                   className={cx(
@@ -2100,6 +2135,7 @@ export function LegacyContact(props: any) {
                   {phone}
                 </div>
               ) : null}
+
               {hasText(email) ? (
                 <div
                   className={cx(
@@ -2147,48 +2183,24 @@ export function LegacyContact(props: any) {
 
             <div className="mt-6 space-y-3">
               <input
-                className={cx(
-                  radiusClass(l.radius),
-                  "w-full border px-4 py-3 text-sm outline-none",
-                  theme.isDark
-                    ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
-                    : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
-                )}
+                className={cx(InputBase, inputTheme)}
                 placeholder="Nom"
+                autoComplete="name"
+                aria-label="Nom"
               />
               <input
-                className={cx(
-                  radiusClass(l.radius),
-                  "w-full border px-4 py-3 text-sm outline-none",
-                  theme.isDark
-                    ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
-                    : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
-                )}
+                className={cx(InputBase, inputTheme)}
                 placeholder="E-mail"
+                autoComplete="email"
+                aria-label="E-mail"
               />
               <textarea
                 rows={4}
-                className={cx(
-                  radiusClass(l.radius),
-                  "w-full border px-4 py-3 text-sm outline-none",
-                  theme.isDark
-                    ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
-                    : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
-                )}
+                className={cx(InputBase, inputTheme)}
                 placeholder="Message"
+                aria-label="Message"
               />
-
-              <button
-                type="button"
-                className={cx(
-                  radiusClass(l.radius),
-                  "mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
-                  theme.accentFrom,
-                  theme.accentTo
-                )}
-              >
-                Envoyer
-              </button>
+              {SubmitBtn}
             </div>
           </Surface>
         </div>
@@ -2306,7 +2318,6 @@ export function LegacyContact(props: any) {
               >
                 Demande rapide
               </div>
-
               <div
                 className={cx(
                   "mt-1 text-sm",
@@ -2318,39 +2329,24 @@ export function LegacyContact(props: any) {
 
               <div className="mt-6 space-y-3">
                 <input
-                  className={cx(
-                    radiusClass(l.radius),
-                    "w-full border px-4 py-3 text-sm outline-none",
-                    theme.isDark
-                      ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
-                      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
-                  )}
+                  className={cx(InputBase, inputTheme)}
                   placeholder="Nom"
+                  autoComplete="name"
+                  aria-label="Nom"
                 />
-
                 <input
-                  className={cx(
-                    radiusClass(l.radius),
-                    "w-full border px-4 py-3 text-sm outline-none",
-                    theme.isDark
-                      ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
-                      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
-                  )}
+                  className={cx(InputBase, inputTheme)}
                   placeholder="E-mail"
+                  autoComplete="email"
+                  aria-label="E-mail"
                 />
-
                 <textarea
                   rows={4}
-                  className={cx(
-                    radiusClass(l.radius),
-                    "w-full border px-4 py-3 text-sm outline-none",
-                    theme.isDark
-                      ? "border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-white/20"
-                      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
-                  )}
+                  className={cx(InputBase, inputTheme)}
                   placeholder="Message"
+                  aria-label="Message"
                 />
-
+                {/* bouton “grand” (classes optionnelles si tu veux les cibler en CSS) */}
                 <button
                   type="button"
                   className={cx(

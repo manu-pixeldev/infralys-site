@@ -1,78 +1,16 @@
 /* ============================================================
-   TEMPLATE CONFIG — V2040 (STABLE) + SPLIT + CTA + LOGO MODE
-   + GLOBAL LAYOUT (container/density/radius) ✅
-   + PROOF (stats) ✅
-   + THEME VARIANT "accent|canvas" ✅
+   TEMPLATE CONFIG — V2040 (STABLE)
+   - Ce fichier NE redéfinit PAS les types engine.
+   - Source of truth des types: app/components/template-engine/types.ts
    ============================================================ */
 
+import type { TemplateConfigInput } from "../components/template-engine/types";
+
 /* =======================
-   BLOC A — VARIANTS TYPES
+   DOMAIN TYPES (OK ICI)
    ======================= */
 
 export type GalleryStyle = "gridCards" | "masonry" | "carousel" | "split";
-export type HeroVariant = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H";
-export type HeaderVariant =
-  | "A"
-  | "B"
-  | "C"
-  | "D"
-  | "E"
-  | "F"
-  | "G"
-  | "H"
-  | "I"
-  | "J"
-  | "K"
-  | "PRO";
-
-export type ContactVariant = "AUTO" | "A" | "B" | "C" | "D" | "E";
-export type ServicesVariant = "A" | "B" | "C" | "D" | "E";
-export type TeamVariant = "A" | "B" | "C";
-
-export type GalleryLayout =
-  | "stack"
-  | "twoCol"
-  | "threeCol"
-  | "proStack"
-  | "proTwoCol"
-  | "proThreeCol";
-
-export type SplitVariant = "A" | "B";
-
-/** ✅ PROOF */
-export type ProofVariant = "stats";
-
-/* =======================
-   BLOC B — THEME (accent|canvas)
-   ======================= */
-
-/** ✅ Theme: SOURCE OF TRUTH = "accent|canvas" (mais accepte aussi "accent" legacy) */
-export type ThemeAccent =
-  | "blueRed"
-  | "purplePink"
-  | "emeraldTeal"
-  | "amberOrange"
-  | "slateIndigo"
-  | "monoDark"
-  | "warm"
-  | "cool"
-  | "forest"
-  | "sunset";
-
-export type ThemeCanvas =
-  | "classic"
-  | "warm"
-  | "cool"
-  | "forest"
-  | "sunset"
-  | "charcoal";
-
-/** ✅ "amberOrange|classic" etc. + compat "amberOrange" */
-export type ThemeVariant = `${ThemeAccent}|${ThemeCanvas}` | ThemeAccent;
-
-/* =======================
-   BLOC C — SOCIALS / BRAND
-   ======================= */
 
 export type SocialKind =
   | "website"
@@ -82,12 +20,7 @@ export type SocialKind =
   | "linkedin"
   | "youtube";
 
-/** ✅ MANUEL : modes d'affichage du bloc "brand" */
 export type LogoMode = "logoOnly" | "logoPlusText" | "textOnly";
-
-/* =======================
-   BLOC D — CONTENT STRUCTURES
-   ======================= */
 
 export type GalleryImage = {
   src: string;
@@ -96,7 +29,7 @@ export type GalleryImage = {
 };
 
 export type Gallery = {
-  id: string; // ✅ anchor id (ex: "realisations")
+  id: string;
   title: string;
   description?: string;
   style: GalleryStyle;
@@ -128,7 +61,6 @@ export type Content = {
   servicesText: string;
   services: { title: string; items: string[] }[];
 
-  /** ✅ PROOF (une seule fois) */
   proofTitle?: string;
   proofItems?: { label: string; value: string }[];
 
@@ -142,7 +74,6 @@ export type Content = {
 
   galleries: Gallery[];
 
-  /** ✅ socials (ancien format record) */
   socials: Record<SocialKind, string | null>;
 
   cta?: {
@@ -161,7 +92,7 @@ export type Content = {
     ctaHref?: string;
   };
 
-  // legacy mirror (facultatif)
+  // legacy mirror (compat)
   splitTitle?: string;
   splitText?: string;
   splitImage?: string;
@@ -171,71 +102,7 @@ export type Content = {
 };
 
 /* =======================
-   BLOC E — OPTIONS (legacy defaults)
-   ======================= */
-
-export type Options = {
-  enableLightbox: boolean;
-
-  heroVariant: HeroVariant;
-  headerVariant: HeaderVariant;
-  contactVariant: ContactVariant;
-
-  servicesVariant: ServicesVariant;
-  teamVariant: TeamVariant;
-
-  galleryLayout: GalleryLayout;
-
-  showHeroBadges: boolean;
-  showTeamSection: boolean;
-
-  maxDirectLinksInMenu: number;
-
-  fx: {
-    enabled: boolean;
-    softGlow: boolean;
-    borderScan: boolean;
-    ambient: boolean;
-  };
-
-  demoPanel: {
-    enabled: boolean;
-    allowRandomize: boolean;
-  };
-};
-
-export const DEFAULT_OPTIONS: Options = {
-  enableLightbox: true,
-
-  heroVariant: "B",
-  headerVariant: "D",
-  contactVariant: "AUTO",
-
-  servicesVariant: "C",
-  teamVariant: "A",
-
-  galleryLayout: "twoCol",
-
-  showHeroBadges: false,
-  showTeamSection: true,
-
-  maxDirectLinksInMenu: 4,
-
-  fx: {
-    enabled: true,
-    softGlow: true,
-    borderScan: true,
-    ambient: true,
-  },
-
-  demoPanel: {
-    enabled: true,
-    allowRandomize: true,
-  },
-};
-
-/* =======================
-   BLOC F — DEFAULT BRAND / CONTENT
+   DEFAULTS (brand/content)
    ======================= */
 
 export const DEFAULT_BRAND: Brand = {
@@ -283,6 +150,13 @@ export const DEFAULT_CONTENT: Content = {
         "Approche durable",
       ],
     },
+  ],
+
+  proofTitle: "Preuves",
+  proofItems: [
+    { label: "Interventions", value: "250+" },
+    { label: "Clients satisfaits", value: "4.9/5" },
+    { label: "Délai moyen", value: "< 24h" },
   ],
 
   teamTitle: "Qui sommes-nous",
@@ -335,14 +209,6 @@ export const DEFAULT_CONTENT: Content = {
     heroSecondary: "Voir nos services",
   },
 
-  /** ✅ PROOF */
-  proofTitle: "Preuves",
-  proofItems: [
-    { label: "Interventions", value: "250+" },
-    { label: "Clients satisfaits", value: "4.9/5" },
-    { label: "Délai moyen", value: "< 24h" },
-  ],
-
   split: {
     title: "Une approche simple, pro, efficace.",
     text: "Diagnostic clair, intervention propre, et un résultat durable — avec des explications compréhensibles.",
@@ -353,7 +219,7 @@ export const DEFAULT_CONTENT: Content = {
     ctaHref: "#contact",
   },
 
-  // legacy mirror (ok)
+  // legacy mirror (compat)
   splitTitle: "Une approche simple, pro, efficace.",
   splitText:
     "Diagnostic clair, intervention propre, et un résultat durable — avec des explications compréhensibles.",
@@ -363,140 +229,42 @@ export const DEFAULT_CONTENT: Content = {
   splitCtaHref: "#contact",
 };
 
-/* =======================
-   BLOC G — ENGINE TYPES
-   ======================= */
+/* =========================
+   TEMPLATE CONFIG (ENGINE)
+   ========================= */
 
-export type Density = "compact" | "normal" | "spacious";
-export type Radius = 16 | 24 | 32;
-export type Container = "5xl" | "6xl" | "7xl" | "full";
-
-export type LayoutTokens = {
-  density?: Density;
-  radius?: Radius;
-  paddingY?: number;
-  container?: Container;
-  gap?: number;
-  gridCols?: 1 | 2 | 3 | 4;
-};
-
-// ✅ NEW: top anchor section type
-export type SectionType =
-  | "top"
-  | "header"
-  | "hero"
-  | "proof"
-  | "split"
-  | "services"
-  | "team"
-  | "gallery"
-  | "contact"
-  | "text"
-  | "pricing"
-  | "faq"
-  | "links";
-
-export type SectionVariantByType = {
-  top: "A";
-
-  header: HeaderVariant;
-  hero: HeroVariant;
-  proof: ProofVariant;
-  split: SplitVariant;
-  services: ServicesVariant;
-  team: TeamVariant;
-  gallery: GalleryLayout;
-  contact: ContactVariant;
-
-  text: string;
-  pricing: string;
-  faq: string;
-  links: string;
-};
-
-export type Section<T extends SectionType = SectionType> = {
-  id: string;
-  type: T;
-
-  /** H2 dans la section (business) */
-  title?: string;
-
-  /** Label affiché dans le menu (business) */
-  navLabel?: string;
-
-  variant: SectionVariantByType[T];
-  enabled?: boolean;
-  lock?: boolean;
-  layout?: LayoutTokens;
-};
-
-/** INPUT LOOSE (studio/patch) */
-export type SectionInput = {
-  id: string;
-  type: SectionType;
-
-  /** H2 dans la section (business) */
-  title?: string;
-
-  /** Label affiché dans le menu (business) */
-  navLabel?: string;
-
-  variant?: SectionVariantByType[SectionType] | string;
-  enabled?: boolean;
-  lock?: boolean;
-  layout?: LayoutTokens;
-  [k: string]: unknown;
-};
-
-export type EngineOptions = {
-  themeVariant: ThemeVariant;
-  enableLightbox?: boolean;
-  layout?: LayoutTokens;
-
-  fx: Options["fx"] & { shimmerCta?: boolean };
-  studio: { enabled: boolean; allowRandomize: boolean };
-  maxDirectLinksInMenu: number;
-};
-
-export type TemplateConfig = {
-  brand: Brand;
-  content: Content;
-  options: EngineOptions;
-  sections: Section[];
-};
-
-export type TemplateConfigInput = {
-  brand?: Partial<Brand>;
-  content?: Partial<Content>;
-
-  options?: Partial<EngineOptions> & {
-    fx?: Partial<EngineOptions["fx"]>;
-    studio?: Partial<EngineOptions["studio"]>;
-  };
-
-  sections?: SectionInput[];
-  [k: string]: unknown;
-};
-
-export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
+export const templateConfig = {
   brand: DEFAULT_BRAND,
   content: DEFAULT_CONTENT,
 
   options: {
     themeVariant: "amberOrange|classic",
-    maxDirectLinksInMenu: DEFAULT_OPTIONS.maxDirectLinksInMenu,
-    enableLightbox: DEFAULT_OPTIONS.enableLightbox,
+    canvasStyle: "classic",
 
     layout: {
       container: "7xl",
-      density: "normal",
+      density: "normal", // si ton type n'accepte pas: essaie "comfortable" ou "compact"
       radius: 24,
     },
 
-    fx: { ...DEFAULT_OPTIONS.fx, shimmerCta: false },
+    // menu
+    maxDirectLinksInMenu: 4,
+    nav: {
+      maxDirectLinksInMenu: 4,
+    },
+
+    // FX / Studio (noms attendus côté engine v24)
+    fx: {
+      enabled: true,
+      ambient: true,
+      softGlow: true,
+      borderScan: true,
+      shimmerCta: false,
+    },
     studio: {
-      enabled: DEFAULT_OPTIONS.demoPanel.enabled,
-      allowRandomize: DEFAULT_OPTIONS.demoPanel.allowRandomize,
+      enabled: true,
+      allowRandomize: true,
+      ui: { dock: "right", minimized: false },
     },
   },
 
@@ -505,7 +273,7 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
       id: "header",
       type: "header",
       title: "Header",
-      variant: "D",
+      variant: "A",
       enabled: true,
       lock: true,
     },
@@ -513,7 +281,7 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
       id: "hero",
       type: "hero",
       title: "Accueil",
-      variant: "B",
+      variant: "A",
       enabled: true,
       lock: true,
     },
@@ -529,14 +297,14 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
       id: "proof",
       type: "proof",
       title: "Preuves",
-      variant: "stats",
+      variant: "A",
       enabled: true,
     },
     {
       id: "split-2",
       type: "split",
       title: "Méthode",
-      variant: "B",
+      variant: "A",
       enabled: true,
     },
 
@@ -544,17 +312,20 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
       id: "services",
       type: "services",
       title: "Services",
-      variant: "C",
+      variant: "A",
       enabled: true,
     },
     { id: "team", type: "team", title: "Équipe", variant: "A", enabled: true },
+
+    // IMPORTANT: id = "realisations" => utilisé par gallery + nav anchor
     {
       id: "realisations",
       type: "gallery",
       title: "Réalisations",
-      variant: "twoCol",
+      variant: "A",
       enabled: true,
     },
+
     {
       id: "contact",
       type: "contact",
@@ -563,57 +334,5 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
       enabled: true,
       lock: true,
     },
-  ],
-};
-
-/* =======================
-   BLOC H — HELPERS
-   ======================= */
-
-export function captionOk(v?: string) {
-  return !!(v && v.trim().length > 0);
-}
-
-export function hasText(v: string | null | undefined) {
-  return !!(v && v.trim().length > 0);
-}
-
-/** Résout le titre H2 de section (fallback safe) */
-export function resolveSectionTitle(
-  s: Pick<SectionInput, "title" | "navLabel"> | null | undefined
-) {
-  const t = (s?.title ?? "").trim();
-  if (t) return t;
-
-  // fallback : si quelqu’un a mis navLabel mais pas title
-  const n = (s?.navLabel ?? "").trim();
-  if (n) return n;
-
-  return "";
-}
-
-/** Résout le label menu (header) (fallback safe) */
-export function resolveSectionNavLabel(
-  s: Pick<SectionInput, "title" | "navLabel"> | null | undefined
-) {
-  const n = (s?.navLabel ?? "").trim();
-  if (n) return n;
-
-  const t = (s?.title ?? "").trim();
-  if (t) return t;
-
-  return "";
-}
-
-export function resolveContactVariant(
-  hero: HeroVariant
-): Exclude<ContactVariant, "AUTO"> {
-  const dark =
-    hero === "A" ||
-    hero === "B" ||
-    hero === "D" ||
-    hero === "E" ||
-    hero === "G" ||
-    hero === "H";
-  return dark ? "B" : "A";
-}
+  ] as const,
+} satisfies TemplateConfigInput;

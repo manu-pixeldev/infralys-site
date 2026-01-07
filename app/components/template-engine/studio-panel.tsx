@@ -4,6 +4,7 @@
 import React from "react";
 import type { TemplateConfigInput } from "./types";
 import type { ThemeLike } from "./theme";
+import { deepClone } from "./core/deep-clone";
 
 import {
   DndContext,
@@ -57,7 +58,7 @@ const CANVAS = [
   "frost",
   "sand",
 
-  // ✅ LIGHT SIGNATURE (V14)
+  // ✅ LIGHT SIGNATURE
   "porcelain",
   "cloud",
   "latte",
@@ -113,9 +114,16 @@ function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ");
 }
 
+/**
+ * ✅ Safe clone for config (data-only)
+ * - structuredClone (fast, safe) when available
+ * - JSON fallback
+ *
+ * This avoids deep recursion stack overflows.
+ */
 function clone<T>(v: T): T {
-  if (typeof (globalThis as any).structuredClone === "function")
-    return (globalThis as any).structuredClone(v);
+  // @ts-ignore
+  if (typeof structuredClone === "function") return structuredClone(v);
   return JSON.parse(JSON.stringify(v));
 }
 
@@ -166,7 +174,6 @@ function isTypingTarget(el: any) {
 function normalizeDigitString(v: string) {
   const raw = String(v ?? "").replace(/[^\d]/g, "");
   if (!raw) return "";
-  // keep single "0", but remove leading zeros otherwise
   return raw.replace(/^0+(?=\d)/, "");
 }
 
@@ -383,6 +390,31 @@ function allSocialKinds(): SocialKind[] {
   return Object.keys(SOCIAL_DEFS) as SocialKind[];
 }
 
+/**
+ * ✅ Normalise socials config:
+ * - old: content.socials = { website: "...", facebook: null, ... }
+ * - new: content.socials = { links: {...}, enabled: {...}, order: [...] }
+ */
+function normalizeSocialsCfg(input: any): {
+  links: Record<string, any>;
+  enabled: Record<string, any>;
+  order: any[];
+} {
+  const raw = input ?? {};
+  if (raw && typeof raw === "object" && raw.links) {
+    return {
+      links: raw.links ?? {},
+      enabled: raw.enabled ?? {},
+      order: Array.isArray(raw.order) ? raw.order : [],
+    };
+  }
+  // old shape
+  return {
+    links: raw ?? {},
+    enabled: {},
+    order: [],
+  };
+}
 /* ------------------------ sections card ------------------------ */
 
 function SectionCard({
@@ -576,7 +608,7 @@ function SectionCard({
 export function StudioPanel({
   config,
   setConfig,
-  theme,
+  theme: _theme, // (optionnel) évite warning “unused”
 }: {
   config: TemplateConfigInput;
   setConfig: React.Dispatch<React.SetStateAction<TemplateConfigInput>>;
@@ -599,8 +631,17 @@ export function StudioPanel({
     (((config as any)?.options?.autoAccentMode ?? "off") as AutoAccentMode) ||
     "off";
 
-  const update = (fn: (draft: any) => any) =>
-    setConfig((prev) => fn(clone(prev)));
+  // ✅ helper update (no "..." placeholder, no implicit any)
+  const update = React.useCallback(
+    (fn: (draft: TemplateConfigInput) => void) => {
+      setConfig((prev: TemplateConfigInput) => {
+        const next = deepClone(prev);
+        fn(next);
+        return next;
+      });
+    },
+    [setConfig]
+  );
 
   const setStudioUi = (
     patch: Partial<{ dock: DockSide; minimized: boolean }>
@@ -668,7 +709,6 @@ export function StudioPanel({
   // refs for keyboard focus-aware theme controls
   const accentSelectRef = React.useRef<HTMLSelectElement>(null);
   const canvasSelectRef = React.useRef<HTMLSelectElement>(null);
-  const shellRef = React.useRef<HTMLDivElement>(null);
 
   const [activeScope, setActiveScope] = React.useState<
     null | "accent" | "canvas"
@@ -683,6 +723,7 @@ export function StudioPanel({
     mode: AutoAccentMode;
     applied: string;
   } | null>(null);
+
   const logoSrc = String((config as any)?.brand?.logo?.src ?? "");
   React.useEffect(() => {
     if (autoAccentMode === "off") return;
@@ -690,6 +731,7 @@ export function StudioPanel({
 
     const key = { src: logoSrc, mode: autoAccentMode };
     const last = lastAutoRef.current;
+
     if (
       last &&
       last.src === key.src &&
@@ -760,10 +802,9 @@ export function StudioPanel({
       d.content = d.content ?? {};
       d.content.nav = d.content.nav ?? {};
 
-      // ✅ source propre (future)
       d.options.nav.maxDirectLinksInMenu = v;
 
-      // ✅ compat legacy / fallbacks existants
+      // compat / fallbacks
       d.options.maxDirectLinksInMenu = v;
       d.options.maxDirectLinks = v;
       d.content.nav.maxDirectLinksInMenu = v;
@@ -772,7 +813,6 @@ export function StudioPanel({
       return d;
     });
 
-  // ✅ Draft string (allow empty while typing + strip leading zeros)
   const [maxDirectDraft, setMaxDirectDraft] = React.useState<string>(
     String(maxDirect)
   );
@@ -875,19 +915,21 @@ export function StudioPanel({
     });
 
   // ---------------------------
-  // SOCIALS
+  // ✅ SOCIALS (normalized)
   // ---------------------------
   const socialKinds = allSocialKinds();
-  const socialsCfg = ((config as any)?.content?.socials ?? {}) as any;
+
+  const socialsCfg = normalizeSocialsCfg((config as any)?.content?.socials);
 
   const ensureSocialsRoot = (d: any) => {
     d.content = d.content ?? {};
+    const current = normalizeSocialsCfg(d.content.socials);
+
     d.content.socials = d.content.socials ?? {};
-    d.content.socials.links = d.content.socials.links ?? {};
-    d.content.socials.enabled = d.content.socials.enabled ?? {};
-    d.content.socials.order = Array.isArray(d.content.socials.order)
-      ? d.content.socials.order
-      : [];
+    // force “new shape” in the config when editing via studio
+    d.content.socials.links = current.links ?? {};
+    d.content.socials.enabled = current.enabled ?? {};
+    d.content.socials.order = Array.isArray(current.order) ? current.order : [];
   };
 
   const enabledSocials: SocialKind[] = React.useMemo(() => {
@@ -926,11 +968,6 @@ export function StudioPanel({
         if (!o.includes(kind)) o.push(kind);
       } else {
         d.content.socials.order = o.filter((x) => x !== kind);
-      }
-
-      if (!enabled) {
-        const links = d.content.socials.links ?? {};
-        d.content.socials.links = links;
       }
 
       return d;
@@ -1036,6 +1073,7 @@ export function StudioPanel({
   const sectionsRaw: any[] = Array.isArray((config as any).sections)
     ? (config as any).sections
     : [];
+
   const sectionsView = React.useMemo(() => {
     const pinned = sectionsRaw.filter((s) => pinnedTypes.has(String(s.type)));
     const rest = sectionsRaw.filter((s) => !pinnedTypes.has(String(s.type)));
@@ -1183,18 +1221,15 @@ export function StudioPanel({
   // ---------------------------
   // panel layout
   // ---------------------------
-  // panel layout — aligned to header height (no magic top)
   const panelPos =
     dock === "left"
       ? "fixed left-4 z-[99999] w-[380px] max-w-[92vw]"
       : "fixed right-4 z-[99999] w-[380px] max-w-[92vw]";
 
-  // top offset driven by header height (+ safe gap)
   const panelTopStyle: React.CSSProperties = {
     top: "calc(var(--header-h, 84px) + env(safe-area-inset-top, 0px) + 12px)",
   };
 
-  // height driven by viewport minus header height minus margins
   const panelHeightStyle: React.CSSProperties = {
     maxHeight:
       "calc(100dvh - var(--header-h, 84px) - env(safe-area-inset-top, 0px) - 24px)",
@@ -1254,7 +1289,6 @@ export function StudioPanel({
   return (
     <div className={panelPos} style={panelTopStyle}>
       <div
-        ref={shellRef}
         className={shell}
         tabIndex={0}
         onKeyDown={(e) => {
@@ -1812,7 +1846,7 @@ export function StudioPanel({
             </div>
           </div>
 
-          {/* NAV (single source of truth ✅) */}
+          {/* NAV */}
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <div className="mb-3 text-xs font-semibold tracking-wide text-slate-600">
               NAV
@@ -1831,7 +1865,6 @@ export function StudioPanel({
                 const norm = normalizeDigitString(e.target.value);
                 setMaxDirectDraft(norm);
 
-                // live commit if not empty
                 if (norm === "") return;
                 const n = Math.max(0, Math.min(12, parseInt(norm, 10)));
                 setMaxDirect(n);
@@ -1883,7 +1916,7 @@ export function StudioPanel({
 
             <div className="mt-2 text-xs text-slate-500">
               Shimmer CTA = uniquement sur les éléments qui ont la classe{" "}
-              <span className="font-semibold">fx-cta</span> (boutons/CTA).
+              <span className="font-semibold">fx-cta</span>.
             </div>
           </div>
 
@@ -1945,4 +1978,3 @@ export function StudioPanel({
     </div>
   );
 }
-export default StudioPanel;

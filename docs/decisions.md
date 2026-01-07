@@ -292,3 +292,10 @@ Ce document doit être mis à jour :
 avant toute rupture d’API interne
 
 Si une décision n’est pas documentée ici, elle est considérée comme non officielle.
+
+## 2026-01 — Reveal stable (no shift) + direction-aware
+
+- Problème : refresh en bas => sections en pending => "saut" + doubles lignes perçues.
+- Solution : `html[data-reveal-lock="1"]` posé en `useLayoutEffect`, retiré après 2 RAF.
+- Raison : évite shift sans introduire d’hydration mismatch (pas de data-\* SSR sur html).
+- Bonus UX : reveal uniquement en scroll DOWN (scroll UP = stable direct).
