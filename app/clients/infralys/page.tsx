@@ -1,6 +1,6 @@
 "use client";
 
-import { TemplateEngine } from "../../components/template-engine/TemplateEngine";
+import { TemplateEngine } from "@/app/components/template-engine/template-engine";
 
 import { INFRALYS_CONFIG } from "./config";
 
