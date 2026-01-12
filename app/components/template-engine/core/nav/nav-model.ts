@@ -23,6 +23,9 @@ export type NavSectionLike = {
   id: string;
   type?: string;
 
+  /** Canon (from normalizeConfig) */
+  domId?: string;
+
   label?: string;
   title?: string;
 
@@ -84,6 +87,19 @@ function dedupeBySectionId(items: NavSectionLike[]) {
   return out;
 }
 
+function hrefForNavSection(s: NavSectionLike): string {
+  const raw = String(s.domId ?? "").trim();
+
+  // if domId is provided, prefer it (canonical)
+  if (raw) {
+    const domId = raw.startsWith("#") ? raw.slice(1) : raw;
+    return domId ? `#${domId}` : hrefForSection(String(s.id));
+  }
+
+  // fallback legacy behavior
+  return hrefForSection(String(s.id));
+}
+
 export function buildNavModel(args: {
   sections: NavSectionLike[];
   maxDirect?: number;
@@ -106,7 +122,7 @@ export function buildNavModel(args: {
       key: sectionId,
       sectionId,
       label: pickLabel(s),
-      href: hrefForSection(sectionId),
+      href: hrefForNavSection(s),
       kind: "direct",
     };
   });
