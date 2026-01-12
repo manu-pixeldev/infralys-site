@@ -1,4 +1,3 @@
-// app/components/template-engine/template-engine.tsx
 "use client";
 
 import React from "react";
@@ -9,59 +8,66 @@ import { FxStyles } from "./fx-styles";
 
 // engine
 import { normalizeConfig } from "./engine/normalize-config";
-import { renderSections } from "./engine/renderSections";
-import { useTemplateEngine } from "./engine/useTemplateEngine";
+import { renderSections } from "./engine/render-sections";
+import { useTemplateEngine } from "./engine/use-template-engine";
 
-// core
-import { useReveal } from "./core/fx/reveal";
-import { useScrollRestoreNoFlash } from "./core/nav/scroll-restore";
-
-// studio
+// studio (isolated portal)
 import { StudioPortal } from "./studio/StudioPortal";
+
+// core (phase 0)
+import { useScrollRestoreNoFlash } from "./core/nav/scroll-restore";
 
 type Props = {
   config: TemplateConfigInput;
   setConfig?: (next: TemplateConfigInput) => void;
 };
 
+type AnyRecord = Record<string, any>;
+
 export function TemplateEngine({ config, setConfig }: Props) {
-  // ---------------------------------------------------------------------------
-  // Phase 0 guards
-  // ---------------------------------------------------------------------------
+  // Phase 0: no-flash scroll restore
   useScrollRestoreNoFlash();
 
-  // ---------------------------------------------------------------------------
-  // Normalize config (Phase 1 canonical)
-  // ---------------------------------------------------------------------------
-  const cfg = React.useMemo(() => normalizeConfig(config), [config]);
-  const sections = cfg.sections;
+  // 1) Normalize once (NO DOM)
+  const norm = React.useMemo(() => normalizeConfig(config), [config]);
+  const cfg = norm as AnyRecord as TemplateConfigInput;
+  const sections = (norm as AnyRecord).sections ?? [];
 
-  // ---------------------------------------------------------------------------
-  // Reveal system
-  // ---------------------------------------------------------------------------
-  const revealApi: any = useReveal();
-  const registerReveal: (id: string) => (node: HTMLElement | null) => void =
-    typeof revealApi === "function"
-      ? revealApi
-      : typeof revealApi?.registerReveal === "function"
-      ? revealApi.registerReveal
-      : typeof revealApi?.register === "function"
-      ? revealApi.register
-      : () => () => {};
-
-  // ---------------------------------------------------------------------------
-  // Engine orchestration (theme, nav, scroll, fx)
-  // ---------------------------------------------------------------------------
+  // 2) Engine (theme/nav/spy/fx/reveal)
   const engine = useTemplateEngine(cfg, sections);
 
-  // ---------------------------------------------------------------------------
-  // Root CSS vars
-  // ---------------------------------------------------------------------------
+  const {
+    theme,
+    parsedTheme,
+    canvasStyle,
+    fxEnabled,
+    fxAmbient,
+    fxShimmer,
+    fxBorderScan,
+    navModel,
+    onNavTo,
+    activeDomId,
+    activeHref,
+    isScrolled,
+    scrollT,
+    registerReveal,
+  } = engine;
+
+  // mounted guard (studio portal + data attr)
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+    try {
+      document.documentElement.setAttribute("data-mounted", "1");
+    } catch {}
+  }, []);
+
+  // root vars
   const rootStyle = React.useMemo(() => {
     const out: React.CSSProperties = {};
     (out as any)["--header-offset"] = "84px";
 
-    const canvasVar = (engine.theme as any)?.canvasVar;
+    const canvasVar = (theme as any)?.canvasVar;
     if (
       canvasVar &&
       typeof canvasVar === "object" &&
@@ -69,57 +75,48 @@ export function TemplateEngine({ config, setConfig }: Props) {
     ) {
       Object.assign(out as any, canvasVar);
     }
-
     return out;
-  }, [engine.theme]);
+  }, [theme]);
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
   return (
     <>
-      <FxStyles
-        enabled={engine.fxEnabled}
-        ambient={engine.fxAmbient}
-        shimmer={engine.fxShimmer}
-      />
+      <FxStyles enabled={fxEnabled} ambient={fxAmbient} shimmer={fxShimmer} />
 
       <div
         className={cx(
           "template-engine",
-          (engine.theme as any)?.bgPage,
-          (engine.theme as any)?.text
+          (theme as any)?.bgPage,
+          (theme as any)?.text
         )}
-        data-theme={`${engine.parsedTheme?.accent}|${engine.parsedTheme?.canvas}`}
-        data-canvas-style={engine.canvasStyle}
+        data-theme={`${parsedTheme.accent}|${parsedTheme.canvas}`}
+        data-canvas-style={(theme as any)?.canvasStyle ?? canvasStyle}
         style={rootStyle}
       >
         <div id="top" />
 
-        <div className="min-h-screen">
-          {renderSections({
-            cfg,
-            sections,
-            theme: engine.theme,
-            fxAmbient: engine.fxAmbient,
-            fxBorderScan: engine.fxBorderScan,
-            registerReveal,
+        {renderSections({
+          sections,
+          theme,
 
-            navModel: engine.navModel,
-            onNavTo: engine.onNavTo,
-            activeDomId: engine.activeDomId,
-            activeHref: engine.activeHref,
-            isScrolled: engine.isScrolled,
-            scrollT: engine.scrollT,
+          navModel,
+          onNavTo,
+          activeDomId,
+          activeHref,
+          isScrolled,
+          scrollT,
 
-            setConfig,
-          })}
-        </div>
+          registerReveal,
+
+          fxAmbient,
+          fxBorderScan,
+
+          cfg,
+          setConfig,
+        })}
       </div>
 
-      {/* Studio (isolated, guarded) */}
       <StudioPortal
-        enabled={Boolean((cfg as any)?.studio?.enabled)}
+        enabled={Boolean((cfg as AnyRecord)?.studio?.enabled) && mounted}
         config={cfg}
         setConfig={setConfig}
       />
