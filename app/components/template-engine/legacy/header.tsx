@@ -1,4 +1,3 @@
-// app/components/template-engine/legacy/header.tsx
 "use client";
 
 import React from "react";
@@ -8,10 +7,11 @@ import { cx } from "../theme";
 
 /**
  * Header (Legacy) — V24 compatible
- * - stable root class: te-header (used by [data-mounted="0"] guard)
+ * - stable root class: te-header
  * - uses navModel if provided
  * - highlights activeDomId (preferred) else activeHref
  * - clicks call onNavTo if provided (smooth scroll)
+ * - shows logo from /public by default
  */
 
 type Props = {
@@ -44,6 +44,26 @@ function pickBrandName(brand: any, content: any) {
     content?.title ??
     "InfraLys"
   );
+}
+
+/**
+ * Logo URL rules:
+ * - if brand.logoSrc exists use it
+ * - else if content.brandLogo exists use it
+ * - else fallback to your template logo in /public
+ */
+function pickLogoSrc(brand: any, content: any) {
+  const raw =
+    brand?.logoSrc ??
+    brand?.logo ??
+    content?.brandLogo ??
+    content?.logo ??
+    "/brand/template/logo-square.png";
+
+  // if someone passes "brand/template/logo-square.png" (without leading slash)
+  const s = String(raw ?? "").trim();
+  if (!s) return "/brand/template/logo-square.png";
+  return s.startsWith("/") ? s : `/${s}`;
 }
 
 function buildFallbackNav(sections: any[] | undefined) {
@@ -79,24 +99,31 @@ export default function Header(props: Props) {
   } = props;
 
   const name = pickBrandName(brand, content);
+  const logoSrc = pickLogoSrc(brand, content);
 
   const directItems =
-    navModel?.direct?.map((it) => ({
-      key: it.key,
-      label: it.label,
-      href: it.href,
-    })) ?? buildFallbackNav(sections);
+    (Array.isArray(navModel?.direct)
+      ? navModel!.direct.map((it) => ({
+          key: it.key,
+          label: it.label,
+          href: it.href,
+        }))
+      : null) ?? buildFallbackNav(sections);
 
   const overflowItems =
-    navModel?.overflow?.map((it) => ({
-      key: it.key,
-      label: it.label,
-      href: it.href,
-    })) ?? [];
+    (Array.isArray(navModel?.overflow)
+      ? navModel!.overflow.map((it) => ({
+          key: it.key,
+          label: it.label,
+          href: it.href,
+        }))
+      : null) ?? [];
 
-  const overflowLabel = navModel?.overflowLabel ?? "Plus";
+  const overflowLabel = String(navModel?.overflowLabel ?? "Plus") || "Plus";
 
   const [open, setOpen] = React.useState(false);
+  const [logoOk, setLogoOk] = React.useState(true);
+
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -117,7 +144,7 @@ export default function Header(props: Props) {
 
   const handleNav = React.useCallback(
     (href: string) => (e: React.MouseEvent) => {
-      // Always allow cmd/ctrl click open new tab
+      // allow cmd/ctrl click open new tab
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 
       e.preventDefault();
@@ -139,10 +166,16 @@ export default function Header(props: Props) {
     [onNavTo]
   );
 
+  // ✅ CRITICAL: avoid "style expects object, not string"
+  const headerStyle =
+    theme?.headerStyle && typeof theme.headerStyle === "object"
+      ? theme.headerStyle
+      : undefined;
+
   return (
     <header
       className={cx(
-        "te-header", // ✅ critical for anti-flash
+        "te-header",
         "fixed left-0 right-0 top-0 z-50",
         "border-b transition-[background-color,backdrop-filter] duration-200",
         theme?.isDark
@@ -150,7 +183,7 @@ export default function Header(props: Props) {
           : "border-slate-200 text-slate-900",
         isScrolled ? "backdrop-blur-md" : "backdrop-blur-sm"
       )}
-      style={theme?.headerStyle}
+      style={headerStyle}
     >
       <div
         className={cx(
@@ -159,9 +192,8 @@ export default function Header(props: Props) {
       >
         {/* Brand */}
         <a
-          href="#"
+          href="#top"
           onClick={(e) => {
-            // go top
             e.preventDefault();
             window.scrollTo({ top: 0, behavior: "smooth" });
             try {
@@ -171,18 +203,31 @@ export default function Header(props: Props) {
           className={cx("flex items-center gap-3 font-semibold")}
           aria-label="Accueil"
         >
-          <div
-            className={cx(
-              "h-9 w-9 rounded-xl",
-              theme?.isDark ? "bg-white/10" : "bg-black/5"
-            )}
-          />
+          {/* ✅ Real logo (fallback if image fails) */}
+          {logoOk ? (
+            <img
+              src={logoSrc}
+              alt={name}
+              className="h-9 w-9 rounded-xl object-cover"
+              loading="eager"
+              decoding="async"
+              onError={() => setLogoOk(false)}
+            />
+          ) : (
+            <div
+              className={cx(
+                "h-9 w-9 rounded-xl",
+                theme?.isDark ? "bg-white/10" : "bg-black/5"
+              )}
+            />
+          )}
+
           <span className={cx("text-base")}>{name}</span>
         </a>
 
-        {/* Nav */}
+        {/* Nav (desktop) */}
         <nav className={cx("hidden items-center gap-1 md:flex")}>
-          {directItems.map((it) => (
+          {(Array.isArray(directItems) ? directItems : []).map((it) => (
             <a
               key={it.key}
               href={it.href}
@@ -278,13 +323,12 @@ export default function Header(props: Props) {
       {open ? (
         <div
           className={cx(
-            "md:hidden",
-            "border-t",
+            "md:hidden border-t",
             theme?.isDark ? "border-white/10" : "border-slate-200"
           )}
         >
           <div className="mx-auto max-w-7xl px-4 py-2">
-            {directItems.map((it) => (
+            {(Array.isArray(directItems) ? directItems : []).map((it) => (
               <a
                 key={it.key}
                 href={it.href}

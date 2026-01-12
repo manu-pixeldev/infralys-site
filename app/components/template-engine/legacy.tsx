@@ -426,7 +426,7 @@ function DesktopOverflowMenu({
 }
 
 /* ============================================================
-   BLOC 2 — HEADER (A/B/C/D)
+   BLOC 2 — HEADER
    ============================================================ */
 
 export function LegacyHeader(props: {
@@ -454,20 +454,10 @@ export function LegacyHeader(props: {
 }) {
   const { theme, brand, headerVariant, headerRef, showTeam, contact } = props;
 
-  // ============================================================
-  // ✅ PORTAL HEADER (anti scroll / anti transform / anti filter)
-  // ============================================================
-
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
-
-  const portalHeader = React.useCallback(
-    (node: React.ReactElement) => {
-      if (!mounted || typeof document === "undefined") return node;
-      return createPortal(node, document.body);
-    },
-    [mounted]
-  );
+  const portalHeader = React.useCallback((node: React.ReactElement) => {
+    if (typeof document === "undefined") return null;
+    return createPortal(node, document.body);
+  }, []);
 
   const variant = (headerVariant ?? "A") as HeaderVariantX;
   const l = resolveLayout(props.layout, props.globalLayout);
@@ -583,13 +573,43 @@ export function LegacyHeader(props: {
     </div>
   ) : null;
 
+  // sections
+  const secs = Array.isArray((props as any).sections)
+    ? (props as any).sections
+    : [];
+
+  // active href handling
+  const activeHref = props.activeHref ?? "#top";
+
+  const homeLabel = String(props.content?.nav?.homeLabel ?? "Accueil");
+
+  const enabledSecs = Array.isArray(secs)
+    ? secs.filter(
+        (sec: any) =>
+          sec?.enabled !== false &&
+          sec?.type !== "header" &&
+          sec?.type !== "top" &&
+          sec?.type !== "hero"
+      )
+    : [];
+
+  // DomId réel de la section Contact (ex: "sec-contact")
+  const contactDomId =
+    enabledSecs.find((s: any) => String(s?.type) === "contact")?.domId ??
+    enabledSecs.find((s: any) => String(s?.id) === "contact")?.domId ??
+    "contact";
+
+  // CTA label (DOIT être avant le JSX qui l'utilise)
   const ctaLabel = props.content?.cta?.header ?? "Contact";
+
+  // CTA (DOIT être après contactDomId + ctaLabel)
   const Cta = showCta ? (
     <a
-      href="#contact"
+      href={`#${contactDomId}`}
       className={cx(
         radiusClass(l.radius),
-        "fx-cta shrink-0 px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition will-change-transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+        "fx-cta relative overflow-hidden shrink-0",
+        "px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition will-change-transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
         theme.accentFrom,
         theme.accentTo
       )}
@@ -601,31 +621,6 @@ export function LegacyHeader(props: {
   const socialsCfg = (props.content?.socials ?? undefined) as
     | SocialConfig
     | undefined;
-
-  // sections
-  const secs = Array.isArray((props as any).sections)
-    ? (props as any).sections
-    : [];
-
-  // active href handling (Accueil)
-  const activeHref = props.activeHref ?? "#top";
-
-  // ============================================================
-  // ✅ LINKS (href = DOM id unique) — IMPORTANT:
-  // Ici on suppose que le moteur a déjà injecté sec.domId
-  // ============================================================
-
-  const homeLabel = String(props.content?.nav?.homeLabel ?? "Accueil");
-
-  const enabledSecs = Array.isArray(secs)
-    ? secs.filter(
-        (sec: any) =>
-          sec?.enabled !== false &&
-          sec?.type !== "header" &&
-          sec?.type !== "top" &&
-          sec?.type !== "hero" // ✅ hero ne doit pas être un item de menu
-      )
-    : [];
 
   let orderedLinks: { href: string; label: string }[] = enabledSecs
     .map((sec: any) => {
@@ -649,9 +644,7 @@ export function LegacyHeader(props: {
     })
     .filter(Boolean) as { href: string; label: string }[];
 
-  // ✅ HOME link logic
   const firstRealHref = orderedLinks[0]?.href ?? "#top";
-
   if (orderedLinks.length && firstRealHref === "#hero") {
     orderedLinks[0] = { href: "#top", label: homeLabel };
   } else {
@@ -662,34 +655,40 @@ export function LegacyHeader(props: {
     { href: "#top", label: homeLabel },
     { href: "#approche", label: "Approche" },
     ...(showTeam ? [{ href: "#team", label: "Équipe" }] : []),
-    ...(includeContactInNav ? [{ href: "#contact", label: "Contact" }] : []),
+    ...(includeContactInNav
+      ? [{ href: `#${contactDomId}`, label: "Contact" }]
+      : []),
   ];
 
   let linksAll: { href: string; label: string }[] =
     orderedLinks.length > 0 ? [...orderedLinks] : [...fallbackLinks];
 
-  // force approche/contact si la section existe vraiment
-  const forceIfExists = (id: string, label: string) => {
-    const exists = enabledSecs.some((s: any) => String(s?.id ?? "") === id);
-    if (!exists) return;
-    const href = `#${id}`;
+  const forceIfExists = (slug: string, label: string) => {
+    const found = enabledSecs.find((s: any) => {
+      const dom = String(s?.domId ?? "").trim();
+      const id = String(s?.id ?? "").trim();
+      return dom === slug || id === slug;
+    });
+    if (!found) return;
+
+    const domId = String(found?.domId ?? found?.id ?? "").trim();
+    if (!domId) return;
+
+    const href = `#${domId}`;
     if (!linksAll.some((l) => l.href === href)) linksAll.push({ href, label });
   };
 
   forceIfExists("approche", "Approche");
+  // force contact to the REAL dom id (sec-contact etc.)
+  forceIfExists(contactDomId, "Contact");
   forceIfExists("contact", "Contact");
 
-  // dédoublonnage href
   const seen = new Set<string>();
   linksAll = linksAll.filter((l) => {
     if (seen.has(l.href)) return false;
     seen.add(l.href);
     return true;
   });
-
-  // ============================================================
-  // ✅ SCROLL-SPY LOCAL (FIABLE JUSQU’EN BAS)
-  // ============================================================
 
   const [activeHrefLocal, setActiveHrefLocal] = React.useState<string>("#top");
 
@@ -731,12 +730,20 @@ export function LegacyHeader(props: {
     );
     const atBottom = window.innerHeight + window.scrollY >= scrollH - 4;
 
-    if (atBottom && linksAll.some((l) => l.href === "#contact")) {
-      setActiveHrefLocal("#contact");
-    } else {
-      setActiveHrefLocal(bestHref);
+    // bottom snap => last link (prefer contact)
+    if (atBottom) {
+      const contactHref =
+        linksAll.find((l) => l.href === `#${contactDomId}`)?.href ??
+        linksAll.find((l) => l.href === "#contact")?.href;
+
+      if (contactHref) {
+        setActiveHrefLocal(contactHref);
+        return;
+      }
     }
-  }, [linksAll, getHeaderOffsetPx]);
+
+    setActiveHrefLocal(bestHref);
+  }, [linksAll, getHeaderOffsetPx, contactDomId]);
 
   React.useEffect(() => {
     computeActiveHref();
@@ -759,13 +766,8 @@ export function LegacyHeader(props: {
 
   const activeHrefEffective = activeHrefLocal || activeHref;
 
-  // ============================================================
-  // ✅ AUTO-FIT RESPONSIVE (UTILISÉ POUR DE VRAI)
-  // ============================================================
-
+  // responsive fit
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
-  const leftRef = React.useRef<HTMLDivElement | null>(null);
-  const rightRef = React.useRef<HTMLDivElement | null>(null);
   const measureRef = React.useRef<HTMLDivElement | null>(null);
 
   const maxDirectLinks = Number(
@@ -783,7 +785,6 @@ export function LegacyHeader(props: {
     1,
     Math.min(12, Number.isFinite(maxDirectLinks) ? maxDirectLinks : 4)
   );
-
   const [inlineCount, setInlineCount] = React.useState<number>(() =>
     Math.min(MAX_INLINE, Math.max(1, linksAll.length || 1))
   );
@@ -803,7 +804,7 @@ export function LegacyHeader(props: {
     const overflowW = overflowBtn.getBoundingClientRect().width;
 
     const linkEls = kids.slice(0, kids.length - 1);
-    const gap = 28; // gap-7
+    const gap = 28;
 
     let used = 0;
     let fit = 0;
@@ -856,17 +857,12 @@ export function LegacyHeader(props: {
   const overflowLabel = overflowActiveLink
     ? overflowActiveLink.label
     : dummyOverflowLabel;
-
   const overflowActive = Boolean(overflowActiveLink);
 
-  // ============================================================
   // header shell
-  // ============================================================
-
   const headerPos = "fixed left-0 right-0 top-0";
   const headerZ = "z-[9999]";
 
-  // ✅ SOURCE DE VÉRITÉ UNIQUE
   const Spacer = (
     <div aria-hidden="true" style={{ height: "var(--header-offset, 100px)" }} />
   );
@@ -921,7 +917,6 @@ export function LegacyHeader(props: {
     : theme.isDark
     ? "text-white/80"
     : "text-slate-700";
-
   const navHoverTextClass = hasCanvas
     ? "text-inherit"
     : theme.isDark
@@ -1063,7 +1058,6 @@ export function LegacyHeader(props: {
     >
       {inlineLinks.map((lnk) => {
         const isActive = lnk.href === activeHrefEffective;
-
         return (
           <a
             key={lnk.href}
@@ -1112,7 +1106,6 @@ export function LegacyHeader(props: {
     </nav>
   );
 
-  // variant D inchangé
   const RenderD = () => {
     const phone = contact?.phone ?? "";
     const email = contact?.email ?? "";
@@ -1246,7 +1239,6 @@ export function LegacyHeader(props: {
             </div>
           </header>
         )}
-
         {Spacer}
       </>
     );
@@ -1274,7 +1266,6 @@ export function LegacyHeader(props: {
             >
               {LogoNode}
             </div>
-
             {BrandText ? (
               <div className="min-w-0 max-w-[340px]">{BrandText}</div>
             ) : null}
@@ -1329,12 +1320,11 @@ export function LegacyHeader(props: {
    ============================================================ */
 
 export function LegacyHero(props: any) {
-  const { theme, content, layout, globalLayout, sectionId, variant, fx } =
-    props;
+  const { theme, content, layout, globalLayout, sectionId, variant } = props;
   const l = resolveLayout(layout, globalLayout);
   const v = String(variant ?? "A");
+  const onNavTo = props.onNavTo as undefined | ((href: string) => void);
 
-  // ✅ domId déterministe venant du moteur
   const domId = String(props.domId ?? sectionId ?? "hero");
 
   const kicker = content?.heroKicker ?? "Sous-titre et/ou slogan";
@@ -1349,21 +1339,22 @@ export function LegacyHero(props: any) {
   const cta1 = content?.cta?.heroPrimary ?? "Me contacter";
   const cta2 = content?.cta?.heroSecondary ?? "Voir nos services";
 
-  const shimmerOnPrimary = Boolean(fx?.enabled && fx?.shimmerCta);
-
   const PrimaryBtn = (
-    <a
-      href="#contact"
+    <button
+      type="button"
+      onClick={() =>
+        onNavTo ? onNavTo("contact") : (window.location.hash = "#contact")
+      }
       className={cx(
         radiusClass(l.radius),
-        "fx-cta", // ✅ toujours présent
-        "px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+        "fx-cta relative overflow-hidden",
+        "px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition will-change-transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
         theme.accentFrom,
         theme.accentTo
       )}
     >
       {cta1}
-    </a>
+    </button>
   );
 
   const SecondaryBtn = (
@@ -1473,6 +1464,7 @@ export function LegacyHero(props: any) {
                   {kicker}
                 </div>
               ) : null}
+
               <h1
                 className={cx(
                   "mt-3 text-4xl md:text-5xl font-semibold tracking-tight",
@@ -1481,6 +1473,7 @@ export function LegacyHero(props: any) {
               >
                 {title}
               </h1>
+
               <p
                 className={cx(
                   "mt-4 max-w-xl text-base md:text-lg leading-relaxed",
@@ -1489,6 +1482,7 @@ export function LegacyHero(props: any) {
               >
                 {text}
               </p>
+
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 {PrimaryBtn}
                 {SecondaryBtn}
@@ -1591,7 +1585,8 @@ export function LegacySplit(props: any) {
                   href={ctaHref}
                   className={cx(
                     radiusClass(l.radius),
-                    "fx-cta inline-flex px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+                    "fx-cta relative overflow-hidden inline-flex",
+                    "px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition will-change-transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
                     theme.accentFrom,
                     theme.accentTo
                   )}
@@ -1819,7 +1814,7 @@ export function LegacyTeam(props: any) {
 }
 
 /* ============================================================
-   BLOC 7 — GALLERIES (pas d'id DOM ici)
+   BLOC 7 — GALLERIES
    ============================================================ */
 
 export function LegacyGalleries(props: any) {
@@ -1828,7 +1823,7 @@ export function LegacyGalleries(props: any) {
     content,
     layout,
     globalLayout,
-    sectionId, // utilisé pour choisir la galerie
+    sectionId,
     onOpen,
     enableLightbox,
     variant,
@@ -1858,7 +1853,6 @@ export function LegacyGalleries(props: any) {
   const aspect = v === "stack" ? "aspect-[16/7]" : "aspect-[16/11]";
 
   const galleries = Array.isArray(content?.galleries) ? content.galleries : [];
-
   const g =
     galleries.find((x: any) => String(x?.id) === String(sectionId)) ??
     galleries[0];
@@ -1922,7 +1916,6 @@ export function LegacyGalleries(props: any) {
           >
             {title}
           </h2>
-
           {hasText(desc) ? (
             <p
               className={cx(
@@ -2054,7 +2047,8 @@ export function LegacyContact(props: any) {
       type="button"
       className={cx(
         radiusClass(l.radius),
-        "fx-cta mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+        "fx-cta relative overflow-hidden mt-2 w-full",
+        "px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition will-change-transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
         theme.accentFrom,
         theme.accentTo
       )}
@@ -2346,12 +2340,12 @@ export function LegacyContact(props: any) {
                   placeholder="Message"
                   aria-label="Message"
                 />
-                {/* bouton “grand” (classes optionnelles si tu veux les cibler en CSS) */}
                 <button
                   type="button"
                   className={cx(
                     radiusClass(l.radius),
-                    "fx-cta fx-cta-lg fx-cta-3x mt-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
+                    "fx-cta relative overflow-hidden fx-cta-lg fx-cta-3x mt-2 w-full",
+                    "px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r shadow-sm transition will-change-transform hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
                     theme.accentFrom,
                     theme.accentTo
                   )}

@@ -1,5 +1,4 @@
 // app/components/template-engine/core/nav/nav-model.ts
-
 import { hrefForSection } from "../dom-ids";
 
 export type NavItemKind = "direct" | "overflow";
@@ -23,6 +22,7 @@ export type NavModel = {
 export type NavSectionLike = {
   id: string;
   type?: string;
+
   label?: string;
   title?: string;
 
@@ -35,14 +35,31 @@ export type NavSectionLike = {
   };
 };
 
+function cleanLabel(v: unknown) {
+  return String(v ?? "").trim();
+}
+
 function pickLabel(s: NavSectionLike): string {
-  return s.nav?.label ?? s.label ?? s.title ?? String(s.id);
+  const t = String(s.type ?? "").toLowerCase();
+
+  const raw =
+    cleanLabel(s.nav?.label) ||
+    cleanLabel(s.label) ||
+    cleanLabel(s.title) ||
+    "";
+
+  // hero fallback
+  if (!raw && (t === "hero" || String(s.id).toLowerCase() === "hero")) {
+    return "Accueil";
+  }
+
+  return raw || String(s.id);
 }
 
 function isNavEligible(s: NavSectionLike): boolean {
   const t = String(s.type ?? "").toLowerCase();
 
-  if (!s.id) return false;
+  if (!s?.id) return false;
   if (t === "header" || t === "top") return false;
 
   if (s.nav?.hide) return false;
@@ -52,21 +69,36 @@ function isNavEligible(s: NavSectionLike): boolean {
   return true;
 }
 
+function dedupeBySectionId(items: NavSectionLike[]) {
+  const seen = new Set<string>();
+  const out: NavSectionLike[] = [];
+
+  for (const s of items) {
+    const id = String(s?.id ?? "").trim();
+    if (!id) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(s);
+  }
+
+  return out;
+}
+
 export function buildNavModel(args: {
   sections: NavSectionLike[];
   maxDirect?: number;
   overflowLabel?: string;
 }): NavModel {
-  const sections = args.sections ?? [];
+  const sections = Array.isArray(args.sections) ? args.sections : [];
 
   const maxDirectRaw = Number(args.maxDirect ?? 4);
   const maxDirect = Number.isFinite(maxDirectRaw)
-    ? Math.max(0, maxDirectRaw)
+    ? Math.max(0, Math.floor(maxDirectRaw))
     : 4;
 
-  const overflowLabel = (args.overflowLabel ?? "Plus").trim() || "Plus";
+  const overflowLabel = cleanLabel(args.overflowLabel ?? "Plus") || "Plus";
 
-  const eligible = sections.filter(isNavEligible);
+  const eligible = dedupeBySectionId(sections.filter(isNavEligible));
 
   const baseItems: NavItem[] = eligible.map((s) => {
     const sectionId = String(s.id);

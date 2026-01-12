@@ -1,172 +1,103 @@
 // app/components/template-engine/core/fx/reveal.ts
-
 "use client";
 
 import * as React from "react";
 
-export type RevealOptions = {
-  /**
-   * CSS class applied to wrappers we control.
-   * You likely already use "reveal".
-   */
-  baseClass?: string; // default: "reveal"
-
-  /**
-   * Class added when element is revealed.
-   */
-  revealedClass?: string; // default: "is-revealed"
-
-  /**
-   * Only reveal when scrolling down (prevents pop-in when scrolling up).
-   */
-  downOnly?: boolean; // default: true
-
-  /**
-   * Reveal once only (recommended).
-   */
-  once?: boolean; // default: true
-
-  /**
-   * IntersectionObserver options
-   */
-  threshold?: number | number[]; // default: 0.12
-  rootMargin?: string; // default: "0px 0px -10% 0px"
-
-  /**
-   * Respect reduced motion (true => disable animation, reveal immediately)
-   */
-  respectReducedMotion?: boolean; // default: true
-};
-
-function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false
-  );
-}
-
 /**
- * Reveal — V24 Canon
- * - registerReveal(sectionId) -> ref callback
- * - down-only (optional)
- * - one-shot (optional)
- * - stable on refresh (doesn't "unreveal")
+ * Reveal (IntersectionObserver)
+ * - Sections wrapped with class "reveal" start hidden via CSS when html[data-reveal-ready="1"]
+ * - This hook adds class "is-in" when a section enters the viewport
+ *
+ * ✅ Hash-safe:
+ * If the page loads with a hash (#sec-contact), we immediately mark ALL reveals as "is-in"
+ * to avoid the classic “blank page” when the anchor is already in view before IO boots.
  */
-export function useReveal(opts?: RevealOptions) {
-  const options: Required<RevealOptions> = {
-    baseClass: opts?.baseClass ?? "reveal",
-    revealedClass: opts?.revealedClass ?? "is-revealed",
-    downOnly: opts?.downOnly ?? true,
-    once: opts?.once ?? true,
-    threshold: opts?.threshold ?? 0.12,
-    rootMargin: opts?.rootMargin ?? "0px 0px -10% 0px",
-    respectReducedMotion: opts?.respectReducedMotion ?? true,
-  };
 
-  const ioRef = React.useRef<IntersectionObserver | null>(null);
-  const seenRef = React.useRef<Set<string>>(new Set());
+type RegisterFn = (domId: string) => (el: HTMLElement | null) => void;
 
-  const lastYRef = React.useRef<number>(0);
-  const lastDirRef = React.useRef<"down" | "up">("down");
+export function useReveal(): { registerReveal: RegisterFn } {
+  const mapRef = React.useRef(new Map<string, HTMLElement>());
+  const obsRef = React.useRef<IntersectionObserver | null>(null);
 
-  // track scroll direction (cheap)
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    lastYRef.current = window.scrollY || 0;
-
-    const onScroll = () => {
-      const y = window.scrollY || 0;
-      const dir = y >= lastYRef.current ? "down" : "up";
-      lastDirRef.current = dir;
-      lastYRef.current = y;
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  // one-time hash detection (stable for initial load)
+  const hasInitialHashRef = React.useRef(false);
+  if (typeof window !== "undefined" && !hasInitialHashRef.current) {
+    hasInitialHashRef.current = window.location.hash.length > 1;
+  }
 
   React.useEffect(() => {
-    if (typeof window === "undefined") return;
+    // Mark reveal system ready (your CSS relies on this)
+    // If this is already done elsewhere, it's harmless.
+    document.documentElement.setAttribute("data-reveal-ready", "1");
 
-    // Reduced motion => reveal everything immediately by just adding class on mount when registered.
-    const reduced = options.respectReducedMotion && prefersReducedMotion();
+    // ✅ If initial load had a hash, unlock immediately (avoid blank page)
+    if (hasInitialHashRef.current) {
+      // Make already-mounted elements visible
+      mapRef.current.forEach((el) => el.classList.add("is-in"));
 
-    // IO setup
-    if (!reduced) {
-      ioRef.current = new IntersectionObserver(
-        (entries) => {
-          for (const e of entries) {
-            const el = e.target as HTMLElement;
-            const key = el.getAttribute("data-reveal-key") || el.id || "";
+      // Also catch any reveal nodes not registered yet (belt + suspenders)
+      document
+        .querySelectorAll<HTMLElement>(".reveal")
+        .forEach((el) => el.classList.add("is-in"));
 
-            if (!key) continue;
-
-            if (options.once && seenRef.current.has(key)) {
-              // already revealed, no-op
-              continue;
-            }
-
-            if (!e.isIntersecting) continue;
-
-            if (options.downOnly && lastDirRef.current !== "down") {
-              continue;
-            }
-
-            el.classList.add(options.revealedClass);
-            if (options.once) seenRef.current.add(key);
-
-            if (options.once) {
-              ioRef.current?.unobserve(el);
-            }
-          }
-        },
-        {
-          root: null,
-          threshold: options.threshold,
-          rootMargin: options.rootMargin,
-        }
-      );
+      // No observer needed in this mode (keeps it super safe)
+      return;
     }
 
+    // Normal mode: IntersectionObserver reveal
+    obsRef.current = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          const el = e.target as HTMLElement;
+          if (e.isIntersecting) {
+            el.classList.add("is-in");
+            // One-shot reveal: stop observing once revealed (premium + perf)
+            obsRef.current?.unobserve(el);
+          }
+        }
+      },
+      {
+        // Trigger a bit before fully in-view
+        root: null,
+        threshold: 0.12,
+        rootMargin: "64px 0px -10% 0px",
+      }
+    );
+
+    // Observe everything that was registered before the observer existed
+    mapRef.current.forEach((el) => obsRef.current?.observe(el));
+
     return () => {
-      ioRef.current?.disconnect();
-      ioRef.current = null;
+      obsRef.current?.disconnect();
+      obsRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const registerReveal = React.useCallback(
-    (key: string) => {
-      return (node: HTMLElement | null) => {
-        if (!node) return;
+  const registerReveal = React.useCallback<RegisterFn>((domId: string) => {
+    return (el: HTMLElement | null) => {
+      const key = String(domId || "");
 
-        // mark base class always (so styling is consistent)
-        node.classList.add(options.baseClass);
+      // unmount
+      if (!el) {
+        const prev = mapRef.current.get(key);
+        if (prev) obsRef.current?.unobserve(prev);
+        mapRef.current.delete(key);
+        return;
+      }
 
-        // stable key for one-shot tracking
-        const k = String(key || node.id || "");
-        if (k) node.setAttribute("data-reveal-key", k);
+      // mount
+      mapRef.current.set(key, el);
 
-        const reduced = options.respectReducedMotion && prefersReducedMotion();
+      // ✅ Hash-safe: if we loaded with a hash, force visible immediately
+      if (hasInitialHashRef.current) {
+        el.classList.add("is-in");
+        return;
+      }
 
-        // If reduced motion OR already seen => reveal immediately.
-        if (reduced || (options.once && k && seenRef.current.has(k))) {
-          node.classList.add(options.revealedClass);
-          return;
-        }
-
-        // Observe
-        ioRef.current?.observe(node);
-      };
-    },
-    [
-      options.baseClass,
-      options.revealedClass,
-      options.once,
-      options.respectReducedMotion,
-    ]
-  );
+      // Normal: observe for reveal
+      obsRef.current?.observe(el);
+    };
+  }, []);
 
   return { registerReveal };
 }

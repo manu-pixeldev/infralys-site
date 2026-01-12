@@ -8,6 +8,7 @@ import {
   LegacyHero,
   LegacySplit,
   LegacyServices,
+  LegacyTeam,
   LegacyGalleries as LegacyGallery, // ✅ alias direct (pas via dossier legacy/)
   LegacyContact,
 } from "./legacy";
@@ -26,6 +27,7 @@ export const VARIANTS = {
   split: { A: LegacySplit, AUTO: LegacySplit },
   services: { A: LegacyServices, AUTO: LegacyServices },
   proof: { A: ProofStats, AUTO: ProofStats },
+  team: { A: LegacyTeam, AUTO: LegacyTeam },
   gallery: { A: LegacyGallery, AUTO: LegacyGallery },
   contact: { A: LegacyContact, AUTO: LegacyContact },
 } as const;

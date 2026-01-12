@@ -3,15 +3,6 @@
 
 import React from "react";
 
-/**
- * FxStyles
- * - Base UI polish (divider + reveal) ALWAYS ON (même si FX désactivés)
- * - FX (ambient / border scan / shimmer) opt-in via data attrs + classes
- *
- * Notes:
- * - Pas de data-* SSR sur <html> (évite mismatch).
- * - "te-after-header" gère l'écart sous le header de manière globale.
- */
 export function FxStyles({
   enabled,
   ambient,
@@ -27,281 +18,239 @@ export function FxStyles({
 
   return (
     <style jsx global>{`
-      /* ============================================================
-         GLOBAL GAP CONTROL
-         ============================================================ */
       :root {
-        --te-section-gap: 28px; /* espace “premium” entre header et 1ère section */
+        --header-offset: 84px;
+
+        /* reveal */
+        --reveal-y: 14px;
+        --reveal-dur: 520ms;
+        --reveal-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+        /* divider + scan */
+        --divider-h: 1px;
+        --scan-h: 2px;
+        --scan-dur: 1400ms;
+        --scan-glow: 0.55;
+
+        /* divider palette fallback (if theme vars missing) */
+        --te-surface-border-fallback: rgba(0, 0, 0, 0.18);
+        --te-surface-border-fallback-dark: rgba(255, 255, 255, 0.14);
       }
 
-      /* ============================================================
-         BASE — Premium section divider (TOUJOURS)
-         Usage: mettre "fx-divider" sur le wrapper de section
-         Thème piloté par data-ui="dark|light" sur un parent.
-         ============================================================ */
-
-      .fx-divider {
-        position: relative;
-        isolation: isolate;
-      }
-
-      /* fade doux (pas une ligne brute) */
-      .fx-divider::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: 0;
-        height: 26px;
-        pointer-events: none;
-        z-index: 1;
-        opacity: 1;
-      }
-
-      /* optional: si tu as une classe te-header quelque part */
-      [data-mounted="0"] .te-header {
-        visibility: hidden;
-      }
-
-      /* DARK */
-      [data-ui="dark"] .fx-divider::before {
-        background: linear-gradient(
-          to bottom,
-          rgba(255, 255, 255, 0.1),
-          rgba(255, 255, 255, 0.04) 35%,
-          rgba(255, 255, 255, 0) 100%
-        );
-      }
-
-      /* LIGHT */
-      [data-ui="light"] .fx-divider::before {
-        background: linear-gradient(
-          to bottom,
-          rgba(0, 0, 0, 0.06),
-          rgba(0, 0, 0, 0.025) 35%,
-          rgba(0, 0, 0, 0) 100%
-        );
-      }
-
-      /* ============================================================
-         AFTER HEADER SPACING (global)
-         ============================================================ */
-      .te-after-header {
-        margin-top: var(--te-section-gap);
-      }
-
-      /* ============================================================
-         BASE — Reveal (scroll)
-         IMPORTANT:
-         - On ne cache JAMAIS "par défaut" sans attribut => évite page qui disparaît au refresh.
-         - Seul data-reveal="pending" cache.
-         ============================================================ */
+      /* ==========================================================
+         Reveal system (NO JUMP on refresh)
+         - Before data-reveal-ready: visible, no transition
+         - After ready: .reveal animates when .is-in toggled
+         ========================================================== */
 
       .reveal {
-        will-change: opacity, transform;
-        transition: opacity 520ms ease, transform 520ms ease;
-      }
-
-      /* hidden state */
-      .reveal[data-reveal="pending"] {
-        opacity: 0;
-        transform: translateY(14px);
-      }
-
-      /* visible state (compat ancienne + nouvelle) */
-      .reveal.is-in,
-      .reveal[data-reveal="in"] {
         opacity: 1;
-        transform: translateY(0);
+        transform: none;
+        filter: none;
+        will-change: transform, opacity, filter;
       }
 
-      /* ============================================================
-         FX — Border scan / Softglow (injectés seulement si enabled)
-         ============================================================ */
-      ${fxEnabled
-        ? `
-      @keyframes scanBorder {
-        0% { background-position: 0% 50%; }
-        100% { background-position: 200% 50%; }
+      html[data-reveal-ready="1"] .reveal {
+        opacity: 0;
+        transform: translate3d(0, var(--reveal-y), 0);
+        filter: blur(0.2px);
+        transition: transform var(--reveal-dur) var(--reveal-ease),
+          opacity var(--reveal-dur) var(--reveal-ease),
+          filter var(--reveal-dur) var(--reveal-ease);
       }
 
-      .fx-border-scan {
+      html[data-reveal-ready="1"] .reveal.is-in {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+        filter: none;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html[data-reveal-ready="1"] .reveal {
+          transition: none !important;
+          opacity: 1 !important;
+          transform: none !important;
+          filter: none !important;
+        }
+      }
+
+      /* ==========================================================
+         Divider BETWEEN sections (ALWAYS ON)
+         - attach class "te-divider" on the wrapper (or reveal wrapper)
+         - uses --te-surface-border when present, with light/dark fallback
+         ========================================================== */
+
+      .te-divider {
         position: relative;
-        isolation: isolate;
-
-        /* defaults (DARK) */
-        --fx-scan-opacity: 0.65;
-        --fx-scan-speed: 5.4s;
-        --fx-scan-a: 0.7;
-        --fx-scan-blend: screen;
-
-        --fx-scan-r: 255;
-        --fx-scan-g: 255;
-        --fx-scan-b: 255;
       }
 
-      /* LIGHT: scan noir => visible sur fond clair */
-      [data-ui="light"] .fx-border-scan {
-        --fx-scan-opacity: 0.38;
-        --fx-scan-a: 0.55;
-        --fx-scan-blend: multiply;
-
-        --fx-scan-r: 0;
-        --fx-scan-g: 0;
-        --fx-scan-b: 0;
-      }
-
-      /* la ligne animée (1px) */
-      [data-fx-enabled="1"] .fx-border-scan.fx-divider::after {
+      /* default (light-ish fallback) */
+      .te-divider::after {
         content: "";
         position: absolute;
         left: 0;
         right: 0;
+
+        /* line at the top of the block (between sections) */
         top: 0;
-        height: 1px;
+
+        height: var(--divider-h);
         pointer-events: none;
-        z-index: 2;
-
+        opacity: 0.78;
         background: linear-gradient(
-            90deg,
-            rgba(var(--fx-scan-r), var(--fx-scan-g), var(--fx-scan-b), 0) 0%,
-            rgba(var(--fx-scan-r), var(--fx-scan-g), var(--fx-scan-b), var(--fx-scan-a)) 25%,
-            rgba(var(--fx-scan-r), var(--fx-scan-g), var(--fx-scan-b), 0) 50%
-          )
-          0% 50% / 200% 200%;
-
-        mix-blend-mode: var(--fx-scan-blend);
-        opacity: var(--fx-scan-opacity);
-        animation: scanBorder var(--fx-scan-speed) linear infinite;
-        will-change: background-position;
-      }
-
-      .fx-softglow {
-        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.08);
-      }
-      `
-        : ``}
-
-      /* ============================================================
-         FX — Shimmer CTA (injecté seulement si enabled && shimmer)
-         ============================================================ */
-      ${fxShimmer
-        ? `
-      @keyframes fxCtaShimmer {
-        0% { transform: translateX(-140%) skewX(-18deg); opacity: 0; }
-        28% { transform: translateX(-140%) skewX(-18deg); opacity: 0; }
-        36% { opacity: 0.55; }
-        56% { opacity: 0.28; }
-        68% { transform: translateX(140%) skewX(-18deg); opacity: 0; }
-        100% { transform: translateX(140%) skewX(-18deg); opacity: 0; }
-      }
-
-      .fx-cta,
-      .fx-shimmer-cta {
-        position: relative;
-        overflow: hidden;
-        isolation: isolate;
-
-        --fx-cta-shimmer-dur: 5200ms;
-        --fx-cta-shimmer-ease: ease-in-out;
-
-        /* DARK defaults */
-        --fx-cta-a1: 0.18;
-        --fx-cta-a2: 0.55;
-
-        --fx-cta-blend: screen;
-        --fx-cta-blur: 0.45px;
-      }
-
-      /* LIGHT: un peu plus visible */
-      [data-ui="light"] .fx-cta,
-      [data-ui="light"] .fx-shimmer-cta {
-        --fx-cta-a1: 0.16;
-        --fx-cta-a2: 0.34;
-        --fx-cta-blend: soft-light;
-        --fx-cta-blur: 0.6px;
-      }
-
-      .fx-cta::after,
-      .fx-shimmer-cta::after {
-        content: "";
-        position: absolute;
-        top: -35%;
-        left: -70%;
-        width: 70%;
-        height: 170%;
-
-        background: linear-gradient(
-          110deg,
-          transparent 0%,
-          rgba(255, 255, 255, var(--fx-cta-a1)) 35%,
-          rgba(255, 255, 255, var(--fx-cta-a2)) 50%,
-          rgba(255, 255, 255, var(--fx-cta-a1)) 65%,
-          transparent 100%
+          90deg,
+          transparent,
+          color-mix(
+            in srgb,
+            var(--te-surface-border, var(--te-surface-border-fallback)) 70%,
+            transparent
+          ),
+          transparent
         );
+      }
 
-        mix-blend-mode: var(--fx-cta-blend);
-        filter: blur(var(--fx-cta-blur));
-        pointer-events: none;
-        z-index: 2;
+      /* dark fallback (if you set data-theme="dark" on .template-engine) */
+      .template-engine[data-theme="dark"] .te-divider::after {
+        opacity: 0.72;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          color-mix(
+            in srgb,
+            var(--te-surface-border, var(--te-surface-border-fallback-dark)) 75%,
+            transparent
+          ),
+          transparent
+        );
+      }
 
+      /* avoid line before very first section wrapper (optional, safe) */
+      .min-h-screen > .te-divider:first-child::after {
         opacity: 0;
-        transform: translateX(-140%) skewX(-18deg);
-        will-change: transform, opacity;
       }
 
-      /* 3 passes puis stop */
-      [data-fx-shimmer="1"] .fx-cta::after,
-      [data-fx-shimmer="1"] .fx-shimmer-cta::after {
-        animation: fxCtaShimmer var(--fx-cta-shimmer-dur) var(--fx-cta-shimmer-ease) 0s 3 both;
-      }
+      /* ==========================================================
+         Ambient subtle glow (optional)
+         ========================================================== */
 
-      /* Loop only when explicitly requested */
-      [data-fx-shimmer="1"] .fx-cta.fx-cta-loop::after,
-      [data-fx-shimmer="1"] .fx-shimmer-cta.fx-cta-loop::after {
-        animation-iteration-count: infinite;
-      }
-      `
-        : ``}
-
-      /* ============================================================
-         FX — Ambient (injecté seulement si enabled && ambient)
-         ============================================================ */
       ${fxAmbient
         ? `
-      [data-fx-enabled="1"] .fx-ambient {
-        position: relative;
-        isolation: isolate;
-        overflow: hidden;
+      .fx-softglow { position: relative; }
+      .fx-softglow::before{
+        content:"";
+        position:absolute;
+        inset:-14px;
+        pointer-events:none;
+        border-radius:inherit;
+        opacity:0.18;
+        filter:blur(18px);
+        background: radial-gradient(closest-side, rgba(255,255,255,0.55), transparent 70%);
       }
-      [data-fx-enabled="1"] .fx-ambient::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        z-index: -1;
-        background:
-          radial-gradient(circle at 20% 20%, rgba(0,0,0,0.06), transparent 40%),
-          radial-gradient(circle at 80% 10%, rgba(0,0,0,0.05), transparent 45%),
-          radial-gradient(circle at 60% 90%, rgba(0,0,0,0.04), transparent 50%);
+      .template-engine[data-theme="dark"] .fx-softglow::before{
+        opacity:0.14;
+        background: radial-gradient(closest-side, rgba(255,255,255,0.35), transparent 70%);
       }
       `
         : ``}
 
-      @media (prefers-reduced-motion: reduce) {
-        .reveal,
-        .reveal[data-reveal="pending"] {
-          opacity: 1 !important;
-          transform: none !important;
-          transition: none !important;
-        }
+      /* ==========================================================
+         Border scan (optional) - plays on entrance
+         - attach class "fx-border-scan" on same wrapper as "reveal"
+         - IMPORTANT: we draw it on top edge to align with divider
+         ========================================================== */
 
-        .fx-border-scan.fx-divider::after,
-        .fx-cta::after,
-        .fx-shimmer-cta::after {
-          animation: none !important;
+      ${fxEnabled
+        ? `
+      .fx-border-scan { position: relative; }
+
+      .fx-border-scan::before{
+        content:"";
+        position:absolute;
+        left: 0;
+
+        /* align to divider top edge */
+        top: 0;
+
+        width: 220px;
+        height: var(--scan-h);
+        pointer-events:none;
+        opacity:0;
+        filter: blur(0.25px);
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255,255,255,var(--scan-glow)),
+          transparent
+        );
+
+        /* start at right, sweep to left */
+        transform: translateX(110%);
+      }
+
+      html[data-reveal-ready="1"] .reveal.is-in.fx-border-scan::before{
+        opacity:1;
+        animation: te-scan var(--scan-dur) ease-out 1;
+      }
+
+      @keyframes te-scan{
+        0%{ transform: translateX(110%); opacity:0; }
+        12%{ opacity:1; }
+        100%{ transform: translateX(-30%); opacity:0; }
+      }
+
+      @media (prefers-reduced-motion: reduce){
+        .fx-border-scan::before{
+          display:none !important;
         }
       }
+      `
+        : ``}
+
+      /* ==========================================================
+         Shimmer CTA (optional)
+         Apply ONLY with class .fx-cta
+         ========================================================== */
+
+      ${fxShimmer
+        ? `
+      .fx-cta{
+        position:relative;
+        isolation:isolate;
+      }
+
+      .fx-cta::after{
+        content:"";
+        position:absolute;
+        inset:-2px;
+        pointer-events:none;
+        border-radius:inherit;
+        opacity:0;
+        background: linear-gradient(
+          120deg,
+          transparent 0%,
+          rgba(255,255,255,0.55) 15%,
+          rgba(255,255,255,0.08) 35%,
+          transparent 55%
+        );
+        transform: translateX(-140%);
+      }
+
+      .fx-cta:hover::after{
+        opacity:1;
+        animation: te-shimmer 1100ms cubic-bezier(0.2,0.8,0.2,1) 1;
+      }
+
+      @keyframes te-shimmer{
+        0%{ transform:translateX(-140%); opacity:0; }
+        15%{ opacity:1; }
+        100%{ transform:translateX(140%); opacity:0; }
+      }
+
+      @media (prefers-reduced-motion: reduce){
+        .fx-cta::after{ display:none !important; }
+      }
+      `
+        : ``}
     `}</style>
   );
 }

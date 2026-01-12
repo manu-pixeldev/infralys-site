@@ -4,474 +4,382 @@
 import React from "react";
 import { createPortal } from "react-dom";
 
-import type { TemplateConfigInput } from "./types";
-type SectionType = string;
-
+import type { TemplateConfigInput, SectionType } from "./types";
 import { getTheme, cx, parseThemeVariant, type CanvasStyle } from "./theme";
 import { VARIANTS, VARIANTS_BY_TYPE } from "./variants";
 import { StudioPanel } from "./studio-panel";
 import { FxStyles } from "./fx-styles";
 
-// V24 core
+// core
 import { domIdForSection, dataAttrForSection } from "./core/dom-ids";
 import { buildNavModel } from "./core/nav/nav-model";
 import { createScrollSpy, scrollToDomId } from "./core/nav/scroll-spy";
 import { useReveal } from "./core/fx/reveal";
-
-// ✅ V25: safe deep clone (no JSON stringify)
 import { deepClone } from "./core/deep-clone";
+import { useScrollRestoreNoFlash } from "./core/nav/scroll-restore";
+
+type Props = {
+  config: TemplateConfigInput;
+  setConfig?: (next: TemplateConfigInput) => void;
+};
+
+type AnyRecord = Record<string, any>;
 
 type Section = {
   id: string;
   type: SectionType;
   title?: string;
+  label?: string;
+  navLabel?: string;
   variant?: string;
   enabled?: boolean;
+  hidden?: boolean;
   lock?: boolean;
-  domId?: string; // computed from core/dom-ids.ts
+
+  // computed
+  domId?: string;
+
+  // passthrough
+  content?: any;
+  options?: any;
+  nav?: { label?: string; hide?: boolean };
+
   [k: string]: any;
 };
 
-function fallbackVariant(type: string) {
-  switch (type) {
-    case "gallery":
-      return "stack";
-    case "contact":
-      return "AUTO";
-    case "proof":
-      return "stats";
-    default:
-      return "A";
+function safeStr(v: unknown, fallback = ""): string {
+  const s = String(v ?? "").trim();
+  return s || fallback;
+}
+
+function safeBool(v: unknown, fallback = true): boolean {
+  if (typeof v === "boolean") return v;
+  if (v == null) return fallback;
+  return Boolean(v);
+}
+
+function normalizeSections(raw: any[]): Section[] {
+  const arr = Array.isArray(raw) ? raw : [];
+  const seenDom = new Set<string>();
+
+  return arr.map((s: any, idx: number) => {
+    const id = safeStr(s?.id, `sec-${idx + 1}`);
+    const type = safeStr(s?.type, "split") as unknown as SectionType;
+
+    const sec: Section = {
+      ...s,
+      id,
+      type,
+      enabled: safeBool(s?.enabled, true),
+      hidden: safeBool(s?.hidden, false),
+      variant: safeStr(s?.variant, "") || undefined,
+      title: safeStr(s?.title, "") || undefined,
+      label: safeStr(s?.label, "") || undefined,
+      navLabel: safeStr(s?.navLabel, "") || undefined,
+    };
+
+    // ✅ domId helper expects a string SectionId
+    let computedDom = safeStr(sec.domId, "") || domIdForSection(id);
+
+    // Deduplicate (critical for scroll/spy)
+    if (seenDom.has(computedDom)) {
+      let n = 2;
+      while (seenDom.has(`${computedDom}-${n}`)) n++;
+      computedDom = `${computedDom}-${n}`;
+    }
+    seenDom.add(computedDom);
+
+    sec.domId = computedDom;
+    return sec;
+  });
+}
+
+function pickVariant(type: string, requested?: string) {
+  const t = String(type || "").toLowerCase();
+  const v = safeStr(requested, "") || "AUTO";
+  const bucket =
+    (VARIANTS as AnyRecord)[t] || (VARIANTS_BY_TYPE as AnyRecord)[t];
+  if (!bucket) return { variant: v, Comp: null as any };
+  const Comp = bucket[v] || bucket.AUTO || bucket.A || null;
+  return { variant: v, Comp };
+}
+
+function getHeaderOffsetPx(): number {
+  try {
+    const raw = getComputedStyle(document.documentElement)
+      .getPropertyValue("--header-offset")
+      .trim();
+    const n = Number(String(raw).replace("px", ""));
+    return Number.isFinite(n) && n > 0 ? n : 84;
+  } catch {
+    return 84;
   }
 }
 
-function cloneConfig<T>(v: T): T {
-  return deepClone(v);
-}
+export function TemplateEngine({ config, setConfig }: Props) {
+  const cfg = React.useMemo<TemplateConfigInput>(
+    () => deepClone(config || ({} as any)),
+    [config]
+  );
 
-function resolveConfig(input: TemplateConfigInput): TemplateConfigInput {
-  const next = cloneConfig(input) as any;
+  const sections = React.useMemo(
+    () => normalizeSections((cfg as AnyRecord)?.sections ?? []),
+    [cfg]
+  );
 
-  next.options = next.options ?? {};
-
-  // FX defaults
-  next.options.fx = {
-    enabled: !!next.options.fx?.enabled,
-    ambient: !!next.options.fx?.ambient,
-    softGlow: !!next.options.fx?.softGlow,
-    borderScan: !!next.options.fx?.borderScan,
-    shimmerCta: !!next.options.fx?.shimmerCta,
-    ...(next.options.fx ?? {}),
-  };
-
-  // studio defaults
-  next.options.studio = next.options.studio ?? {};
-  next.options.studio.enabled = next.options.studio.enabled ?? true;
-  next.options.studio.allowRandomize =
-    next.options.studio.allowRandomize ?? true;
-  next.options.studio.ui = next.options.studio.ui ?? {};
-  next.options.studio.ui.dock = next.options.studio.ui.dock ?? "right";
-  next.options.studio.ui.minimized = next.options.studio.ui.minimized ?? false;
-
-  // theme default safe
-  (next.options as any).themeVariant =
-    (next.options as any).themeVariant ?? "amberOrange|classic";
-
-  // canvas style default safe
-  (next.options as any).canvasStyle = ((next.options as any).canvasStyle ??
+  // ---- Theme (getTheme signature ok) ----
+  const canvasStyle = ((cfg as AnyRecord)?.canvasStyle ??
     "classic") as CanvasStyle;
 
-  // layout defaults
-  next.options.layout = next.options.layout ?? {};
-  next.options.layout.container = next.options.layout.container ?? "7xl";
-  next.options.layout.density = next.options.layout.density ?? "normal";
-  next.options.layout.radius = next.options.layout.radius ?? 24;
-
-  // nav defaults
-  next.options.maxDirectLinksInMenu = next.options.maxDirectLinksInMenu ?? 4;
-  next.options.nav = next.options.nav ?? {};
-  next.options.nav.maxDirectLinksInMenu =
-    next.options.nav.maxDirectLinksInMenu ?? next.options.maxDirectLinksInMenu;
-
-  // brand defaults
-  next.brand = next.brand ?? {};
-  next.brand.logo = next.brand.logo ?? {};
-  next.brand.logo.mode = next.brand.logo.mode ?? "logoPlusText";
-  next.brand.logo.width = Math.max(
-    24,
-    Number(next.brand.logo.width ?? 80) || 80
-  );
-  next.brand.logo.height = Math.max(
-    24,
-    Number(next.brand.logo.height ?? 80) || 80
-  );
-
-  if (next.brand.logo.mode === "textOnly") {
-    next.brand.logo.src = next.brand.logo.src ?? undefined;
-  } else {
-    next.brand.logo.src = next.brand.logo.src ?? "/brand/logo.svg";
-  }
-
-  next.content = next.content ?? {};
-  next.sections = Array.isArray(next.sections) ? next.sections : [];
-
-  return next as TemplateConfigInput;
-}
-
-function resolveSectionVariant(s: any) {
-  const type = String(s?.type || "");
-  const known = (VARIANTS_BY_TYPE as any)[type] as
-    | readonly string[]
-    | undefined;
-
-  const v = String(s?.variant || "").trim();
-  if (known?.includes(v)) return v;
-
-  const fb = fallbackVariant(type);
-  if (known?.includes(fb)) return fb;
-
-  return known?.[0] ?? fb;
-}
-
-export default function TemplateEngine({
-  config,
-  setConfig,
-}: {
-  config: TemplateConfigInput;
-  setConfig?: React.Dispatch<React.SetStateAction<TemplateConfigInput>>;
-}) {
-  // ============================================================
-  // ✅ SYNC STABLE (anti boucle / anti stack overflow)
-  // ============================================================
-  const syncingRef = React.useRef(false);
-
-  const [liveConfig, setLiveConfig] = React.useState<TemplateConfigInput>(() =>
-    resolveConfig(config)
-  );
-
-  React.useEffect(() => {
-    syncingRef.current = true;
-    setLiveConfig(resolveConfig(config));
-  }, [config]);
-
-  React.useEffect(() => {
-    if (!setConfig) return;
-    if (syncingRef.current) {
-      syncingRef.current = false;
-      return;
-    }
-    setConfig(liveConfig);
-  }, [liveConfig, setConfig]);
-
-  const setBoth = React.useCallback(
-    (next: React.SetStateAction<TemplateConfigInput>) => {
-      setLiveConfig((prev: TemplateConfigInput) => {
-        const computed =
-          typeof next === "function"
-            ? (next as (p: TemplateConfigInput) => TemplateConfigInput)(prev)
-            : next;
-
-        return resolveConfig(computed);
-      });
-    },
-    []
-  );
-
-  // ✅ mount guard (anti flash)
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
-
-  const opt = (liveConfig as any).options ?? {};
-  const fx = (opt as any).fx ?? {
-    enabled: false,
-    ambient: false,
-    softGlow: false,
-    borderScan: false,
-    shimmerCta: false,
-  };
-
-  const fxEnabled = !!fx?.enabled;
-  const fxShimmer = fxEnabled && !!fx?.shimmerCta;
-
-  const themeVariant = (opt as any).themeVariant ?? "amberOrange|classic";
-  const canvasStyle = ((opt as any).canvasStyle ?? "classic") as CanvasStyle;
-
+  const parsedTheme = parseThemeVariant((cfg as AnyRecord)?.themeVariant);
   const theme = React.useMemo(() => {
-    const { accent, canvas } = parseThemeVariant(themeVariant);
-    return getTheme({ accent, canvas, style: canvasStyle });
-  }, [themeVariant, canvasStyle]);
+    try {
+      return getTheme({
+        accent: parsedTheme?.accent ?? "amberOrange",
+        canvas: parsedTheme?.canvas ?? "classic",
+        style: canvasStyle,
+      } as any);
+    } catch {
+      return getTheme({
+        accent: "amberOrange",
+        canvas: "classic",
+        style: canvasStyle,
+      } as any);
+    }
+  }, [parsedTheme?.accent, parsedTheme?.canvas, canvasStyle]);
 
-  // Ctrl+K : toggle studio
-  React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!e.ctrlKey) return;
-      if (e.key.toLowerCase() !== "k") return;
-      e.preventDefault();
-      setBoth((prev: any) => {
-        const next = cloneConfig(prev) as any;
-        next.options = next.options ?? {};
-        next.options.studio = next.options.studio ?? {};
-        next.options.studio.enabled = !next.options.studio.enabled;
-        return next;
-      });
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [setBoth]);
+  // FX config
+  const fx = (cfg as AnyRecord)?.fx ?? {};
+  const fxEnabled = Boolean(fx?.enabled);
+  const fxAmbient = Boolean(fxEnabled && fx?.ambient);
+  const fxShimmer = Boolean(fxEnabled && fx?.shimmer);
+  const fxBorderScan = Boolean(fxEnabled && fx?.borderScan);
 
-  // Smooth header shrink (0..1)
-  const [scrollT, setScrollT] = React.useState(0);
+  // mounted guard (portal + data attrs)
+  const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => {
-    let raf = 0;
-    const MAX = 64;
-    const onScroll = () => {
-      if (raf) return;
-      raf = window.requestAnimationFrame(() => {
-        raf = 0;
-        const y = Math.max(0, window.scrollY || 0);
-        const t = Math.max(0, Math.min(1, y / MAX));
-        setScrollT(t);
-      });
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      if (raf) window.cancelAnimationFrame(raf);
-      window.removeEventListener("scroll", onScroll);
-    };
+    setMounted(true);
+    try {
+      document.documentElement.setAttribute("data-mounted", "1");
+    } catch {}
   }, []);
-  const isScrolled = scrollT > 0.15;
 
-  const rawSections: Section[] = Array.isArray((liveConfig as any).sections)
-    ? ((liveConfig as any).sections as any)
-    : [];
-
-  // ============================================================
-  // DOM IDs (single source of truth)
-  // ============================================================
-  const sections: Section[] = React.useMemo(() => {
-    return rawSections
-      .filter((s) => s && (s as any).enabled !== false)
-      .map((s, idx) => {
-        const sid =
-          String((s as any).id || "").trim() ||
-          String((s as any).type || "").trim() ||
-          `section-${idx}`;
-        return { ...(s as any), domId: domIdForSection(sid) } as Section;
-      });
-  }, [rawSections]);
-
-  // ============================================================
-  // Reveal
-  // ============================================================
-  const { registerReveal } = useReveal();
-
-  // ============================================================
-  // maxDirectLinksInMenu
-  // ============================================================
-  const maxDirectLinksInMenu = Number(
-    (opt as any)?.nav?.maxDirectLinksInMenu ??
-      (opt as any)?.maxDirectLinksInMenu ??
-      (opt as any)?.maxDirectLinks ??
-      (liveConfig as any)?.content?.nav?.maxDirectLinksInMenu ??
-      (liveConfig as any)?.content?.nav?.maxDirectLinks ??
-      4
-  );
-
-  // ============================================================
-  // NAV SECTIONS (hero éligible même si title vide)
-  // ============================================================
-  const sectionsForNav = React.useMemo(() => {
-    return sections.map((s, idx) => {
-      const type = String((s as any).type || "");
-      const domId = String((s as any).domId || `sec-${idx}`);
-      const safeTitle =
-        (s as any).title?.trim?.() || (type === "hero" ? "Accueil" : "");
-      return { ...(s as any), domId, title: safeTitle } as Section;
-    });
-  }, [sections]);
-
-  // ============================================================
-  // Nav model + scroll spy
-  // ============================================================
-  const navModel = React.useMemo(() => {
-    return buildNavModel({
-      sections: sectionsForNav as any,
-      maxDirect: maxDirectLinksInMenu,
-      overflowLabel: "Plus",
-    });
-  }, [sectionsForNav, maxDirectLinksInMenu]);
+  // Scroll restore (Phase 0)
+  useScrollRestoreNoFlash();
 
   const [activeDomId, setActiveDomId] = React.useState<string | null>(null);
+  const [activeHref, setActiveHref] = React.useState<string>("#top");
+  const [scrollT, setScrollT] = React.useState(0);
 
-  React.useEffect(() => {
-    if (!mounted) return;
+  // reveal hook adapter
+  const revealApi: any = useReveal();
+  const registerReveal: (id: string) => (node: HTMLElement | null) => void =
+    typeof revealApi === "function"
+      ? revealApi
+      : typeof revealApi?.registerReveal === "function"
+      ? revealApi.registerReveal
+      : typeof revealApi?.register === "function"
+      ? revealApi.register
+      : () => () => {};
 
-    const spy = createScrollSpy({
-      onActiveChange: setActiveDomId,
-    });
+  // nav model (canonical)
+  const navModel = React.useMemo(() => {
+    const maxDirect =
+      Number(
+        (cfg as AnyRecord)?.nav?.maxDirect ??
+          (cfg as AnyRecord)?.options?.nav?.maxDirect ??
+          4
+      ) || 4;
 
-    requestAnimationFrame(() => spy.refresh());
-    return () => spy.destroy();
-  }, [mounted, sectionsForNav.length]);
+    const overflowLabel =
+      safeStr((cfg as AnyRecord)?.nav?.overflowLabel, "") ||
+      safeStr((cfg as AnyRecord)?.options?.nav?.overflowLabel, "") ||
+      "Plus";
 
-  const activeHref = React.useMemo(() => {
-    return activeDomId ? `#${activeDomId}` : "#top";
-  }, [activeDomId]);
+    return buildNavModel({
+      sections: sections.map((s) => ({
+        id: s.id,
+        type: s.type,
+        title: s.title,
+        label: s.navLabel || s.label,
+        hidden: s.hidden,
+        disabled: s.enabled === false,
+        nav: s.nav,
+        domId: s.domId,
+      })),
+      maxDirect,
+      overflowLabel,
+    } as any);
+  }, [cfg, sections]);
 
+  // smooth scroll handler used by Header
   const onNavTo = React.useCallback((href: string) => {
-    const id = String(href || "").startsWith("#") ? href.slice(1) : href;
-    if (!id) return;
-    scrollToDomId(id, { behavior: "smooth" });
+    const domId = href.startsWith("#") ? href.slice(1) : href;
+    if (!domId) return;
+
+    try {
+      (window as any).__TE_ANCHOR_NAV = true;
+    } catch {}
+
+    try {
+      history.replaceState(null, "", `#${domId}`);
+    } catch {}
+
+    scrollToDomId(domId, getHeaderOffsetPx());
+
+    setTimeout(() => {
+      try {
+        (window as any).__TE_ANCHOR_NAV = false;
+      } catch {}
+    }, 0);
   }, []);
 
-  // Lightbox minimal
-  const [lightboxImg, setLightboxImg] = React.useState<any>(null);
-  const closeLightbox = React.useCallback(() => setLightboxImg(null), []);
+  // scrolled state
   React.useEffect(() => {
-    if (!lightboxImg) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeLightbox();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [lightboxImg, closeLightbox]);
+    const onScroll = () => setScrollT(window.scrollY || 0);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  // first content section after header => breathing room
-  const firstNonHeaderIdx = React.useMemo(() => {
-    return sections.findIndex(
-      (x) => String((x as any).type || "") !== "header"
-    );
-  }, [sections]);
+  // ScrollSpy
+  React.useEffect(() => {
+    const spy = createScrollSpy(navModel, {
+      onActiveChange: (href: string) => setActiveHref(href),
+      onActiveDomId: (id: string | null) => setActiveDomId(id),
+      getOffsetPx: () => getHeaderOffsetPx(),
+      biasPx: 8,
+    } as any);
+
+    try {
+      document.documentElement.setAttribute("data-reveal-ready", "1");
+    } catch {}
+
+    return () => {
+      try {
+        spy?.destroy?.();
+      } catch {}
+    };
+  }, [navModel]);
+
+  const rootStyle = React.useMemo(() => {
+    const out: React.CSSProperties = {};
+    (out as any)["--header-offset"] = "84px";
+
+    const canvasVar = (theme as any)?.canvasVar;
+    if (
+      canvasVar &&
+      typeof canvasVar === "object" &&
+      !Array.isArray(canvasVar)
+    ) {
+      Object.assign(out as any, canvasVar);
+    }
+    return out;
+  }, [theme]);
+
+  const isScrolled = scrollT > 8;
+
+  const wrapSection = React.useCallback(
+    (sec: Section, node: React.ReactNode, idx: number) => {
+      const t = String(sec.type || "").toLowerCase();
+      if (t === "header" || t === "top") {
+        return <React.Fragment key={sec.id}>{node}</React.Fragment>;
+      }
+
+      // ✅ domId is a string (computed earlier)
+      const domId = safeStr(sec.domId, domIdForSection(sec.id));
+      const withDivider = idx > 0;
+
+      const className = cx(
+        "reveal",
+        withDivider && "te-divider",
+        fxAmbient && "fx-softglow",
+        fxBorderScan && "fx-border-scan"
+      );
+
+      return (
+        <div
+          key={`wrap-${sec.id}`}
+          id={domId}
+          ref={registerReveal(sec.id)}
+          className={className}
+          style={{ scrollMarginTop: "var(--header-offset, 84px)" }}
+          data-domid={domId}
+          {...dataAttrForSection(sec.id)} // ✅ spread object
+          data-variant={sec.variant || "AUTO"}
+        >
+          {node}
+        </div>
+      );
+    },
+    [fxAmbient, fxBorderScan, registerReveal]
+  );
 
   return (
-    <div
-      data-ui={theme.isDark ? "dark" : "light"}
-      data-mounted={mounted ? "1" : "0"}
-      data-fx-enabled={fxEnabled ? "1" : "0"}
-      data-fx-shimmer={fxShimmer ? "1" : "0"}
-      className={cx(
-        "min-h-screen",
-        theme.bgPage,
-        theme.text,
-        fxEnabled && fx.ambient && "fx-ambient"
-      )}
-      style={mounted ? { ...(theme.canvasVar ?? {}) } : undefined}
-    >
-      <FxStyles
-        enabled={fxEnabled}
-        ambient={!!fx.ambient}
-        shimmer={fxShimmer}
-      />
+    <>
+      <FxStyles enabled={fxEnabled} ambient={fxAmbient} shimmer={fxShimmer} />
 
-      {sections.map((s, idx) => {
-        const type = String((s as any).type || "");
-        const variant = resolveSectionVariant(s);
-        const Comp = (VARIANTS as any)?.[type]?.[variant] as any;
-        if (!Comp) return null;
+      <div
+        className={cx(
+          "template-engine",
+          (theme as any)?.bgPage,
+          (theme as any)?.text
+        )}
+        data-theme={`${parsedTheme?.accent ?? "amberOrange"}|${
+          parsedTheme?.canvas ?? "classic"
+        }`}
+        data-canvas-style={(theme as any)?.canvasStyle ?? canvasStyle}
+        style={rootStyle}
+      >
+        <div id="top" />
 
-        const domId = String((s as any).domId || `sec-${idx}`);
-        const sectionId = String((s as any).id || "").trim() || domId;
+        <div className="min-h-screen">
+          {sections
+            .filter((s) => s && s.enabled !== false && !s.hidden)
+            .map((sec, idx) => {
+              const { variant, Comp } = pickVariant(sec.type, sec.variant);
+              if (!Comp) return null;
 
-        const baseNode = (
-          <Comp
-            key={`${domId}::${variant}`}
-            section={s}
-            theme={theme}
-            brand={(liveConfig as any).brand}
-            content={{
-              ...(liveConfig as any).content,
-              nav: {
-                ...(((liveConfig as any).content?.nav as any) ?? {}),
-                maxDirectLinksInMenu,
-              },
-            }}
-            options={(liveConfig as any).options}
-            sections={sections}
-            activeHref={activeHref}
-            activeDomId={activeDomId}
-            navModel={navModel}
-            onNavTo={onNavTo}
-            isScrolled={isScrolled}
-            scrollT={scrollT}
-            setLightboxImg={setLightboxImg}
-          />
-        );
+              const isHeader = String(sec.type).toLowerCase() === "header";
 
-        if (type === "top") {
-          return (
-            <React.Fragment key={`${domId}::top`}>{baseNode}</React.Fragment>
-          );
-        }
+              const node = (
+                <section
+                  className="te-section"
+                  {...dataAttrForSection(sec.id)} // ✅ spread object
+                  data-variant={variant}
+                >
+                  <Comp
+                    theme={theme}
+                    section={sec}
+                    content={(sec as AnyRecord)?.content}
+                    options={(sec as AnyRecord)?.options}
+                    navModel={isHeader ? navModel : undefined}
+                    onNavTo={isHeader ? onNavTo : undefined}
+                    activeDomId={isHeader ? activeDomId : undefined}
+                    activeHref={isHeader ? activeHref : undefined}
+                    isScrolled={isHeader ? isScrolled : undefined}
+                    scrollT={isHeader ? scrollT : undefined}
+                    sections={isHeader ? sections : undefined}
+                    config={cfg}
+                    setConfig={setConfig}
+                  />
+                </section>
+              );
 
-        if (type === "header") {
-          return (
-            <React.Fragment key={`${domId}::header`}>
-              {baseNode}
-              <div
-                aria-hidden="true"
-                style={{ height: "var(--header-h, 120px)" }}
-              />
-            </React.Fragment>
-          );
-        }
+              return wrapSection(sec, node, idx);
+            })}
+        </div>
+      </div>
 
-        const isAfterHeader = idx === firstNonHeaderIdx;
-
-        return (
-          <div
-            key={`${domId}::wrap`}
-            id={domId}
-            {...dataAttrForSection(sectionId)}
-            ref={registerReveal(domId)}
-            className={cx(
-              "reveal",
-              "fx-divider",
-              isAfterHeader && "te-after-header",
-              fxEnabled && fx.softGlow && "fx-softglow",
-              fxEnabled && fx.borderScan && "fx-border-scan"
-            )}
-            data-variant={variant}
-            style={{
-              scrollMarginTop: "calc(var(--header-offset, 120px) + 16px)",
-            }}
-          >
-            {baseNode}
-          </div>
-        );
-      })}
-
-      {/* Studio Panel */}
+      {/* StudioPanel portal (stable / guard setConfig) */}
       {mounted &&
-      (liveConfig as any).options?.studio?.enabled !== false &&
-      typeof window !== "undefined"
+      (cfg as AnyRecord)?.studio?.enabled &&
+      typeof setConfig === "function"
         ? createPortal(
-            <StudioPanel
-              config={liveConfig}
-              setConfig={setBoth}
-              theme={theme}
-            />,
+            <StudioPanel config={cfg} setConfig={setConfig!} />,
             document.body
           )
         : null}
-
-      {/* Lightbox */}
-      {lightboxImg ? (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-6"
-          onMouseDown={closeLightbox}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="max-h-[90vh] max-w-[92vw] overflow-hidden rounded-2xl bg-black/20 backdrop-blur-md">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={lightboxImg.src}
-              alt={lightboxImg.alt || "Image"}
-              className="max-h-[90vh] max-w-[92vw] object-contain"
-              onMouseDown={(e) => e.stopPropagation()}
-            />
-          </div>
-        </div>
-      ) : null}
-    </div>
+    </>
   );
 }
