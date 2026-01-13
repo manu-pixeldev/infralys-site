@@ -60,7 +60,7 @@ export default function SectionsSection({
       </div>
 
       <div className="mb-3 text-xs text-slate-500">
-        Drag & drop • Toggle • Label menu • Variant
+        Drag & drop • Toggle • Label menu • Variant • Duplicate (split)
       </div>
 
       <DndContext
@@ -84,6 +84,8 @@ export default function SectionsSection({
                 variant={it.variant ?? ""}
                 variantOptions={it.variantOptions}
                 onVariantChange={(next) => s.setVariant(it.id, next)}
+                showDuplicate={it.type === "split" && !Boolean(it.lock)}
+                onDuplicate={() => s.duplicateSplit(it.id)}
               />
             ))}
           </div>

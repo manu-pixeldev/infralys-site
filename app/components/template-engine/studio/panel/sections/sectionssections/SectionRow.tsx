@@ -14,14 +14,16 @@ export type SectionRowProps = {
   enabled: boolean;
   locked?: boolean;
 
-  /** Optional editable nav label (menu label) */
   navLabel?: string;
   onNavLabelChange?: (next: string) => void;
 
-  /** Optional variant picker */
   variant?: string;
   variantOptions?: VariantOption[];
   onVariantChange?: (next: string) => void;
+
+  /** ✅ Optional "Duplicate" action (used for split) */
+  showDuplicate?: boolean;
+  onDuplicate?: () => void;
 
   onToggle: (next: boolean) => void;
 };
@@ -78,6 +80,9 @@ export default function SectionRow({
   variantOptions,
   onVariantChange,
 
+  showDuplicate,
+  onDuplicate,
+
   onToggle,
 }: SectionRowProps) {
   const isLocked = Boolean(locked);
@@ -110,6 +115,9 @@ export default function SectionRow({
   const canEditVariant = showVariant && !isLocked;
 
   const hasVariant = Boolean((variant ?? "").trim());
+  const canDuplicate = Boolean(
+    showDuplicate && !isLocked && typeof onDuplicate === "function"
+  );
 
   return (
     <div
@@ -159,12 +167,25 @@ export default function SectionRow({
             ) : null}
           </div>
 
-          <Toggle
-            checked={enabled}
-            disabled={isLocked}
-            onChange={(next) => onToggle(next)}
-            title={isLocked ? "Section verrouillée" : enabled ? "On" : "Off"}
-          />
+          <div className="flex items-center gap-2">
+            {canDuplicate && (
+              <button
+                type="button"
+                onClick={() => onDuplicate?.()}
+                className="h-7 rounded-xl border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                title="Dupliquer cette section"
+              >
+                Duplicate
+              </button>
+            )}
+
+            <Toggle
+              checked={enabled}
+              disabled={isLocked}
+              onChange={(next) => onToggle(next)}
+              title={isLocked ? "Section verrouillée" : enabled ? "On" : "Off"}
+            />
+          </div>
         </div>
 
         {/* controls */}
