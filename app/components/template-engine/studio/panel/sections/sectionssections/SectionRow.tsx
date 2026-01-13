@@ -109,6 +109,8 @@ export default function SectionRow({
   const canEditNavLabel = showNavLabel && !isLocked;
   const canEditVariant = showVariant && !isLocked;
 
+  const hasVariant = Boolean((variant ?? "").trim());
+
   return (
     <div
       ref={setNodeRef}
@@ -140,9 +142,18 @@ export default function SectionRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-900 truncate">
-              {title}
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="text-sm font-semibold text-slate-900 truncate">
+                {title}
+              </div>
+
+              {isLocked && (
+                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                  PINNED
+                </span>
+              )}
             </div>
+
             {subtitle ? (
               <div className="text-xs text-slate-500 truncate">{subtitle}</div>
             ) : null}
@@ -183,9 +194,23 @@ export default function SectionRow({
 
             {showVariant && (
               <div>
-                <div className="mb-1 text-[11px] font-semibold text-slate-600">
-                  Variant
+                <div className="mb-1 flex items-center justify-between">
+                  <div className="text-[11px] font-semibold text-slate-600">
+                    Variant
+                  </div>
+
+                  {!isLocked && hasVariant && (
+                    <button
+                      type="button"
+                      onClick={() => onVariantChange?.("")}
+                      className="text-[10px] font-semibold text-slate-500 hover:text-slate-700"
+                      title="Revenir à Auto"
+                    >
+                      Reset
+                    </button>
+                  )}
                 </div>
+
                 <select
                   value={variant ?? ""}
                   onChange={(e) =>
