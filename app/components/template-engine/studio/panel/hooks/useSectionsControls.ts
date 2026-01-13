@@ -31,8 +31,6 @@ function nextId(sections: SectionBase[], base: string) {
  */
 export type StudioSectionView = {
   id: string;
-
-  // ✅ required for definitions mapping + subtitle
   type: string;
 
   title: string;
@@ -41,7 +39,6 @@ export type StudioSectionView = {
   lock?: boolean;
 
   navLabel?: string;
-
   variant?: string;
   variantOptions?: { value: string; label?: string }[];
 };
@@ -49,7 +46,6 @@ export type StudioSectionView = {
 function asSections(config: TemplateConfigInput): StudioSectionData[] {
   const raw = (config as any)?.sections;
   if (!Array.isArray(raw)) return [];
-  // keep only objects with id/type
   return raw.filter(isSection) as StudioSectionData[];
 }
 
@@ -61,8 +57,6 @@ export function useSectionsControls(
 
   /**
    * View model (for the list UI)
-   * - hide "top"
-   * - keep pinned types visually first
    */
   const sectionsView = React.useMemo<StudioSectionView[]>(() => {
     const pinned = sectionsRaw.filter((s) => PINNED_TYPES.has(s.type));
@@ -96,8 +90,8 @@ export function useSectionsControls(
         subtitle,
         enabled: s.enabled !== false,
         lock: Boolean(s.lock) || PINNED_TYPES.has(s.type as SectionType),
-        variant: s.variant,
         navLabel: s.navLabel,
+        variant: s.variant,
         variantOptions: meta.studio?.variants,
       };
     };
@@ -124,20 +118,6 @@ export function useSectionsControls(
     [update]
   );
 
-  const toggle = React.useCallback(
-    (id: string) =>
-      update((d) => {
-        const arr = asSections(d);
-        const s = arr.find((x) => String(x.id) === String(id));
-        if (!s) return;
-        if (s.lock) return;
-        if (PINNED_TYPES.has(s.type as SectionType)) return;
-        s.enabled = s.enabled !== false ? false : true;
-        (d as any).sections = arr;
-      }),
-    [update]
-  );
-
   const setVariant = React.useCallback(
     (id: string, variant: string) =>
       update((d) => {
@@ -145,6 +125,7 @@ export function useSectionsControls(
         const s = arr.find((x) => String(x.id) === String(id));
         if (!s) return;
         if (s.lock) return;
+        if (PINNED_TYPES.has(s.type as SectionType)) return;
         s.variant = variant;
         (d as any).sections = arr;
       }),
@@ -158,70 +139,13 @@ export function useSectionsControls(
         const s = arr.find((x) => String(x.id) === String(id));
         if (!s) return;
         if (s.lock) return;
+        if (PINNED_TYPES.has(s.type as SectionType)) return;
         s.navLabel = navLabel;
         (d as any).sections = arr;
       }),
     [update]
   );
 
-  const remove = React.useCallback(
-    (id: string) =>
-      update((d) => {
-        const arr = asSections(d);
-        const s = arr.find((x) => String(x.id) === String(id));
-        if (!s) return;
-
-        // safety: pinned not removable
-        if (PINNED_TYPES.has(s.type as SectionType)) return;
-        if (s.lock) return;
-
-        // phase rule: allow delete only for split (for now)
-        if (s.type !== "split") return;
-
-        (d as any).sections = arr.filter((x) => String(x.id) !== String(id));
-      }),
-    [update]
-  );
-
-  const addSplit = React.useCallback(
-    () =>
-      update((d) => {
-        const arr = asSections(d);
-
-        const id = nextId(arr, "split");
-        const heroIndex = arr.findIndex((x) => x.type === "hero");
-        const insertAt =
-          heroIndex >= 0 ? heroIndex + 1 : Math.min(1, arr.length);
-
-        const split: StudioSectionData = {
-          id,
-          type: "split",
-          title: "Section split",
-          variant: "A",
-          enabled: true,
-        } as any;
-
-        const next = [...arr];
-        next.splice(insertAt, 0, split);
-        (d as any).sections = next;
-      }),
-    [update]
-  );
-
-  const removeAllSplits = React.useCallback(
-    () =>
-      update((d) => {
-        const arr = asSections(d);
-        (d as any).sections = arr.filter((s) => s.type !== "split");
-      }),
-    [update]
-  );
-
-  /**
-   * Reorder by ids (DnD)
-   * - blocks pinned
-   * - blocks lock
-   */
   const moveByIds = React.useCallback(
     (activeId: string, overId: string) =>
       update((d) => {
@@ -251,16 +175,10 @@ export function useSectionsControls(
   return {
     sectionsView,
     sectionIds,
-
     setEnabled,
-    toggle,
     setVariant,
     setNavLabel,
-    remove,
-    addSplit,
-    removeAllSplits,
     moveByIds,
-
     pinnedTypes: PINNED_TYPES,
   };
 }

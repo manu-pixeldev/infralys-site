@@ -8,7 +8,7 @@ import { SECTION_DEFINITIONS } from "./definitions";
 // --- Canon (métier / long-terme) ---
 // On importe uniquement ce qui existe déjà côté canon.
 // (On peut compléter au fur et à mesure sans casser le Studio.)
-import { TeamDefinition } from "../../../sections/definitions/Team.definition";
+import { TeamDefinition } from "../../../sections/definitions/team.definition";
 
 // Types canon minimal (on ne force pas un mega-type maintenant)
 export type CanonDefinition = {

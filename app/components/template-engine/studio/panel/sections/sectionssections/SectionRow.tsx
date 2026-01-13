@@ -80,6 +80,8 @@ export default function SectionRow({
 
   onToggle,
 }: SectionRowProps) {
+  const isLocked = Boolean(locked);
+
   const {
     attributes,
     listeners,
@@ -89,7 +91,7 @@ export default function SectionRow({
     isDragging,
   } = useSortable({
     id,
-    disabled: Boolean(locked),
+    disabled: isLocked,
   });
 
   const style: React.CSSProperties = {
@@ -98,11 +100,14 @@ export default function SectionRow({
     opacity: isDragging ? 0.85 : 1,
   };
 
-  const canEditNavLabel = typeof onNavLabelChange === "function";
-  const canEditVariant =
+  const showNavLabel = typeof onNavLabelChange === "function";
+  const showVariant =
     typeof onVariantChange === "function" &&
     Array.isArray(variantOptions) &&
     variantOptions.length > 0;
+
+  const canEditNavLabel = showNavLabel && !isLocked;
+  const canEditVariant = showVariant && !isLocked;
 
   return (
     <div
@@ -111,7 +116,7 @@ export default function SectionRow({
       className={cx(
         "rounded-2xl border border-slate-200 bg-white px-3 py-3",
         "flex items-start gap-3",
-        locked && "opacity-80"
+        isLocked && "opacity-80"
       )}
     >
       {/* drag handle */}
@@ -122,11 +127,11 @@ export default function SectionRow({
         className={cx(
           "mt-0.5 h-9 w-9 rounded-xl border border-slate-200 bg-slate-50 text-slate-600",
           "flex items-center justify-center select-none",
-          locked ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing"
+          isLocked ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing"
         )}
-        title={locked ? "Section verrouillée" : "Réordonner"}
+        title={isLocked ? "Section verrouillée" : "Réordonner"}
         aria-label="Drag"
-        disabled={Boolean(locked)}
+        disabled={isLocked}
       >
         ⠿
       </button>
@@ -145,50 +150,57 @@ export default function SectionRow({
 
           <Toggle
             checked={enabled}
-            disabled={Boolean(locked)}
+            disabled={isLocked}
             onChange={(next) => onToggle(next)}
-            title={locked ? "Section verrouillée" : enabled ? "On" : "Off"}
+            title={isLocked ? "Section verrouillée" : enabled ? "On" : "Off"}
           />
         </div>
 
         {/* controls */}
-        {(canEditNavLabel || canEditVariant) && (
+        {(showNavLabel || showVariant) && (
           <div className="mt-3 grid grid-cols-1 gap-2">
-            {canEditNavLabel && (
+            {showNavLabel && (
               <div>
                 <div className="mb-1 text-[11px] font-semibold text-slate-600">
                   Label menu
                 </div>
                 <input
                   value={navLabel ?? ""}
-                  onChange={(e) => onNavLabelChange?.(e.target.value)}
-                  disabled={Boolean(locked)}
+                  onChange={(e) =>
+                    canEditNavLabel ? onNavLabelChange?.(e.target.value) : null
+                  }
+                  disabled={!canEditNavLabel}
                   placeholder="Ex: Nos services"
                   className={cx(
                     "h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm",
                     "outline-none focus:ring-2 focus:ring-slate-200",
-                    locked && "cursor-not-allowed bg-slate-50"
+                    !canEditNavLabel &&
+                      "cursor-not-allowed bg-slate-50 opacity-90"
                   )}
                 />
               </div>
             )}
 
-            {canEditVariant && (
+            {showVariant && (
               <div>
                 <div className="mb-1 text-[11px] font-semibold text-slate-600">
                   Variant
                 </div>
                 <select
                   value={variant ?? ""}
-                  onChange={(e) => onVariantChange?.(e.target.value)}
-                  disabled={Boolean(locked)}
+                  onChange={(e) =>
+                    canEditVariant ? onVariantChange?.(e.target.value) : null
+                  }
+                  disabled={!canEditVariant}
                   className={cx(
                     "h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm",
                     "outline-none focus:ring-2 focus:ring-slate-200",
-                    locked && "cursor-not-allowed bg-slate-50"
+                    !canEditVariant &&
+                      "cursor-not-allowed bg-slate-50 opacity-90"
                   )}
                 >
-                  {variantOptions!.map((v) => (
+                  <option value="">Auto</option>
+                  {(variantOptions ?? []).map((v) => (
                     <option key={v.value} value={v.value}>
                       {v.label ?? v.value}
                     </option>
@@ -199,7 +211,7 @@ export default function SectionRow({
           </div>
         )}
 
-        {locked ? (
+        {isLocked ? (
           <div className="mt-2 text-[11px] text-slate-500">
             Verrouillée (pinned / critique)
           </div>

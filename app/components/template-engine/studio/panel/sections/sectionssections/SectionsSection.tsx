@@ -16,7 +16,6 @@ import {
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 
-// ✅ paths FIX (folder moved into sections/sectionssections)
 import type { TemplateConfigInput } from "../../../../types";
 import {
   useSectionsControls,
@@ -49,43 +48,9 @@ export default function SectionsSection({
       const activeId = String(e.active?.id ?? "");
       const overId = e.over ? String(e.over.id) : "";
       if (!activeId || !overId || activeId === overId) return;
-
       s.moveByIds(activeId, overId);
     },
     [s]
-  );
-
-  // ✅ upgrade-safe fallbacks (si jamais une action manque)
-  const setNavLabel = React.useCallback(
-    (id: string, next: string) => {
-      if (typeof (s as any).setNavLabel === "function") {
-        (s as any).setNavLabel(id, next);
-        return;
-      }
-      update((d) => {
-        const list = ((d as any).sections ?? []) as any[];
-        const found = list.find((x) => String(x?.id) === String(id));
-        if (!found) return;
-        found.navLabel = next;
-      });
-    },
-    [s, update]
-  );
-
-  const setVariant = React.useCallback(
-    (id: string, next: string) => {
-      if (typeof (s as any).setVariant === "function") {
-        (s as any).setVariant(id, next);
-        return;
-      }
-      update((d) => {
-        const list = ((d as any).sections ?? []) as any[];
-        const found = list.find((x) => String(x?.id) === String(id));
-        if (!found) return;
-        found.variant = next;
-      });
-    },
-    [s, update]
   );
 
   return (
@@ -95,8 +60,7 @@ export default function SectionsSection({
       </div>
 
       <div className="mb-3 text-xs text-slate-500">
-        Drag & drop pour réordonner • Toggle pour activer/désactiver • Label
-        menu • Variant
+        Drag & drop • Toggle • Label menu • Variant
       </div>
 
       <DndContext
@@ -113,15 +77,13 @@ export default function SectionsSection({
                 title={it.title}
                 subtitle={it.subtitle}
                 enabled={it.enabled}
-                locked={it.lock}
+                locked={Boolean(it.lock)}
                 onToggle={(next) => s.setEnabled(it.id, next)}
-                // ✅ NEW: nav label (menu)
                 navLabel={it.navLabel ?? ""}
-                onNavLabelChange={(next) => setNavLabel(it.id, next)}
-                // ✅ NEW: variants (optional — only shows if options exist)
+                onNavLabelChange={(next) => s.setNavLabel(it.id, next)}
                 variant={it.variant ?? ""}
                 variantOptions={it.variantOptions}
-                onVariantChange={(next) => setVariant(it.id, next)}
+                onVariantChange={(next) => s.setVariant(it.id, next)}
               />
             ))}
           </div>
