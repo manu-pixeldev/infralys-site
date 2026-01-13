@@ -4,6 +4,8 @@ import React from "react";
 import type { TemplateConfigInput } from "../../../../types";
 import { deepClone } from "../../../../core/deep-clone";
 import { usePresets } from "../../hooks/usePresets";
+import { usePreviewMode } from "../../hooks/usePreviewMode";
+import { PreviewBanner } from "../../PreviewBanner";
 
 function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ");
@@ -30,6 +32,7 @@ export default function PresetsSection({
   setConfig,
 }: PresetsSectionProps) {
   const p = usePresets(config);
+  const preview = usePreviewMode(setConfig);
 
   const [tab, setTab] = React.useState<Tab>("packs");
   const [name, setName] = React.useState("My Preset");
@@ -39,11 +42,9 @@ export default function PresetsSection({
 
   // marketplace state
   const [q, setQ] = React.useState("");
-  const [tag, setTag] = React.useState<string>(""); // single-tag filter (simple + premium)
+  const [tag, setTag] = React.useState<string>(""); // single-tag filter
 
-  // preview state
-  const previewBaseRef = React.useRef<TemplateConfigInput | null>(null);
-  const [isPreviewing, setIsPreviewing] = React.useState(false);
+  // preview info (UI only)
   const [previewId, setPreviewId] = React.useState<string>("");
 
   const exportJson = React.useMemo(() => p.exportConfig(config), [p, config]);
@@ -103,10 +104,13 @@ export default function PresetsSection({
   const onLoad = React.useCallback(() => {
     if (!selected) return;
     applyPreset(selected.config);
+    // Loading a preset is a committed action → exit preview mode
+    preview.commitPreview();
+    setPreviewId("");
     setToast(
       (selected as any).source === "pack" ? "Pack applied" : "Preset loaded"
     );
-  }, [selected, applyPreset]);
+  }, [selected, applyPreset, preview]);
 
   const onDelete = React.useCallback(() => {
     if (!selected || (selected as any).source !== "mine") return;
@@ -140,39 +144,43 @@ export default function PresetsSection({
       return;
     }
     applyPreset(next);
+    // Import is committed → exit preview
+    preview.commitPreview();
+    setPreviewId("");
     setToast("Imported");
-  }, [p, importJson, applyPreset]);
+  }, [p, importJson, applyPreset, preview]);
 
-  // --- Preview / Revert ---
+  // --- Preview Mode (GLOBAL + ESC) ---
   const startPreview = React.useCallback(
     (id: string, cfg: TemplateConfigInput) => {
-      if (!isPreviewing) {
-        previewBaseRef.current = deepClone(config);
-      }
-      applyPreset(cfg);
-      setIsPreviewing(true);
+      preview.startPreview(cfg);
       setPreviewId(id);
       setToast("Preview");
     },
-    [applyPreset, config, isPreviewing]
+    [preview]
   );
 
   const revertPreview = React.useCallback(() => {
-    if (!isPreviewing || !previewBaseRef.current) return;
-    applyPreset(previewBaseRef.current);
-    previewBaseRef.current = null;
-    setIsPreviewing(false);
+    preview.revertPreview();
     setPreviewId("");
     setToast("Reverted");
-  }, [applyPreset, isPreviewing]);
+  }, [preview]);
 
   const commitPreview = React.useCallback(() => {
-    // "Apply" already applied; commit just clears preview base
-    previewBaseRef.current = null;
-    setIsPreviewing(false);
+    // already applied; we just "commit" the preview session
+    preview.commitPreview();
     setPreviewId("");
     setToast("Applied");
-  }, []);
+  }, [preview]);
+
+  // If user hits ESC, preview hook will revert config.
+  // We also want UI state to follow: if preview ends (apply/revert), previewId cleared by handlers above.
+  // Edge case: if ESC happens, we don't get a callback. So we mirror: when preview ends, clear previewId.
+  React.useEffect(() => {
+    if (!preview.isPreviewing && previewId) {
+      setPreviewId("");
+    }
+  }, [preview.isPreviewing, previewId]);
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
@@ -186,6 +194,18 @@ export default function PresetsSection({
           </div>
         ) : null}
       </div>
+
+      {/* Global Preview Banner (ESC safe) */}
+      {preview.isPreviewing && (
+        <div className="mb-3">
+          <PreviewBanner onRevert={revertPreview} onApply={commitPreview} />
+          {previewId ? (
+            <div className="mt-1 text-[11px] text-slate-500">
+              Previewing: <span className="font-semibold">{previewId}</span>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="mb-3 flex items-center gap-2">
@@ -247,36 +267,6 @@ export default function PresetsSection({
             </select>
           </div>
 
-          {/* preview bar */}
-          {isPreviewing && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-xs text-slate-600">
-                  Previewing:{" "}
-                  <span className="font-semibold text-slate-900">
-                    {previewId}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={revertPreview}
-                    className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    Revert
-                  </button>
-                  <button
-                    type="button"
-                    onClick={commitPreview}
-                    className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {packsFiltered.map((pack: any) => (
             <div
               key={pack.id}
@@ -319,7 +309,7 @@ export default function PresetsSection({
                     type="button"
                     onClick={() => startPreview(pack.id, pack.config)}
                     className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    title="Preview (temporary)"
+                    title="Preview (ESC to revert)"
                   >
                     Preview
                   </button>
@@ -328,7 +318,9 @@ export default function PresetsSection({
                     type="button"
                     onClick={() => {
                       applyPreset(pack.config);
-                      commitPreview();
+                      preview.commitPreview();
+                      setPreviewId("");
+                      setToast("Applied");
                     }}
                     className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
                     title="Apply (commit)"
