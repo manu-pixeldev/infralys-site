@@ -101,7 +101,8 @@ function packToPresetLike(pack: BuiltinPack): PresetLike {
     locked: true,
     source: "pack",
     config: deepClone(pack.config),
-  };
+    description: pack.description,
+  } as any;
 }
 
 function mineToPresetLike(p: StudioPreset): PresetLike {

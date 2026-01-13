@@ -37,6 +37,15 @@ export default function PresetsSection({
   const [importJson, setImportJson] = React.useState("");
   const [toast, setToast] = React.useState<string>("");
 
+  // marketplace state
+  const [q, setQ] = React.useState("");
+  const [tag, setTag] = React.useState<string>(""); // single-tag filter (simple + premium)
+
+  // preview state
+  const previewBaseRef = React.useRef<TemplateConfigInput | null>(null);
+  const [isPreviewing, setIsPreviewing] = React.useState(false);
+  const [previewId, setPreviewId] = React.useState<string>("");
+
   const exportJson = React.useMemo(() => p.exportConfig(config), [p, config]);
 
   React.useEffect(() => {
@@ -51,11 +60,31 @@ export default function PresetsSection({
   );
 
   const applyPreset = React.useCallback(
-    (cfg: TemplateConfigInput) => {
-      setConfig(() => deepClone(cfg));
-    },
+    (cfg: TemplateConfigInput) => setConfig(() => deepClone(cfg)),
     [setConfig]
   );
+
+  // Lists
+  const mine = React.useMemo(() => p.listMine(), [p]);
+  const packs = React.useMemo(() => p.listPacks(), [p]);
+
+  const allPackTags = React.useMemo(() => {
+    const s = new Set<string>();
+    packs.forEach((x: any) => (x.tags ?? []).forEach((t: string) => s.add(t)));
+    return Array.from(s).sort();
+  }, [packs]);
+
+  const packsFiltered = React.useMemo(() => {
+    const qq = q.trim().toLowerCase();
+    return packs.filter((x: any) => {
+      const hay = `${x.name ?? ""} ${x.description ?? ""} ${(x.tags ?? []).join(
+        " "
+      )}`.toLowerCase();
+      const okQ = !qq || hay.includes(qq);
+      const okTag = !tag || (x.tags ?? []).includes(tag);
+      return okQ && okTag;
+    });
+  }, [packs, q, tag]);
 
   // --- My presets actions ---
   const onSave = React.useCallback(() => {
@@ -66,7 +95,7 @@ export default function PresetsSection({
   }, [p, name]);
 
   const onOverwrite = React.useCallback(() => {
-    if (!selected || selected.source !== "mine") return;
+    if (!selected || (selected as any).source !== "mine") return;
     p.overwritePreset(selected.id);
     setToast("Preset updated");
   }, [p, selected]);
@@ -74,11 +103,13 @@ export default function PresetsSection({
   const onLoad = React.useCallback(() => {
     if (!selected) return;
     applyPreset(selected.config);
-    setToast(selected.source === "pack" ? "Pack applied" : "Preset loaded");
+    setToast(
+      (selected as any).source === "pack" ? "Pack applied" : "Preset loaded"
+    );
   }, [selected, applyPreset]);
 
   const onDelete = React.useCallback(() => {
-    if (!selected || selected.source !== "mine") return;
+    if (!selected || (selected as any).source !== "mine") return;
     p.deletePreset(selected.id);
     setSelectedId("");
     setToast("Preset deleted");
@@ -112,9 +143,36 @@ export default function PresetsSection({
     setToast("Imported");
   }, [p, importJson, applyPreset]);
 
-  // Lists for UI
-  const mine = React.useMemo(() => p.listMine(), [p]);
-  const packs = React.useMemo(() => p.listPacks(), [p]);
+  // --- Preview / Revert ---
+  const startPreview = React.useCallback(
+    (id: string, cfg: TemplateConfigInput) => {
+      if (!isPreviewing) {
+        previewBaseRef.current = deepClone(config);
+      }
+      applyPreset(cfg);
+      setIsPreviewing(true);
+      setPreviewId(id);
+      setToast("Preview");
+    },
+    [applyPreset, config, isPreviewing]
+  );
+
+  const revertPreview = React.useCallback(() => {
+    if (!isPreviewing || !previewBaseRef.current) return;
+    applyPreset(previewBaseRef.current);
+    previewBaseRef.current = null;
+    setIsPreviewing(false);
+    setPreviewId("");
+    setToast("Reverted");
+  }, [applyPreset, isPreviewing]);
+
+  const commitPreview = React.useCallback(() => {
+    // "Apply" already applied; commit just clears preview base
+    previewBaseRef.current = null;
+    setIsPreviewing(false);
+    setPreviewId("");
+    setToast("Applied");
+  }, []);
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
@@ -157,10 +215,69 @@ export default function PresetsSection({
         </button>
       </div>
 
-      {/* PACKS */}
+      {/* PACKS marketplace */}
       {tab === "packs" && (
         <div className="space-y-2">
-          {packs.map((pack) => (
+          {/* search + tag */}
+          <div className="flex items-center gap-2">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search packs…"
+              className={cx(
+                "h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm",
+                "outline-none focus:ring-2 focus:ring-slate-200"
+              )}
+            />
+            <select
+              value={tag}
+              onChange={(e) => setTag(e.target.value)}
+              className={cx(
+                "h-10 w-[140px] rounded-2xl border border-slate-200 bg-white px-3 text-sm",
+                "outline-none focus:ring-2 focus:ring-slate-200"
+              )}
+              title="Filter by tag"
+            >
+              <option value="">All</option>
+              {allPackTags.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* preview bar */}
+          {isPreviewing && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs text-slate-600">
+                  Previewing:{" "}
+                  <span className="font-semibold text-slate-900">
+                    {previewId}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={revertPreview}
+                    className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Revert
+                  </button>
+                  <button
+                    type="button"
+                    onClick={commitPreview}
+                    className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {packsFiltered.map((pack: any) => (
             <div
               key={pack.id}
               className="rounded-2xl border border-slate-200 bg-white p-3"
@@ -170,15 +287,28 @@ export default function PresetsSection({
                   <div className="text-sm font-semibold text-slate-900 truncate">
                     {pack.name}
                   </div>
+                  {pack.description ? (
+                    <div className="mt-0.5 text-xs text-slate-500">
+                      {pack.description}
+                    </div>
+                  ) : null}
                   {pack.tags?.length ? (
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {pack.tags.slice(0, 6).map((t) => (
-                        <span
+                      {pack.tags.slice(0, 6).map((t: string) => (
+                        <button
                           key={t}
-                          className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600"
+                          type="button"
+                          onClick={() => setTag((cur) => (cur === t ? "" : t))}
+                          className={cx(
+                            "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                            tag === t
+                              ? "bg-slate-200 text-slate-800"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          )}
+                          title="Filter by this tag"
                         >
                           {t}
-                        </span>
+                        </button>
                       ))}
                     </div>
                   ) : null}
@@ -187,11 +317,21 @@ export default function PresetsSection({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => startPreview(pack.id, pack.config)}
+                    className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    title="Preview (temporary)"
+                  >
+                    Preview
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => {
                       applyPreset(pack.config);
-                      setToast("Pack applied");
+                      commitPreview();
                     }}
                     className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                    title="Apply (commit)"
                   >
                     Apply
                   </button>
@@ -214,7 +354,6 @@ export default function PresetsSection({
       {/* MY PRESETS */}
       {tab === "mine" && (
         <>
-          {/* Save row */}
           <div className="flex items-center gap-2">
             <input
               value={name}
@@ -235,7 +374,6 @@ export default function PresetsSection({
             </button>
           </div>
 
-          {/* Load row */}
           <div className="mt-2 grid grid-cols-1 gap-2">
             <select
               value={selectedId}
@@ -246,7 +384,7 @@ export default function PresetsSection({
               )}
             >
               <option value="">Select a preset…</option>
-              {mine.map((x) => (
+              {mine.map((x: any) => (
                 <option key={x.id} value={x.id}>
                   {x.name}
                 </option>
@@ -257,10 +395,10 @@ export default function PresetsSection({
               <button
                 type="button"
                 onClick={onLoad}
-                disabled={!selected || selected.source !== "mine"}
+                disabled={!selected || (selected as any).source !== "mine"}
                 className={cx(
                   "h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold",
-                  selected && selected.source === "mine"
+                  selected && (selected as any).source === "mine"
                     ? "text-slate-800 hover:bg-slate-50"
                     : "text-slate-400 cursor-not-allowed"
                 )}
@@ -271,10 +409,10 @@ export default function PresetsSection({
               <button
                 type="button"
                 onClick={onOverwrite}
-                disabled={!selected || selected.source !== "mine"}
+                disabled={!selected || (selected as any).source !== "mine"}
                 className={cx(
                   "h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold",
-                  selected && selected.source === "mine"
+                  selected && (selected as any).source === "mine"
                     ? "text-slate-700 hover:bg-slate-50"
                     : "text-slate-400 cursor-not-allowed"
                 )}
@@ -286,10 +424,10 @@ export default function PresetsSection({
               <button
                 type="button"
                 onClick={onDelete}
-                disabled={!selected || selected.source !== "mine"}
+                disabled={!selected || (selected as any).source !== "mine"}
                 className={cx(
                   "h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold",
-                  selected && selected.source === "mine"
+                  selected && (selected as any).source === "mine"
                     ? "text-slate-700 hover:bg-slate-50"
                     : "text-slate-400 cursor-not-allowed"
                 )}

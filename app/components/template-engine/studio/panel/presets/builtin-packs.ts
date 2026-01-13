@@ -3,24 +3,18 @@ import type { TemplateConfigInput } from "../../../types";
 export type BuiltinPack = {
   id: string;
   name: string;
+  description: string;
   tags: string[];
   locked: true;
   config: TemplateConfigInput;
 };
 
-/**
- * Built-in packs (monetizable later)
- * - locked: cannot delete (not in localStorage)
- * - tags: used for UI + future filters
- *
- * NOTE: These are deliberately minimal and upgrade-safe.
- * We only touch `config.options` keys that already exist in your Studio.
- */
 export const BUILTIN_PACKS: BuiltinPack[] = [
   {
     id: "pack-classic-clean",
     name: "Classic Clean",
-    tags: ["starter", "clean", "classic"],
+    description: "Default ultra propre, lisible, conversion-friendly.",
+    tags: ["starter", "clean", "classic", "business"],
     locked: true,
     config: {
       options: {
@@ -33,7 +27,8 @@ export const BUILTIN_PACKS: BuiltinPack[] = [
   {
     id: "pack-immersive-dark",
     name: "Immersive Dark",
-    tags: ["pro", "dark", "immersive"],
+    description: "Ambiance premium sombre + canvas immersif.",
+    tags: ["pro", "dark", "immersive", "premium"],
     locked: true,
     config: {
       options: {
@@ -46,7 +41,8 @@ export const BUILTIN_PACKS: BuiltinPack[] = [
   {
     id: "pack-vivid-pro",
     name: "Vivid Pro",
-    tags: ["ultra", "vivid", "premium"],
+    description: "Accents punchy, look énergique, effet “wow”.",
+    tags: ["ultra", "vivid", "premium", "creator"],
     locked: true,
     config: {
       options: {
