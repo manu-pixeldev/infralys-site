@@ -14,26 +14,43 @@ import { useTemplateEngine } from "./engine/use-template-engine";
 // studio (isolated portal)
 import { StudioPortal } from "./studio/StudioPortal";
 
-// core (phase 0)
+// core
 import { useScrollRestoreNoFlash } from "./core/nav/scroll-restore";
 
 type Props = {
   config: TemplateConfigInput;
-  setConfig?: (next: TemplateConfigInput) => void;
+  // ✅ IMPORTANT: dispatch React (permet setConfig(prev => next))
+  setConfig?: React.Dispatch<React.SetStateAction<TemplateConfigInput>>;
 };
 
 type AnyRecord = Record<string, any>;
 
 export function TemplateEngine({ config, setConfig }: Props) {
-  // Phase 0: no-flash scroll restore
+  // Phase 0 — no-flash scroll restore
   useScrollRestoreNoFlash();
 
-  // 1) Normalize once (NO DOM)
+  /**
+   * 1) Normalize ONCE
+   * - pure
+   * - deterministic
+   * - no DOM
+   */
   const norm = React.useMemo(() => normalizeConfig(config), [config]);
-  const cfg = norm as AnyRecord as TemplateConfigInput;
-  const sections = (norm as AnyRecord).sections ?? [];
 
-  // 2) Engine (theme/nav/spy/fx/reveal)
+  const cfg = React.useMemo(
+    () => norm as AnyRecord as TemplateConfigInput,
+    [norm]
+  );
+
+  const sections = React.useMemo(
+    () => (norm as AnyRecord).sections ?? [],
+    [norm]
+  );
+
+  /**
+   * 2) Engine brain
+   * (theme, nav, spy, fx, reveal)
+   */
   const engine = useTemplateEngine(cfg, sections);
 
   const {
@@ -53,8 +70,12 @@ export function TemplateEngine({ config, setConfig }: Props) {
     registerReveal,
   } = engine;
 
-  // mounted guard (studio portal + data attr)
+  /**
+   * Mounted guard
+   * (StudioPortal + data-mounted attr)
+   */
   const [mounted, setMounted] = React.useState(false);
+
   React.useEffect(() => {
     setMounted(true);
     try {
@@ -62,24 +83,27 @@ export function TemplateEngine({ config, setConfig }: Props) {
     } catch {}
   }, []);
 
-  // root vars
+  /**
+   * Root CSS variables
+   */
   const rootStyle = React.useMemo(() => {
     const out: React.CSSProperties = {};
     (out as any)["--header-offset"] = "84px";
 
     const canvasVar = (theme as any)?.canvasVar;
-    if (
-      canvasVar &&
-      typeof canvasVar === "object" &&
-      !Array.isArray(canvasVar)
-    ) {
+    if (canvasVar && typeof canvasVar === "object") {
       Object.assign(out as any, canvasVar);
     }
+
     return out;
   }, [theme]);
 
+  // ✅ où est le flag studio ? (dans tes fichiers c’est options.studio.enabled)
+  const studioEnabled = Boolean((cfg as AnyRecord)?.options?.studio?.enabled);
+
   return (
     <>
+      {/* Global FX styles */}
       <FxStyles enabled={fxEnabled} ambient={fxAmbient} shimmer={fxShimmer} />
 
       <div
@@ -92,6 +116,7 @@ export function TemplateEngine({ config, setConfig }: Props) {
         data-canvas-style={(theme as any)?.canvasStyle ?? canvasStyle}
         style={rootStyle}
       >
+        {/* Anchor for scroll-to-top */}
         <div id="top" />
 
         {renderSections({
@@ -111,12 +136,13 @@ export function TemplateEngine({ config, setConfig }: Props) {
           fxBorderScan,
 
           cfg,
-          setConfig,
+          setConfig, // ✅ dispatch, ok
         })}
       </div>
 
+      {/* Studio (isolated, guarded) */}
       <StudioPortal
-        enabled={Boolean((cfg as AnyRecord)?.studio?.enabled) && mounted}
+        enabled={studioEnabled && mounted}
         config={cfg}
         setConfig={setConfig}
       />

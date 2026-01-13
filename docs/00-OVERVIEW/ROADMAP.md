@@ -1,184 +1,317 @@
-# ROADMAP — infralys-site
+ROADMAP — infralys-site
 
-Ce document décrit la trajectoire du projet :  
-technique, produit et business (SaaS).
+Ce document est la boussole absolue du projet.
 
-Il sert de **boussole** : ce qui est fait, ce qui est figé, ce qui arrive.
+Il définit :
 
----
+la trajectoire technique
 
-## 🟢 ÉTAT ACTUEL (V19 / V21)
+la trajectoire produit
 
-### Ce qui est STABLE
+la trajectoire business (SaaS)
 
-- Template Engine fonctionnel et déterministe
-- Header scroll-spy fiable (bas de page corrigé)
-- Navigation avec :
-  - ids DOM uniques
-  - underline stable
-  - overflow menu (“Plus”) auto-fit
-- Système de thèmes :
-  - tokens
-  - canvas CSS vars
-  - surfaces unifiées
-- Sections legacy solides :
-  - Header
-  - Hero
-  - Split
-  - Services
-  - Team
-  - Galleries
-  - Contact
-- Studio Panel opérationnel (édition live)
-- Docs structurées (architecture, refs, décisions)
+👉 Tout ce qui n’est pas aligné avec ce document est secondaire, jetable ou parking-lot.
 
-➡️ **Le socle est prêt.**
+🧭 PRINCIPES FONDATEURS (non négociables)
 
----
+Ce qui sert le 10M → on garde
 
-## 🟡 PHASE 1 — CONSOLIDATION (court terme)
+Ce qui flatte l’ego mais ralentit → on jette
 
-### 1. Harmonisation UI finale
+Ce qui peut attendre → parking lot
 
-- [ ] Ajuster le **legacy** (sans urgence)
-- [ ] Finaliser :
-  - shimmer FX (opt-in, fiable)
-  - détachement subtil des cards selon thème
-- [ ] Vérifier cohérence header / hero / sections sur tous les thèmes
+🟢 ÉTAT ACTUEL — SOCLE (V21)
+✅ Ce qui est STABLE et VALIDÉ
+Moteur (Template Engine)
 
-🎯 Objectif : qualité visuelle “premium”.
+Rendu déterministe
 
----
+Zéro magie implicite
 
-### 2. Variants propres (pas des clones)
+Séparation claire :
 
-- [ ] Regénérer variants :
-  - Header (A/B/C/D…)
-  - Hero
-  - Contact
-- [ ] Variants = branches structurelles
-- [ ] Zéro duplication de fichier
+config
 
-🎯 Objectif : extensibilité sans dette.
+rendu
 
----
+UI studio
 
-### 3. Renommage via Studio
+Scroll-spy fiable (bas de page inclus)
 
-- [ ] `navLabel` éditable par section
-- [ ] `title` synchronisé optionnellement
-- [ ] Ordre des sections maîtrisé
-- [ ] Visibilité section (enabled)
+Navigation robuste :
 
-🎯 Objectif : autonomie utilisateur.
+DOM ids uniques
 
----
+underline stable
 
-## 🟠 PHASE 2 — MULTI-PAGES (fondation SaaS)
+menu “Plus” auto-fit
 
-### 4. Architecture multi-pages
+FX system :
 
-Principe :
+ambient
 
-- 1 page = 1 config
-- Chaque page a :
-  - sections
-  - theme
-  - options
+border-scan
 
-À implémenter :
+shimmer CTA
 
-- [ ] routing multi-pages
-- [ ] header partagé ou spécifique
-- [ ] navigation inter-pages
+activables indépendamment
 
-🎯 Objectif : sites complets, pas juste landing.
+Système de thème
 
----
+Tokens clairs
 
-### 5. Pages “optimisées” (sans sections)
+Canvas via CSS vars
 
-- Templates figés :
-  - landing SEO
-  - page produit
-  - page conversion
-- Pas de sections dynamiques
-- Rendu ultra contrôlé
+Surfaces cohérentes
 
-🎯 Objectif : performance + SEO + ventes.
+Accent / canvas découplés
 
----
+Variants upgrade-safe
 
-## 🔵 PHASE 3 — STUDIO → PRODUIT
+Sections legacy (socle produit)
 
-### 6. Export / Import de config
+Header
 
-- [ ] Export JSON propre
-- [ ] Import JSON
-- [ ] Validation schema
-- [ ] Versionning de config
+Hero
 
-🎯 Objectif : portabilité + SaaS.
+Split
 
----
+Services
 
-### 7. Presets & familles
+Team
 
-- [ ] Presets de thèmes
-- [ ] Presets de pages
-- [ ] Familles :
-  - artisan
-  - industrie
-  - SaaS
-  - consultant
-  - créatif
+Galleries
 
-🎯 Objectif : onboarding rapide.
+Contact
 
----
+Studio Panel (nouvelle génération)
 
-## 🔴 PHASE 4 — SAAS & ARGENT 💰
+Panel isolé (portal)
 
-### 8. Modèle SaaS (projection)
+Scroll interne correct
 
-Fonctionnalités monétisables :
+Sections modulaires :
 
-- Templates premium
-- Thèmes premium
-- Export prod
-- Multi-sites
-- White-label
-- Hébergement managé
+Theme
 
-Pricing possible :
+Brand
 
-- Free (preview / demo)
-- Pro (1–3 sites)
-- Agency (multi-clients)
+Layout
 
-🎯 Objectif : machine à cash propre.
+Nav + FX
 
----
+Sections (reorder / enable)
 
-## 🧠 RÈGLES D’OR (à ne jamais casser)
+Hooks dédiés par domaine
 
-- Le moteur ne décide pas du design
-- Le legacy reste la UI stable
-- Variants ≠ clones
-- IDs DOM toujours uniques
-- Rendu déterministe
-- Studio = UI, pas logique métier
-- Toute décision structurante → `DECISIONS.md`
+Update immutable, typed, upgrade-safe
 
----
+Documentation
 
-## 🏁 Vision finale
+Docs structurées :
 
-> Un **éditeur de sites ultra-pro**,  
-> modulaire, élégant, extensible,  
-> qui peut devenir un **SaaS rentable** sans dette technique.
+overview
 
----
+architecture
 
-Dernière mise à jour : V21  
+décisions
+
+ROADMAP comme source de vérité
+
+➡️ Le socle est digne d’un produit pro.
+
+🟡 PHASE 1 — CONSOLIDATION PRODUIT (court terme)
+
+🎯 Objectif : qualité irréprochable, pas plus de features.
+
+1. UI & polish premium
+
+Harmoniser les espacements legacy
+
+Finaliser FX :
+
+shimmer propre (opt-in)
+
+glow subtil
+
+Vérifier cohérence visuelle :
+
+header ↔ hero ↔ sections
+
+tous thèmes
+
+👉 Rien de nouveau, seulement du meilleur.
+
+2. Variants propres (fondation long terme)
+
+Variants = branches structurelles
+
+Pas de duplication de fichiers
+
+Header / Hero / Contact :
+
+A / B / C / D…
+
+Variants compatibles futur multi-pages
+
+👉 Zéro dette, zéro bricolage.
+
+3. Studio = autonomie totale
+
+Renommage section (navLabel)
+
+Synchronisation optionnelle title
+
+Ordre des sections
+
+Enable / disable
+
+Preview instantanée
+
+👉 L’utilisateur n’a jamais besoin de dev.
+
+🟠 PHASE 2 — STRUCTURE DE SITE (fondation SaaS)
+
+🎯 Objectif : sites complets, pas des landing pages.
+
+4. Architecture multi-pages
+
+1 page = 1 config
+
+Chaque page possède :
+
+sections
+
+thème
+
+options
+
+Header :
+
+partagé ou spécifique
+
+Navigation inter-pages native
+
+👉 Base indispensable pour agences & clients sérieux.
+
+5. Pages “spéciales” (non modulaires)
+
+Pages figées ultra-optimisées :
+
+SEO
+
+conversion
+
+produit
+
+Pas de sections dynamiques
+
+Rendu contrôlé à 100%
+
+👉 Performance, SEO, ventes.
+
+🔵 PHASE 3 — STUDIO → PRODUIT
+
+🎯 Objectif : outil vendable sans support humain.
+
+6. Config portable
+
+Export JSON
+
+Import JSON
+
+Validation schema
+
+Versioning de config
+
+👉 Le site devient un actif.
+
+7. Presets & familles
+
+Presets de thèmes
+
+Presets de pages
+
+Familles métier :
+
+artisan
+
+industrie
+
+consultant
+
+SaaS
+
+créatif
+
+👉 Onboarding rapide = conversion.
+
+8. Maintenance intelligente (différenciation clé)
+
+Détection de données “potentiellement obsolètes”
+
+Warnings subtils, jamais intrusifs
+
+Historique des changements
+
+Mode “smart” opt-in
+
+👉 Personne ne fait ça proprement aujourd’hui.
+
+🔴 PHASE 4 — MONÉTISATION 💰
+
+🎯 Objectif : revenus sans contact client.
+
+Modèles possibles
+
+Achat unique (site)
+
+Options premium :
+
+maintenance smart
+
+presets avancés
+
+export prod
+
+Multi-sites
+
+White-label (agences)
+
+Hébergement managé (optionnel)
+
+Pricing (indicatif)
+
+Free → preview / demo
+
+Pro → 1–3 sites
+
+Agency → multi-clients
+
+👉 Le produit se vend tout seul.
+
+🧠 RÈGLES D’OR (gravées dans le marbre)
+
+Le moteur ne décide jamais du design
+
+Studio = UI, pas logique métier
+
+Variants ≠ clones
+
+IDs DOM toujours uniques
+
+Rendu toujours déterministe
+
+Legacy = socle stable
+
+Toute décision structurante → DECISIONS.md
+
+🏁 VISION FINALE
+
+Un éditeur de sites ultra-pro,
+modulaire, élégant, extensible,
+pensé pour durer,
+et devenir un SaaS rentable sans dette technique.
+
+Dernière mise à jour : V21
 À relire avant chaque refactor majeur.

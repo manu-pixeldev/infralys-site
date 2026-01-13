@@ -1,4 +1,5 @@
 // app/components/template-engine/engine/normalize-config.ts
+
 import type { TemplateConfigInput, SectionType } from "../types";
 import { domIdForSection } from "../core/dom-ids";
 
@@ -8,21 +9,22 @@ export type NormalizedSection = {
   id: string;
   type: SectionType;
 
+  /** Canonical DOM id (always defined after normalize) */
+  domId: string;
+
   title?: string;
   label?: string;
   navLabel?: string;
   variant?: string;
 
-  enabled?: boolean;
-  hidden?: boolean;
-  lock?: boolean;
-
-  domId: string;
+  enabled: boolean;
+  hidden: boolean;
 
   content?: any;
   options?: any;
   nav?: { label?: string; hide?: boolean };
 
+  /** Escape hatch for legacy / experiments */
   [k: string]: any;
 };
 
@@ -47,7 +49,6 @@ function deriveId(s: AnyRecord, idx: number): string {
   if (rawId) return rawId;
 
   const t = safeStr(s?.type, "section").toLowerCase();
-  // stable-ish default if id missing
   return `${t}-${idx + 1}`;
 }
 
@@ -81,52 +82,52 @@ export function normalizeConfig(input: TemplateConfigInput): NormalizedConfig {
     (raw: AnyRecord, idx: number) => {
       const s = (raw && typeof raw === "object" ? raw : {}) as AnyRecord;
 
-      // id (logical)
+      // logical id
       let id = safeStr(deriveId(s, idx), `section-${idx + 1}`);
 
-      // Contact special-case: force stable logical id
+      // contact special-case
       if (isContactSection(s)) id = "contact";
-
       id = uniqueWithSuffix(id, usedIds);
 
       // type
       const type = safeStr(s?.type, "split") as unknown as SectionType;
 
-      // enabled/hidden
+      // visibility
       const enabled = safeBool(s?.enabled, true);
       const hidden = safeBool(s?.hidden, false);
 
-      // variant/title/labels
+      // labels / variant
       const variant = safeStr(s?.variant, "") || undefined;
       const title = safeStr(s?.title, "") || undefined;
       const label = safeStr(s?.label, "") || undefined;
       const navLabel = safeStr(s?.navLabel, "") || undefined;
 
-      // domId: allow explicit domId, else compute from id
+      // dom id
       const requestedDom = safeStr(s?.domId, "");
       let domId = requestedDom
         ? domIdForSection(requestedDom)
         : domIdForSection(id);
 
-      // If contact: force canonical domId
       if (id === "contact") domId = domIdForSection("contact");
-
       domId = uniqueWithSuffix(domId, usedDomIds);
 
       return {
         ...s,
         id,
         type,
+        domId,
         enabled,
         hidden,
         variant,
         title,
         label,
         navLabel,
-        domId,
-      } as NormalizedSection;
+      };
     }
   );
 
-  return { ...(cfg as any), sections } as NormalizedConfig;
+  return {
+    ...(cfg as any),
+    sections,
+  };
 }
