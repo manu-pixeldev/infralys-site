@@ -18,6 +18,8 @@ async function copyToClipboard(text: string) {
   }
 }
 
+type Tab = "packs" | "mine";
+
 export type PresetsSectionProps = {
   config: TemplateConfigInput;
   setConfig: React.Dispatch<React.SetStateAction<TemplateConfigInput>>;
@@ -29,6 +31,7 @@ export default function PresetsSection({
 }: PresetsSectionProps) {
   const p = usePresets(config);
 
+  const [tab, setTab] = React.useState<Tab>("packs");
   const [name, setName] = React.useState("My Preset");
   const [selectedId, setSelectedId] = React.useState<string>("");
   const [importJson, setImportJson] = React.useState("");
@@ -42,35 +45,57 @@ export default function PresetsSection({
     return () => clearTimeout(t);
   }, [toast]);
 
-  const selectedPreset = React.useMemo(
+  const selected = React.useMemo(
     () => (selectedId ? p.getPreset(selectedId) : null),
     [p, selectedId]
   );
 
+  const applyPreset = React.useCallback(
+    (cfg: TemplateConfigInput) => {
+      setConfig(() => deepClone(cfg));
+    },
+    [setConfig]
+  );
+
+  // --- My presets actions ---
   const onSave = React.useCallback(() => {
     const id = p.savePreset(name);
     setSelectedId(id);
+    setTab("mine");
     setToast("Preset saved");
   }, [p, name]);
 
   const onOverwrite = React.useCallback(() => {
-    if (!selectedId) return;
-    p.overwritePreset(selectedId);
+    if (!selected || selected.source !== "mine") return;
+    p.overwritePreset(selected.id);
     setToast("Preset updated");
-  }, [p, selectedId]);
+  }, [p, selected]);
 
   const onLoad = React.useCallback(() => {
-    if (!selectedPreset) return;
-    setConfig(() => deepClone(selectedPreset.config));
-    setToast("Preset loaded");
-  }, [selectedPreset, setConfig]);
+    if (!selected) return;
+    applyPreset(selected.config);
+    setToast(selected.source === "pack" ? "Pack applied" : "Preset loaded");
+  }, [selected, applyPreset]);
 
   const onDelete = React.useCallback(() => {
-    if (!selectedId) return;
-    p.deletePreset(selectedId);
+    if (!selected || selected.source !== "mine") return;
+    p.deletePreset(selected.id);
     setSelectedId("");
     setToast("Preset deleted");
-  }, [p, selectedId]);
+  }, [p, selected]);
+
+  // --- Packs actions ---
+  const onDuplicatePack = React.useCallback(
+    (packId: string, packName: string) => {
+      const id = p.duplicatePackToMine(packId, `${packName} (copy)`);
+      if (id) {
+        setSelectedId(id);
+        setTab("mine");
+        setToast("Copied to My presets");
+      }
+    },
+    [p]
+  );
 
   const onCopy = React.useCallback(async () => {
     const ok = await copyToClipboard(exportJson);
@@ -83,9 +108,13 @@ export default function PresetsSection({
       setToast("Invalid JSON");
       return;
     }
-    setConfig(() => deepClone(next));
+    applyPreset(next);
     setToast("Imported");
-  }, [p, importJson, setConfig]);
+  }, [p, importJson, applyPreset]);
+
+  // Lists for UI
+  const mine = React.useMemo(() => p.listMine(), [p]);
+  const packs = React.useMemo(() => p.listPacks(), [p]);
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
@@ -100,93 +129,180 @@ export default function PresetsSection({
         ) : null}
       </div>
 
-      {/* Save row */}
-      <div className="flex items-center gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Preset name"
-          className={cx(
-            "h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm",
-            "outline-none focus:ring-2 focus:ring-slate-200"
-          )}
-        />
+      {/* Tabs */}
+      <div className="mb-3 flex items-center gap-2">
         <button
           type="button"
-          onClick={onSave}
-          className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-          title="Save current config as a new preset"
+          onClick={() => setTab("packs")}
+          className={cx(
+            "h-9 flex-1 rounded-2xl border px-3 text-sm font-semibold transition",
+            tab === "packs"
+              ? "border-slate-300 bg-white text-slate-900"
+              : "border-slate-200 bg-white/60 text-slate-600 hover:bg-white"
+          )}
         >
-          Save
+          Packs
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("mine")}
+          className={cx(
+            "h-9 flex-1 rounded-2xl border px-3 text-sm font-semibold transition",
+            tab === "mine"
+              ? "border-slate-300 bg-white text-slate-900"
+              : "border-slate-200 bg-white/60 text-slate-600 hover:bg-white"
+          )}
+        >
+          My presets
         </button>
       </div>
 
-      {/* Load row */}
-      <div className="mt-2 grid grid-cols-1 gap-2">
-        <select
-          value={selectedId}
-          onChange={(e) => setSelectedId(e.target.value)}
-          className={cx(
-            "h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm",
-            "outline-none focus:ring-2 focus:ring-slate-200"
-          )}
-        >
-          <option value="">Select a preset…</option>
-          {p.presets.map((x) => (
-            <option key={x.id} value={x.id}>
-              {x.name}
-            </option>
+      {/* PACKS */}
+      {tab === "packs" && (
+        <div className="space-y-2">
+          {packs.map((pack) => (
+            <div
+              key={pack.id}
+              className="rounded-2xl border border-slate-200 bg-white p-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900 truncate">
+                    {pack.name}
+                  </div>
+                  {pack.tags?.length ? (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {pack.tags.slice(0, 6).map((t) => (
+                        <span
+                          key={t}
+                          className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      applyPreset(pack.config);
+                      setToast("Pack applied");
+                    }}
+                    className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                  >
+                    Apply
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onDuplicatePack(pack.id, pack.name)}
+                    className="h-9 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    title="Copy into My presets"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
           ))}
-        </select>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onLoad}
-            disabled={!selectedPreset}
-            className={cx(
-              "h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold",
-              selectedPreset
-                ? "text-slate-800 hover:bg-slate-50"
-                : "text-slate-400 cursor-not-allowed"
-            )}
-          >
-            Load
-          </button>
-
-          <button
-            type="button"
-            onClick={onOverwrite}
-            disabled={!selectedPreset}
-            className={cx(
-              "h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold",
-              selectedPreset
-                ? "text-slate-700 hover:bg-slate-50"
-                : "text-slate-400 cursor-not-allowed"
-            )}
-            title="Overwrite selected preset with current config"
-          >
-            Update
-          </button>
-
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={!selectedPreset}
-            className={cx(
-              "h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold",
-              selectedPreset
-                ? "text-slate-700 hover:bg-slate-50"
-                : "text-slate-400 cursor-not-allowed"
-            )}
-            title="Delete selected preset"
-          >
-            Delete
-          </button>
         </div>
-      </div>
+      )}
 
-      {/* Export/Import */}
+      {/* MY PRESETS */}
+      {tab === "mine" && (
+        <>
+          {/* Save row */}
+          <div className="flex items-center gap-2">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Preset name"
+              className={cx(
+                "h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm",
+                "outline-none focus:ring-2 focus:ring-slate-200"
+              )}
+            />
+            <button
+              type="button"
+              onClick={onSave}
+              className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+              title="Save current config as a new preset"
+            >
+              Save
+            </button>
+          </div>
+
+          {/* Load row */}
+          <div className="mt-2 grid grid-cols-1 gap-2">
+            <select
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              className={cx(
+                "h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm",
+                "outline-none focus:ring-2 focus:ring-slate-200"
+              )}
+            >
+              <option value="">Select a preset…</option>
+              {mine.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.name}
+                </option>
+              ))}
+            </select>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onLoad}
+                disabled={!selected || selected.source !== "mine"}
+                className={cx(
+                  "h-10 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold",
+                  selected && selected.source === "mine"
+                    ? "text-slate-800 hover:bg-slate-50"
+                    : "text-slate-400 cursor-not-allowed"
+                )}
+              >
+                Load
+              </button>
+
+              <button
+                type="button"
+                onClick={onOverwrite}
+                disabled={!selected || selected.source !== "mine"}
+                className={cx(
+                  "h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold",
+                  selected && selected.source === "mine"
+                    ? "text-slate-700 hover:bg-slate-50"
+                    : "text-slate-400 cursor-not-allowed"
+                )}
+                title="Overwrite selected preset with current config"
+              >
+                Update
+              </button>
+
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={!selected || selected.source !== "mine"}
+                className={cx(
+                  "h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold",
+                  selected && selected.source === "mine"
+                    ? "text-slate-700 hover:bg-slate-50"
+                    : "text-slate-400 cursor-not-allowed"
+                )}
+                title="Delete selected preset"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Export/Import always visible */}
       <div className="mt-4 grid grid-cols-1 gap-3">
         <div>
           <div className="mb-1 flex items-center justify-between">

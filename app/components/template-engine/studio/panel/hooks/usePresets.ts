@@ -4,6 +4,8 @@ import * as React from "react";
 import type { TemplateConfigInput } from "../../../types";
 import { deepClone } from "../../../core/deep-clone";
 
+import { BUILTIN_PACKS, type BuiltinPack } from "../presets/builtin-packs";
+
 const STORAGE_KEY = "infralys:template-presets:v1";
 
 export type StudioPreset = {
@@ -11,6 +13,17 @@ export type StudioPreset = {
   name: string;
   createdAt: number;
   updatedAt: number;
+  config: TemplateConfigInput;
+};
+
+export type PresetLike = {
+  id: string;
+  name: string;
+  tags?: string[];
+  locked?: boolean; // true for packs
+  source: "pack" | "mine";
+  createdAt?: number;
+  updatedAt?: number;
   config: TemplateConfigInput;
 };
 
@@ -52,13 +65,12 @@ function makeId(name: string) {
   return `${base || "preset"}-${safeNow()}`;
 }
 
-function loadAll(): StudioPreset[] {
+function loadMine(): StudioPreset[] {
   if (typeof window === "undefined") return [];
   const raw = window.localStorage.getItem(STORAGE_KEY);
   const parsed = safeParse<{ presets?: StudioPreset[] }>(raw);
   const list = parsed?.presets;
   if (!Array.isArray(list)) return [];
-  // minimal hardening
   return list
     .filter(
       (p) =>
@@ -76,28 +88,74 @@ function loadAll(): StudioPreset[] {
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-function saveAll(presets: StudioPreset[]) {
+function saveMine(presets: StudioPreset[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, safeStringify({ presets }));
 }
 
-export function usePresets(currentConfig: TemplateConfigInput) {
-  const [presets, setPresets] = React.useState<StudioPreset[]>(() => loadAll());
+function packToPresetLike(pack: BuiltinPack): PresetLike {
+  return {
+    id: pack.id,
+    name: pack.name,
+    tags: pack.tags,
+    locked: true,
+    source: "pack",
+    config: deepClone(pack.config),
+  };
+}
 
-  // Keep in sync if another tab changes localStorage
+function mineToPresetLike(p: StudioPreset): PresetLike {
+  return {
+    id: p.id,
+    name: p.name,
+    source: "mine",
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+    config: deepClone(p.config),
+  };
+}
+
+export function usePresets(currentConfig: TemplateConfigInput) {
+  const [mine, setMine] = React.useState<StudioPreset[]>(() => loadMine());
+
+  // Sync localStorage changes from another tab
   React.useEffect(() => {
     function onStorage(e: StorageEvent) {
       if (e.key !== STORAGE_KEY) return;
-      setPresets(loadAll());
+      setMine(loadMine());
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  const packs = React.useMemo(() => BUILTIN_PACKS.map(packToPresetLike), []);
+
+  const mineAsLike = React.useMemo(() => mine.map(mineToPresetLike), [mine]);
+
+  const listMine = React.useCallback(() => mineAsLike, [mineAsLike]);
+  const listPacks = React.useCallback(() => packs, [packs]);
+
+  const listAll = React.useCallback(() => {
+    // packs first, then mine (recent first already)
+    return [...packs, ...mineAsLike];
+  }, [packs, mineAsLike]);
+
   const refresh = React.useCallback(() => {
-    setPresets(loadAll());
+    setMine(loadMine());
   }, []);
 
+  const getPreset = React.useCallback(
+    (id: string): PresetLike | null => {
+      if (!id) return null;
+      const p1 = packs.find((x) => x.id === id);
+      if (p1) return p1;
+      const p2 = mineAsLike.find((x) => x.id === id);
+      return p2 ?? null;
+    },
+    [packs, mineAsLike]
+  );
+
+  // --- mine actions ---
   const savePreset = React.useCallback(
     (name: string) => {
       const now = safeNow();
@@ -108,42 +166,62 @@ export function usePresets(currentConfig: TemplateConfigInput) {
         updatedAt: now,
         config: deepClone(currentConfig),
       };
-      const all = [next, ...presets];
-      setPresets(all);
-      saveAll(all);
+      const all = [next, ...mine];
+      setMine(all);
+      saveMine(all);
       return next.id;
     },
-    [currentConfig, presets]
+    [currentConfig, mine]
   );
 
   const overwritePreset = React.useCallback(
     (id: string) => {
       const now = safeNow();
-      const all = presets.map((p) =>
+      const all = mine.map((p) =>
         p.id === id
           ? { ...p, updatedAt: now, config: deepClone(currentConfig) }
           : p
       );
-      setPresets(all);
-      saveAll(all);
+      setMine(all);
+      saveMine(all);
     },
-    [currentConfig, presets]
+    [currentConfig, mine]
   );
 
   const deletePreset = React.useCallback(
     (id: string) => {
-      const all = presets.filter((p) => p.id !== id);
-      setPresets(all);
-      saveAll(all);
+      // only mine
+      const all = mine.filter((p) => p.id !== id);
+      setMine(all);
+      saveMine(all);
     },
-    [presets]
+    [mine]
   );
 
-  const getPreset = React.useCallback(
-    (id: string) => presets.find((p) => p.id === id) ?? null,
-    [presets]
+  // --- pack actions ---
+  const duplicatePackToMine = React.useCallback(
+    (packId: string, name?: string) => {
+      const pack = BUILTIN_PACKS.find((x) => x.id === packId);
+      if (!pack) return null;
+
+      const now = safeNow();
+      const next: StudioPreset = {
+        id: makeId(name ?? pack.name),
+        name: sanitizeName(name ?? `${pack.name} (copy)`),
+        createdAt: now,
+        updatedAt: now,
+        config: deepClone(pack.config),
+      };
+
+      const all = [next, ...mine];
+      setMine(all);
+      saveMine(all);
+      return next.id;
+    },
+    [mine]
   );
 
+  // --- utils ---
   const exportConfig = React.useCallback((cfg: TemplateConfigInput) => {
     return safeStringify(cfg);
   }, []);
@@ -152,19 +230,32 @@ export function usePresets(currentConfig: TemplateConfigInput) {
     (json: string): TemplateConfigInput | null => {
       const parsed = safeParse<unknown>(json);
       if (!parsed || !isObject(parsed)) return null;
-      // We accept any object that looks like a config (upgrade-friendly)
       return parsed as TemplateConfigInput;
     },
     []
   );
 
   return {
-    presets,
-    refresh,
+    // lists
+    packs,
+    mine: mineAsLike,
+    listAll,
+    listMine,
+    listPacks,
+
+    // selectors
     getPreset,
+
+    // actions (mine)
     savePreset,
     overwritePreset,
     deletePreset,
+
+    // actions (packs)
+    duplicatePackToMine,
+
+    // utils
+    refresh,
     exportConfig,
     importConfig,
   };
