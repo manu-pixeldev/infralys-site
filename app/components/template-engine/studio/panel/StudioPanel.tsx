@@ -10,7 +10,7 @@ import ThemeSection from "./sections/ThemeSection";
 import { BrandSection } from "./sections/BrandSection";
 import LayoutSection from "./sections/LayoutSection";
 import NavFxSections from "./sections/NavFxSections";
-import { TeamDefinition } from "../../../../sections/definitions/team.definition";
+import PresetsSection from "./sections/sectionssections/PresetsSection";
 
 import SectionsSection from "./sections/sectionssections/SectionsSection";
 
@@ -121,6 +121,7 @@ export default function StudioPanel({ config, setConfig }: StudioPanelProps) {
 
         {/* ✅ real scrolling area */}
         <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5 pt-4 space-y-4">
+          <PresetsSection config={config} setConfig={setConfig} />
           <ThemeSection
             themeVariantRaw={themeVariantRaw}
             canvasStyle={canvasStyle}
